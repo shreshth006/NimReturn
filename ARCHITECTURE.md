@@ -1,0 +1,279 @@
+# Architecture
+
+## Status and principles
+
+This document describes the intended MVP architecture. Phase 0 implements only the wallet/cryptographic/transaction diagnostic slice. Persistence routes and product flows remain designs until their phases begin.
+
+The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
+
+Principles:
+
+- fail closed on unverifiable money or signatures;
+- store evidence, not secret authority;
+- make critical transitions idempotent and database-enforced;
+- keep pure protocol validation separate from transport and UI;
+- show uncertainty honestly;
+- prove Nimiq Pay interoperability on a device before product expansion.
+
+## Selected stack
+
+- **Frontend:** React 19, TypeScript, Vite, plain CSS with component-local organization.
+- **Wallet:** `@nimiq/mini-app-sdk` 0.1.0, pinned by `package-lock.json`.
+- **Cryptography:** `@nimiq/core` 2.21.0 official `PublicKey`, `Signature`, `Address`, and `Hash` primitives.
+- **API:** Node.js 24, Fastify 5, Zod boundary schemas.
+- **Data:** PostgreSQL with Drizzle ORM and SQL migrations.
+- **Tests:** Vitest for pure/unit/integration tests; browser/device E2E added when flows exist.
+
+Why: Vite/React gives a small, fast mobile SPA and familiar test surface. Fastify supplies a compact typed server with explicit lifecycle behavior. PostgreSQL provides transactions, partial unique indexes, constraints, and row locking required for replay/race resistance. Drizzle keeps SQL visible. A single repository/package reduces deployment and coordination cost.
+
+## System overview
+
+```mermaid
+flowchart LR
+    U["Buyer or merchant"] --> P["Nimiq Pay native approvals"]
+    P --> W["React Mini App WebView"]
+    W --> A["Fastify API"]
+    A --> D[("PostgreSQL")]
+    A --> R["Configured Nimiq RPC/node"]
+    R --> N["Nimiq network"]
+    W -. "wallet returns hash/signature" .-> A
+    A -. "authoritative workflow state" .-> W
+```
+
+The wallet signs and broadcasts but does not decide NimReturn state. The API verifies and persists but cannot sign or move funds. The database cannot turn an unverified transaction into blockchain truth; reconciliation must re-read evidence when needed.
+
+## Frontend
+
+The SPA is organized by user-visible capability, not framework ceremony:
+
+- `src/app`: application shell and routing/state orchestration;
+- `src/features/diagnostics`: Phase 0 internal diagnostic UI;
+- later `merchant`, `products`, `purchases`, `passports`, `claims`, `refunds`, `promise-ledger` features;
+- `src/lib/nimiq`: provider initialization and normalized wallet results;
+- `src/lib/crypto`: official-core verification adapter;
+- `src/lib/protocol`: canonical payload and transaction-tag codecs;
+- `src/lib/api`: typed fetch boundary;
+- `src/components`: only genuinely shared presentation components.
+
+The UI never calculates authoritative purchase/refund success. It sends a hash or signature with the server-issued challenge and renders the server state. It re-fetches workflow state after WebView resume/reload. Local optimistic state is limited to input and “requesting wallet” feedback.
+
+## API/backend
+
+Fastify exposes versioned `/api/v1` routes plus `/health`. Each route:
+
+1. parses with a strict Zod schema and rejects unknown/oversized input;
+2. authenticates wallet-controlled actions through one-time signed challenges rather than long-lived passwords;
+3. invokes a small domain operation inside a database transaction;
+4. performs signature/chain verification or records a retryable verification job state;
+5. returns a stable error code and safe message.
+
+MVP does not require a separate queue. A verification attempt runs synchronously with a short timeout. Pending or unavailable results are persisted and retried by a bounded scheduled process or explicit idempotent status request. If volume later demands a queue, that is a new decision, not assumed infrastructure.
+
+## Database
+
+PostgreSQL stores products/workflow and immutable evidence. Constraints enforce unique transaction hashes/nonces, one passport per order, one final resolution per claim, and legal enum/value ranges. Signed payload rows are append-only through permissions/triggers plus application policy. See `DATA_MODEL.md`.
+
+The API role receives only the grants it needs. Migrations run with a separate role. Promise Ledger endpoints query derived views/materialized views generated only from source rows; there is no metric write route.
+
+## Nimiq Pay integration
+
+Current official SDK behavior inspected on 2026-09-14:
+
+- `init({ timeout })` polls for injected `window.nimiq` and defaults to a 10-second timeout.
+- `listAccounts()` returns user-friendly address strings and requires native approval on first access.
+- `sign(message | { message, isHex? })` returns hex `{ publicKey, signature }` and requires approval.
+- `isConsensusEstablished()` and `getBlockNumber()` require no approval.
+- `sendBasicTransactionWithData({ recipient, value, data, fee?, validityStartHeight? })` uses numeric Luna, attaches text data, returns a transaction hash according to official docs, and requires native approval.
+- Published 0.1.0 declarations also allow methods to return `{ error: { type, message } }`; adapters normalize both returned errors and thrown errors.
+
+Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebView never receives a private key. Phase 0 must still test exact `sign()` preprocessing and response behavior on the current iOS/Android host; published types and desktop unit tests cannot prove host interoperability.
+
+## Nimiq chain reads
+
+The production API uses a configured, monitored Nimiq RPC/node endpoint to call `getTransactionByHash`, `getTransactionFromMempool` where supported, `getNetworkId`, and head/consensus methods. The first response is parsed into a provider-neutral `ObservedTransaction` and then checked by a pure verifier.
+
+An absent transaction is not immediately “invalid”: it may be propagating. An RPC timeout or inconsistent provider response is `inconclusive`. Production should use a primary node plus an independently operated/failover source and reconcile included transactions. Community open RPC servers explicitly carry no uptime guarantee and are not a sole production dependency.
+
+The browser may use provider consensus/head calls for user guidance, but backend chain reads remain authoritative.
+
+## Signature verification
+
+The server/client verification adapter uses official core operations:
+
+1. validate lower-case fixed-length hex public key/signature (accept input case then normalize);
+2. UTF-8 encode the exact domain-prefixed canonical message;
+3. parse `PublicKey.fromHex()` and `Signature.fromHex()`;
+4. call `publicKey.verify(signature, bytes)`;
+5. derive `publicKey.toAddress()` and compare its parsed address bytes to the claimed normalized address;
+6. compute the stored BLAKE2b-256 evidence hash over the exact signed bytes.
+
+Known-good, tampered-message, tampered-signature, malformed-input, and wrong-address tests run locally. An interoperability fixture generated by actual Nimiq Pay must be captured and added before Phase 0 closes. Hub `signMessage()` behavior is not assumed equivalent.
+
+## Trust boundaries
+
+- **Native wallet boundary:** trusted to protect keys and accurately execute the user's approved request; all returned values are still parsed.
+- **WebView/client boundary:** untrusted for money, identity assertions, timestamps, eligibility, and workflow state.
+- **Internet/API boundary:** hostile; validate sizes/types, rate limit, and use TLS.
+- **API/domain boundary:** only module allowed to perform authoritative state transitions.
+- **RPC boundary:** potentially unavailable, stale, malformed, or dishonest; validate network/data and cross-check production-critical results.
+- **Database boundary:** durable index/workflow, not independent chain truth; privileged writes and operator manipulation are threats.
+- **Physical/legal world:** outside protocol. Delivery, condition, jurisdiction, and merchant ability/willingness are not inferred.
+
+## Policy-signing flow
+
+```mermaid
+sequenceDiagram
+    actor M as Merchant
+    participant W as Mini App
+    participant A as API
+    participant P as Nimiq Pay
+    participant D as PostgreSQL
+    M->>W: Enter product and policy
+    W->>A: Request policy challenge
+    A->>D: Allocate version, nonce, exact payload
+    A-->>W: Canonical message + summary
+    W->>P: sign(exact message)
+    P-->>W: publicKey + signature or cancellation
+    W->>A: Submit exact challenge + proof
+    A->>A: Verify signature and address binding
+    A->>D: Atomically mark immutable version verified
+    A-->>W: Policy verified
+```
+
+The server regenerates/compares the message from its stored challenge. It does not sign a client-provided arbitrary policy into the active catalog.
+
+## Purchase flow
+
+```mermaid
+sequenceDiagram
+    actor B as Buyer
+    participant W as Mini App
+    participant A as API
+    participant P as Nimiq Pay
+    participant R as Nimiq RPC
+    participant D as PostgreSQL
+    B->>W: Buy verified product
+    W->>A: Create pending order for buyer wallet
+    A->>D: Bind merchant, policy, value, network, token
+    A-->>W: Expected transaction request
+    W->>P: sendBasicTransactionWithData()
+    P-->>W: hash or cancellation
+    W->>A: Attach untrusted hash
+    A->>D: Reserve unique hash; state verifying
+    A->>R: Independently fetch transaction
+    R-->>A: Pending, included, absent, or error
+    A->>A: Compare all expected fields
+    A->>D: Persist evidence and create one passport
+    A-->>W: Authoritative state
+```
+
+## Claim flow
+
+```mermaid
+sequenceDiagram
+    actor B as Original buyer
+    participant W as Mini App
+    participant A as API
+    participant P as Nimiq Pay
+    participant D as PostgreSQL
+    B->>W: Choose RETURN or WARRANTY
+    W->>A: Request claim challenge
+    A->>D: Validate passport and allocate nonce
+    A-->>W: Exact canonical claim
+    W->>P: sign(exact claim)
+    P-->>W: publicKey + signature
+    W->>A: Submit proof
+    A->>A: Verify buyer binding and eligibility
+    A->>D: Store claim + rule results atomically
+    A-->>W: Eligible/ineligible with reasons
+```
+
+## Refund flow
+
+```mermaid
+sequenceDiagram
+    actor M as Merchant
+    participant W as Mini App
+    participant A as API
+    participant P as Nimiq Pay
+    participant R as Nimiq RPC
+    participant D as PostgreSQL
+    M->>W: Approve claim
+    W->>A: Request and submit signed resolution
+    A->>D: Store one final resolution; refund pending
+    W->>P: Pay exact buyer/value/refund tag
+    P-->>W: hash or cancellation
+    W->>A: Attach untrusted hash
+    A->>R: Fetch transaction independently
+    A->>A: Verify network, state, sender, recipient, value, data
+    A->>D: Store unique refund and lifecycle event
+    A-->>W: Refund verified
+```
+
+## Transaction verification algorithm
+
+For an expected purchase/refund and observed chain record:
+
+1. validate hash syntax and atomically reserve its normalized value;
+2. require the configured network and observed transaction network to match the expected order network;
+3. map mempool to pending, inclusion with insufficient policy confirmations to pending, and final inclusion to verified;
+4. parse addresses with `Address` and compare bytes, not display spacing/case;
+5. require exact safe-integer Luna value;
+6. decode raw data bytes once as strict UTF-8 and require the exact protocol tag;
+7. require basic sender/recipient semantics and no unexpected value-changing behavior;
+8. persist raw normalized evidence, provider, observed time, block/confirmations, and each check result;
+9. create downstream state only in the same database transaction as successful verification.
+
+Final confirmation policy must be fixed in Phase 2 based on current network behavior and UX measurements. Until then “included” and “confirmed enough for NimReturn” are separate fields.
+
+## Idempotency and races
+
+- Public mutation requests carry an idempotency key scoped to wallet/action; request body hash prevents reuse with different content.
+- Order, claim, resolution, purchase hash, and refund hash uniqueness are database constraints.
+- State updates use `UPDATE ... WHERE state IN (...) RETURNING` or locked rows; zero rows means conflict/replay, not a silent retry.
+- The same evidence submitted to the same resource returns the stored result. Conflicting evidence returns `409`.
+- Scheduled retries claim bounded batches with `FOR UPDATE SKIP LOCKED`; no queue is required initially.
+- Protocol nonces are single-use and expire before signature acceptance; consumption occurs atomically with the target record.
+
+## Failure behavior
+
+- Wallet cancellation: client-only cancelled state plus server audit event if an order/challenge existed; retry is safe.
+- Provider unavailable: actionable “Open in Nimiq Pay” and retry initialization.
+- RPC unavailable/malformed: persist inconclusive, expose no success, retry with exponential backoff and jitter.
+- Transaction pending/absent: bounded polling; do not ask user to pay again while a hash exists.
+- Validation mismatch: terminal invalid evidence for that hash, with safe field-level reason; order recovery requires explicit new attempt rules.
+- Database unavailable: do not request a wallet action that cannot be durably correlated; after returned hash, preserve it client-side only long enough to retry attachment and explain uncertainty.
+- Signature verification error: reject without partially activating policy/claim/resolution.
+
+## Deployment topology
+
+```mermaid
+flowchart TB
+    C["HTTPS CDN / static frontend"] --> A["Single Node API instance or small replicated service"]
+    A --> P[("Managed PostgreSQL with PITR")]
+    A --> R1["Primary Nimiq RPC/node"]
+    A --> R2["Independent verification/failover source"]
+    O["Logs, metrics, alerts"] <-->|"redacted telemetry"| A
+```
+
+Frontend and API should share an origin through reverse proxy where practical. API deploys before frontend code that depends on new behavior. Migrations are backward compatible and separately gated. PostgreSQL requires encrypted transport, backups, point-in-time recovery, and least-privilege roles. Secrets live in the deployment platform's secret manager.
+
+## Observability
+
+Structured events include request/correlation ID, resource public token, transition, verifier provider, network, latency, result code, retry count, and software version. Full signatures/payload notes and complete wallet addresses are omitted or irreversibly minimized in general logs. Metrics: provider initialization failures, wallet cancellation rate, verification latency/result, RPC errors, illegal transitions, duplicate/replay rejections, lifecycle completion, and reconciliation mismatches. Alerts prioritize inability to verify and invariant violations over ordinary cancellations.
+
+## Official sources reviewed 2026-09-14
+
+- Mini Apps overview: https://www.nimiq.dev/mini-apps
+- Nimiq Provider API: https://www.nimiq.dev/mini-apps/api-reference/nimiq-provider
+- Mini Apps FAQ/testing: https://www.nimiq.dev/mini-apps/faq
+- Mini App tutorial: https://www.nimiq.dev/mini-apps/tutorials/mini-app-tutorial
+- Web Client setup: https://www.nimiq.dev/web-client/getting-started
+- Web Client transaction queries: https://www.nimiq.dev/web-client/guides/query-the-blockchain
+- Transactions/data/status: https://www.nimiq.dev/web-client/guides/send-transactions
+- Core API: https://www.nimiq.dev/web-client/reference
+- RPC transaction lookup: https://www.nimiq.dev/rpc/methods/get-transaction-by-hash
+- Open RPC warning: https://www.nimiq.dev/rpc/open-servers
+- SDK package: https://www.npmjs.com/package/@nimiq/mini-app-sdk
+
+The installed/published package declarations are also part of the Phase 0 evidence. Docs and packages can change; re-inspect before protocol-impacting upgrades.
