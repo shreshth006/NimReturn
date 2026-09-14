@@ -2,50 +2,36 @@
 
 NimReturn — “The consumer-protection layer for Nimiq Pay.” Tagline: “The payment is your receipt. The merchant's signature is your policy.” Built for Nimiq Mini Apps Competition Cycle II.
 
-# Current product thesis
+# Product thesis and boundaries
 
-A Purchase Passport joins merchant-signed policy-at-purchase, independently verified direct NIM purchase/refund transactions, and wallet-signed claim/resolution history. It verifies promises and behavior; it does not enforce refunds, escrow, arbitrate, reverse transactions, or prove physical facts.
-
-# Non-negotiable decisions
-
-No custody/private keys/fake chain success. Integer Luna only. Exact canonical signature + public-key/address binding. Policy signer is proof-derived; settlement address is separately signed and may differ. Backend independently verifies every payment/refund. Historical policies immutable. Critical actions idempotent. Promise Ledger derived only. RETURN/WARRANTY and full-price single refund are NR1 MVP; AI/NFT/multi-chain/escrow/replacement/transfer are excluded now.
-
-# Current architecture
-
-One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle with checked-in migrations and real-Postgres tests; Nimiq Pay SDK 0.1.0; official core 2.21.0; configurable server RPC/node adapter. NR1 uses domain-separated RFC 8785 JSON, the exact Nimiq signed-message frame/SHA-256 convention, a separate BLAKE2b-256 payload hash, and 28-byte 128-bit-token transaction tags.
+A Purchase Passport will join merchant-signed policy-at-purchase, independently verified direct NIM purchase/refund transactions, and wallet-signed claim/resolution history. NimReturn verifies promises and behavior; it does not enforce refunds, escrow, arbitrate, reverse transactions, or prove physical facts. No custody, private keys, fake chain success, fractional/unsafe Luna, mutable verified policy, or client-certified transaction is permitted.
 
 # Current phase
 
-Phase 1 backend foundations are 65% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
+Phase 1 implementation is complete under D-020 but remains at 92% until the physical Nimiq Pay exit. Phase 0 remains 98%. T-001/T-002 are due in the Phase 1 native policy run, and T-020 remains due in Phase 2; none is marked passed. Phase 2 has not started. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
 
 # What is complete
 
-Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, account discovery, account-independent consensus/head, exact-message signing with cryptographically derived signer identity, guarded 1000-Luna transaction-with-data, chain-derived sender evidence, fail-closed/retryable server RPC verification, reload-safe session records, ambiguous-submission locking, and a truthful v2 local evidence export. Payment remains locked without fresh wallet consensus. Verification requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. Phase 1 now has strict NR1 policy schemas, five PostgreSQL migrations including a restricted runtime role, 256-bit hashed merchant bootstraps, immutable merchant/product/policy identity, one-bootstrap/one-challenge binding, normalized atomic draft creation, canonical server challenge allocation, pure exact-proof verification, atomic first-signer establishment/publication, verified-only product activation, bounded concurrent expiry, fail-closed public proof reprojection, and append-only audit events. GitHub Actions runs the locked quality gate and real PostgreSQL integration suite on pushes to `main` and pull requests.
+Phase 0 diagnostics cover provider/account/network state, exact framed message verification, public-key/address derivation, guarded transaction-with-data, independent RPC verification, reload-safe uncertainty, and sanitized private evidence. The prior Android artifact proves exact framed signing plus one real 1000-Luna TestAlbatross transaction with matching chain-derived sender/recipient/value/data, `executionResult=true`, and macro finality.
 
-# What has been manually verified
+Phase 1 includes canonical NR1 policy schemas; PostgreSQL migrations and restricted runtime role; 256-bit hashed first-policy bootstrap; immutable merchant/product/policy identity; exact challenge/proof binding; atomic first-signer establishment and publication; verified-only activation; bounded expiry; append-only events; injectable Fastify API; protected writer authorization and rate limits; fail-closed public reprojection of active and historical proofs; validated frontend API/workspace recovery; and the responsive merchant studio. The UI makes protocol, active version, signer, settlement address, terms, policy/server timestamps, BLAKE2b payload hash, public key, exact signed message, and immutable v1/v2 history judge-visible.
 
-Official Mini App SDK 0.1.0 declarations/bundle and current provider documentation confirm that `listAccounts()` returns disclosed addresses, `sign()` has no account selector, and `sendBasicTransactionWithData()` has no sender selector. Physical Android 16/Nimiq Pay 2.19.1 evidence proves provider availability, two accounts, consensus, exact framed signing/address binding, strict 1000-Luna NR1 data round trip, chain-derived wallet-listed sender, successful execution, macro finality, and final RPC `verified`. The actual signer differed from the expected diagnostic account and payment sender in this run; this is an observation, not a wallet-selection rule. The authoritative artifact remains private outside Git; its sanitized public summary contains only the checksum and non-identifying results. PostgreSQL 16 migrations and domain transactions are verified locally and in GitHub Actions; deployment is not verified.
+# Verification status
 
-# Known bugs/blockers
-
-Actual-device T-001 provider timeout/recovery and T-002 account-permission cancellation/recovery remain due with Phase 1 device signing; T-020 native payment cancellation/safe retry remains due with Phase 2 purchase testing. iOS is explicitly untested and deferred by D-016, not claimed compatible. Wallet consensus can be transiently false despite a valid head and remains fail-closed. The public development RPC has no SLA and is not a production-grade independent verifier. Phase 3 must design claimant authorization without assuming the proof signer equals the purchase sender. Database/deployment credentials and pilot merchant/users are not configured.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 110 hermetic plus twenty PostgreSQL tests (130 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Browser verification exercised real draft/challenge HTTP calls, truthful provider-unavailable behavior, fail-closed public reads, v1/v2 history, desktop layout, and a 375 CSS-pixel viewport without horizontal overflow or console errors. Deterministic proof and browser checks are not Nimiq Pay evidence.
 
 # Important implementation details
 
-SDK methods can return `{error}` values despite docs emphasizing thrown errors; normalize both. `listAccounts()` is discovery, not action selection. `sign()` receives the exact NR1 string with no signer argument; derive the actual signer from its returned public key. First valid policy proof establishes the merchant policy signer; `settlementAddress` is separately signed and may differ. `sendBasicTransactionWithData()` has no sender argument; derive the purchaser/refund sender from verified chain evidence. Signature verification uses `\x16Nimiq Signed Message:\n` + decimal UTF-8 byte length + raw bytes, SHA-256, then Ed25519, with no raw fallback. Purchase tag `NR1:P:<22>`; refund tag `NR1:R:<22>`; 64-byte Nimiq limit. Wallet consensus gates payment twice; server RPC remains authoritative.
+`sign()` accepts the exact NR1 string and no signer argument. Nimiq signing verifies `\x16Nimiq Signed Message:\n` + decimal UTF-8 byte length + raw bytes, SHA-256, then Ed25519; NR1 separately stores BLAKE2b-256 of the unframed canonical message. The actual signer is derived from the public key and must be wallet-listed in the merchant UI. The signed `settlementAddress` may differ. First valid proof establishes the immutable policy signer. Later challenge allocation requires the protected merchant session, but later publication still requires that signer. Verified versions never update/delete; public reads re-verify every returned proof.
 
-# Next 5 highest-priority actions
+The browser stores only public workspace IDs and an unexpired public challenge for reload recovery. First bootstrap and established session values stay in `HttpOnly` cookies. Production startup requires database URL, exact browser origin, and a server-only session secret. `sendBasicTransactionWithData()` has no sender argument; Phase 2 must derive the buyer only from chain evidence and retain the existing execution/finality rules.
 
-1. Refactor Fastify into an injectable app factory and add the read-only verified-product HTTP endpoint with fail-closed errors.
-2. Add HTTP integration coverage for missing database, invalid/not-found IDs, verified reads, and evidence-integrity failure; do not register writers.
-3. Run Phase 1 native canonical policy signing together with deferred T-001/T-002 before Phase 1 exits.
-4. Only after that device gate, add the reviewed HTTP writer authorization boundary; merchant screens remain explicitly out of the current batch.
-5. Run deferred T-020 with the Phase 2 native purchase suite; do not mark it passed from the earlier successful transaction.
+# Known blockers
 
-# Competition deadline/status
+Physical Android Nimiq Pay must still prove the current merchant journey and T-001/T-002. T-020 stays open for Phase 2. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade. Phase 3 cannot assume claim signer equals purchase sender.
 
-Cycle II submission cutoff: September 18, 2026 at 23:59 UTC; current date September 15. Not a code freeze, but submitted app must be judgeable. No submission/deployment/pilot exists yet.
+# Next actions
 
-# Do not accidentally change
-
-Do not broaden scope, trust client success, mutate signed policies, accept approximate values, conflate eligible/approved/refunded, or claim device/network proof from unit tests.
+1. Run the current app inside physical Nimiq Pay: successful v1 publish/public read, provider timeout/retry (T-001), and account-permission cancel/retry (T-002).
+2. Record only sanitized outcomes/versions/timestamps and keep raw wallet identifiers/proofs outside Git.
+3. If all Phase 1 exits pass, update status/decision evidence and begin only Phase 2 Purchase Passport work, carrying T-020 into its native payment suite.

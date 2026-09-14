@@ -76,7 +76,7 @@ Explicitly outside the system. No cryptographic result proves delivery, defect, 
 
 Threat: accept a signature over different bytes, try multiple message variants, mishandle hex, or conflate Mini App and Hub schemes.
 
-Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; actual Nimiq Pay device proof before activation; verifier version stored. No framed/unframed fallback.
+Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; actual Nimiq Pay policy proof required before the Phase 1 exit; verifier version stored. No framed/unframed fallback.
 
 ### Public-key/role mismatch
 
@@ -95,6 +95,12 @@ Controls: public IDs do not authorize bootstrap. Draft creation issues an unpred
 Threat: reuse a policy/claim/resolution signature for another resource or later action.
 
 Controls: protocol/type/resource/domain fields plus the server-bound signer whenever already established; 128-bit one-time nonce; expiry; nonce unique constraint; atomic challenge consumption and first-policy signer establishment; no generic “sign in” message reused as commerce evidence.
+
+### Established merchant session theft/forgery
+
+Threat: a stolen browser session allocates nuisance versions or attempts to act as another merchant.
+
+Controls: the session is HMAC authenticated with a server-only secret, fixed-format, eight-hour bounded, merchant-ID bound, rotated on successful publication, and kept in an `HttpOnly`, production-`Secure`, `SameSite=Strict` cookie. Exact production Origin checks reduce CSRF. A session can allocate a challenge but cannot publish it: the proof must still derive to the immutable established policy signer. A copied first bootstrap is rejected after signer establishment. Production secret rotation invalidates outstanding merchant sessions and requires a future explicit wallet re-authentication recovery flow rather than weakening signer checks.
 
 ### Policy tampering
 
@@ -136,13 +142,13 @@ Controls: approval separate from payment; independent chain check; sender equals
 
 Threat: privileged actor flips states or metrics.
 
-Controls: immutable evidence tables/permissions; constrained transitions; append-only events; ledger-only views; raw proof/chain references; verifier version; periodic re-verification/reconciliation; database audit logs; separate migration/runtime roles; backup/PITR. Public verification page is stretch but retained evidence enables it.
+Controls: immutable evidence tables/permissions; constrained transitions; append-only events; ledger-only views; raw proof/chain references; verifier version; periodic re-verification/reconciliation; database audit logs; separate migration/runtime roles; backup/PITR. The public policy endpoint re-verifies active and historical proofs and fails the entire projection closed on an integrity mismatch.
 
 ### API abuse and enumeration
 
 Threat: oversized payloads, ID scraping, brute force, spam challenges/claims, denial of service.
 
-Controls: strict schemas/size limits/content types; high-entropy IDs; per-IP and per-wallet/action rate limits; bounded pagination; generic not-found where privacy matters; challenge quotas/expiry; timeouts/body limits; CSP/CORS/origin controls; structured abuse metrics. Do not use Nimiq Pay device ID without explicit consent/privacy decision.
+Controls: strict schemas/size limits/content types; high-entropy IDs; current per-IP writer rate limits; established-session authorization for later challenges; bounded pagination; generic not-found where privacy matters; challenge expiry; timeouts/body limits; CORS/exact-Origin controls; structured abuse metrics. A multi-instance deployment must replace the current process-local rate-limit store with a shared store. Do not use Nimiq Pay device ID without explicit consent/privacy decision.
 
 ### Race conditions and double processing
 

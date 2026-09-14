@@ -4,7 +4,7 @@
 
 Protocol family: `NR1`.
 
-This specification defines the MVP wire evidence. Phase 0 has confirmed the exact Nimiq Pay signed-message transport, but the NR1 writer remains disabled until all Phase 0 exits close and the D-017 policy identity shape is frozen. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any change after a writer is enabled requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
+This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and D-020 enables only the NR1 policy writer while its actual-device Phase 1 exit remains open. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
 
 ## Goals and exclusions
 
@@ -25,6 +25,8 @@ NR1 binds signed commercial assertions to direct NIM transactions and prevents s
 - **Settlement address:** the canonical recipient embedded in every policy payload. Purchases for that policy pay this address, and NR1 refunds for those purchases are verified as originating from it.
 
 These roles may use the same address or different addresses. `listAccounts()` and client-selected expectations establish neither role. A changed settlement address requires a new signed policy version; changing the policy signer requires a future explicit wallet-migration protocol. Public merchant/product IDs cannot initiate first-signer establishment by themselves: policy bootstrap also requires an unpredictable, expiring, server-bound session capability, consumed atomically with the challenge and signer compare-and-set.
+
+After the first proof establishes the signer, an authenticated server session may authorize challenge allocation for that merchant. It is transport authorization, not NR1 evidence: publication still requires the exact current challenge to verify to the immutable established signer. The session contains no private key, proof, or settlement authority and cannot change an old policy. A changed policy always receives a new server-assigned version, nonce, timestamp, payload hash, and signature; verified earlier versions remain readable indefinitely.
 
 ## Versioning and domain separation
 

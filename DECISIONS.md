@@ -229,3 +229,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Combining the open cases with later native flows reduces duplicated setup without weakening their expected assertions or misrepresenting current evidence. The account-cancellation regression is also covered hermetically while awaiting physical confirmation.
 
 **Consequences:** Phase 1 may implement database, canonical policy, verification, and API foundations, but no merchant screens are authorized by this exception. The NR1 production writer and release claims remain disabled until the applicable device suite passes. The three scenario IDs stay visibly open in `TESTING.md`, `STATUS.md`, and `MEMORY.md`; any failure must be fixed before the associated later phase exits.
+
+## D-020 — 2026-09-15 — Activate the Phase 1 merchant journey before its device exit
+
+**Decision:** At the project lead's direction, supersede D-019's implementation-only restriction and enable the narrowly scoped Phase 1 merchant UI and policy writer routes while keeping the Phase 1 actual-device exit open. The enabled surface is limited to product draft creation, canonical NR1 policy challenge creation, Nimiq Pay signing, verified publication, public proof projection, and append-only policy versioning. Phase 2 purchases and all claims, resolutions, refunds, Promise Ledger, AI, NFTs, and escrow remain disabled.
+
+**Context:** The canonical policy schema, proof verifier, atomic publication, least-privilege database role, immutable evidence triggers, and fail-closed public reprojection were complete. The project lead explicitly prioritized making the merchant journey judge-visible now and instructed that T-001, T-002, and T-020 remain open rather than blocking implementation.
+
+**Alternatives:** Continue withholding all UI/writer code until the physical device run; mark the deferred cases passed without evidence; broaden the batch into Phase 2.
+
+**Rationale:** The complete browser/API path can be built and reviewed without fabricating native-wallet evidence. A production writer still needs a real authorization boundary: a one-time hashed bootstrap establishes the first signer, then a server-HMAC-authenticated, eight-hour `HttpOnly`/`Secure`/`SameSite=Strict` session authorizes later challenge requests for that merchant. That session carries only merchant public ID and expiry, cannot publish a policy, and never replaces the required established-signer proof. Exact Origin checks, strict schemas, body bounds, and per-IP writer rate limits constrain the exposed routes.
+
+**Consequences:** NR1 policy writers are registered when database/session configuration is present, and production startup requires database URL, exact browser origin, and a 32-character-or-longer unpredictable session secret. Every publish still re-verifies the exact stored message and proof, and a successful publish rotates the merchant session. The implementation and desktop/mobile browser path may be called code-complete, but Phase 1 cannot exit and Phase 2 must not start until an actual Nimiq Pay run completes policy signing plus T-001/T-002. T-020 remains due in Phase 2.

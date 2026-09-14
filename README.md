@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is actively building **Phase 1 backend foundations** under the narrow D-019 deferral. Its PostgreSQL schema/runtime role, canonical policy challenge, proof verifier, atomic publication, merchant/product bootstrap, bounded expiry worker, and fail-closed verified-product projection are implemented and tested; no production NR1 writer or merchant screen is enabled. Phase 0 remains honestly recorded at 98%: a checksum-bound private v2 artifact proves exact Android/Nimiq Pay signing plus a real, successfully executed and macro-final 1000-Luna NR1-tagged TestAlbatross transaction, while three cancellation/recovery cases remain scheduled into the Phase 1/2 device suites. D-017 separates proof-derived policy authority from signed settlement, and D-018 keeps claimant authorization closed until its Phase 3 design gate. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+The Phase 1 merchant implementation is code-complete under D-020: a merchant can create a product, set exact policy terms, request canonical NR1 bytes, sign through Nimiq Pay, publish only after server verification, display public cryptographic evidence, and create a later immutable version while earlier proofs remain visible. Production-configured writers use strict schemas, an expiring one-time bootstrap, a protected established-merchant session, exact Origin checks, and rate limits. PostgreSQL constraints, least-privilege runtime behavior, and full v1→v2 HTTP integration are tested. Phase 1 has not exited: the current build still needs one physical Nimiq Pay policy run together with T-001/T-002. Phase 0 remains 98%, and T-020 remains due in Phase 2. D-018 keeps claimant authorization and all claim writes closed until its Phase 3 design gate. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 
@@ -60,7 +60,7 @@ npm run dev
 
 The Vite frontend listens on the local network so a phone on the same Wi-Fi can open `http://<computer-ip>:5173` from Nimiq Pay's Custom URL field. Start the API separately with `npm run dev:api`. Use Nimiq Pay's testnet mode and a dedicated test wallet for transaction diagnostics.
 
-No RPC URL is committed. Configure `NIMIQ_RPC_URL` for server-side transaction lookup and `VITE_API_BASE_URL` if the frontend and API are on different origins. Public community RPCs have no availability guarantee and are not acceptable as the sole production verifier.
+No RPC URL is committed. Configure `NIMIQ_RPC_URL` for server-side transaction lookup and `VITE_API_BASE_URL` if the frontend and API are on different origins. Policy writers also require `DATABASE_URL` and `SESSION_SECRET`; production additionally requires an exact `CORS_ORIGIN`. Public community RPCs have no availability guarantee and are not acceptable as the sole production verifier.
 
 ## Quality checks
 

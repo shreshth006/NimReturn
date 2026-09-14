@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 now implements the PostgreSQL and domain trust core for canonical policy challenges and atomic verified publication; production writer routes and merchant UI remain disabled pending the D-019 device gate.
+This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 now implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. D-020 activates this narrow implementation while the actual Nimiq Pay Phase 1 exit remains open.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -48,7 +48,8 @@ The SPA is organized by user-visible capability, not framework ceremony:
 
 - `src/app`: application shell and routing/state orchestration;
 - `src/features/diagnostics`: Phase 0 internal diagnostic UI;
-- later `merchant`, `products`, `purchases`, `passports`, `claims`, `refunds`, `promise-ledger` features;
+- `src/features/merchant`: Phase 1 draft, terms, canonical review, signing, publication, public proof, and version-history UI;
+- later `purchases`, `passports`, `claims`, `refunds`, and `promise-ledger` features;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -56,6 +57,8 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/components`: only genuinely shared presentation components.
 
 The UI never calculates authoritative purchase/refund success. It sends a hash or signature with the server-issued challenge and renders the server state. It re-fetches workflow state after WebView resume/reload. Local optimistic state is limited to input and “requesting wallet” feedback.
+
+Phase 1 stores only public merchant/product identifiers and an unexpired public signing challenge in validated browser storage for reload recovery. The raw first-policy bootstrap and established-merchant session remain inaccessible to JavaScript in `HttpOnly` cookies. A public product URL can render without a merchant session.
 
 ## API/backend
 
@@ -66,6 +69,8 @@ Fastify exposes versioned `/api/v1` routes plus `/health`. Each route:
 3. invokes a small domain operation inside a database transaction;
 4. performs signature/chain verification or records a retryable verification job state;
 5. returns a stable error code and safe message.
+
+Phase 1 writer routes are `POST /api/v1/merchants`, `POST /api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges`, and `POST .../policies/publish`. `GET /api/v1/products/:productPublicId` re-verifies the active proof and every verified historical version before returning any public policy. Production writer requests require an exact configured Origin, same-site cookies, bounded bodies, and per-IP limits. The first publish consumes the database-hashed bootstrap and rotates to an eight-hour HMAC-authenticated merchant session. That session authorizes challenge allocation only; the established Nimiq signature remains mandatory for publication.
 
 MVP does not require a separate queue. A verification attempt runs synchronously with a short timeout. Pending or unavailable results are persisted and retried by a bounded scheduled process or explicit idempotent status request. If volume later demands a queue, that is a new decision, not assumed infrastructure.
 
@@ -134,7 +139,10 @@ sequenceDiagram
     participant A as API
     participant P as Nimiq Pay
     participant D as PostgreSQL
-    M->>W: Enter product and policy
+    M->>W: Enter product and settlement address
+    W->>A: Create merchant/product draft
+    A-->>W: Public IDs + HttpOnly bootstrap
+    M->>W: Enter policy terms
     W->>A: Request policy challenge
     A->>D: Allocate version, nonce, exact payload
     A-->>W: Canonical message + settlement summary
@@ -143,7 +151,8 @@ sequenceDiagram
     W->>A: Submit exact challenge + proof
     A->>A: Verify signature and derive actual signer
     A->>D: Establish/check policy signer; mark version verified
-    A-->>W: Policy verified
+    A-->>W: Policy verified + rotated HttpOnly merchant session
+    W->>A: Read public proof and all verified versions
 ```
 
 The server regenerates/compares the message from its stored challenge. It does not sign a client-provided arbitrary policy into the active catalog.

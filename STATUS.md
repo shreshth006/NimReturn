@@ -4,12 +4,12 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 1 — Policy + Merchant backend foundations: in progress under D-019.** Phase 0 remains 98% rather than being declared complete. Its critical Android cryptographic/chain proof is complete; T-001/T-002 are scheduled into the Phase 1 device suite and T-020 into Phase 2. The canonical policy, PostgreSQL, challenge, proof-verification, and atomic-publication foundations are implemented. D-019 still authorizes backend/data/protocol work only—no merchant screens or production NR1 writer activation.
+**Phase 1 — Policy + Merchant: implementation complete; actual-device exit pending.** D-020 supersedes D-019's backend-only restriction and activates the narrow merchant policy journey. Phase 2 has not started. Phase 0 remains 98% rather than being declared complete; T-001/T-002 are still due in the Phase 1 device run and T-020 remains due in Phase 2.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **98%** (Android chain/signature proof complete, stale cancellation state fixed, and Android-only exception documented; three short actual-device cancellation/recovery results pending).
-- Phase 1 — Policy + Merchant: **65%** (canonical policy, least-privilege database, write-domain trust core, bounded expiry, and verified public projection implemented; HTTP adapters, native signing, deferred device cases, and user flow remain).
+- Phase 0 — Technical proof: **98%** (Android chain/signature proof complete; T-001/T-002 provider/account recovery and T-020 payment cancellation remain open).
+- Phase 1 — Policy + Merchant: **92%** (code, browser flow, writer/read APIs, immutable versioning, and automated integration complete; physical Nimiq Pay signing/recovery and full mobile-accessibility exit remain).
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
@@ -19,39 +19,38 @@ Last updated: 2026-09-15 (IST)
 
 Percentages are planning estimates, not earned rubric points.
 
-## Build status
+## Phase 1 implementation
 
-Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions runs the same locked-install gate plus PostgreSQL 16 integration tests on pushes to `main` and pull requests. Frontend output includes official Nimiq core WASM (~1.11 MB raw/~471 KB gzip); track mobile performance.
+- The default React app is a responsive merchant studio: create product → set integer-Luna policy terms → review exact canonical challenge → grant wallet account access → sign through Nimiq Pay → locally verify framed bytes/signer/list membership → submit proof → re-read verified public policy.
+- Production-configured Fastify routes create drafts, issue resource-bound challenges, publish only verified proofs, and expose a fail-closed public product projection with every verified historical policy version.
+- The first signer is established only by a valid proof under a one-time 256-bit bootstrap stored as an `HttpOnly` cookie and a database hash. Successful publication consumes it and rotates to an eight-hour HMAC-authenticated merchant cookie. That cookie authorizes later challenge allocation only; every publication still requires the established wallet signer.
+- Production requires `DATABASE_URL`, exact `CORS_ORIGIN`, and a server-only `SESSION_SECRET`. Writer routes have strict schemas, a 16 KiB body ceiling, exact production Origin checks, `SameSite=Strict`/`Secure` cookies, safe errors, redacted cookie logs, and per-IP rate limits.
+- The public result makes protocol/version, cryptographic signer, separately signed settlement address, policy/server timestamps, terms, payload hash, public key, exact canonical message, and immutable version history visible.
 
-## Test status
+## Build and test status
 
-95 hermetic tests pass across fourteen files. Nineteen additional integration cases pass against PostgreSQL 16 (114 total with `TEST_DATABASE_URL`), covering migrations, restricted runtime-role behavior, immutable identity/evidence, one-bootstrap/one-challenge binding, hashed capability storage, normalized atomic draft creation, exact stored policy evidence, invalid-attempt rollback, safe retry, replay/expiry rejection, concurrent bounded expiry, first-signer compare-and-set, wrong established signer, verified-only activation, fail-closed public proof reprojection, append-only events, and concurrent monotonic versions/publication. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Phase 1 HTTP and browser/device E2E remain pending.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Production dependency audit reports zero known vulnerabilities; four current moderate advisories are confined to development dependencies.
 
-## Deployment status
+The configured suite has 110 hermetic tests across eighteen files plus twenty PostgreSQL 16 integration tests (130 total with `TEST_DATABASE_URL`). The real-database API journey covers draft, protected bootstrap, canonical v1, wrong-resource rejection, exact proof publication, public reprojection, stale-bootstrap rejection, established session, changed terms, v2, and preserved verified v1. Existing negative, concurrency, immutability, least-privilege, RPC, execution-result, and Albatross-finality coverage remains passing.
 
-Not deployed. Vendor intentionally deferred pending owner credentials/region/current limits. Required topology is documented.
+## Manual verification
 
-## RPC status
+- In the local in-app browser, the real API/PostgreSQL path created a merchant/product and issued an exact v1 canonical challenge. A normal browser correctly stopped at “Open this page inside Nimiq Pay” and did not fabricate publication.
+- A deterministic test-only proof produced public v1 and v2 records. The frontend independently read them through the fail-closed API and visibly showed v2 active plus v1 preserved, with distinct hashes and terms.
+- Desktop and 375 CSS-pixel mobile layouts were inspected; the mobile document had no horizontal overflow and the tested page emitted no console warning/error. This is not a substitute for Nimiq Pay or full accessibility evidence.
+- No current merchant policy has been signed in the physical Nimiq Pay host. T-001 and T-002 therefore remain open.
 
-The local API is configured through ignored `.env` state to use the public Nimiq Watch TestAlbatross development endpoint. On 2026-09-14 it reported `connected=true`, `networkMatches=true`, network `TestAlbatross`, and a current head through both loopback and LAN. The endpoint is rate-limited and has no SLA; it is evidence for Phase 0 development, not the production primary/failover design.
+## Deployment and RPC
 
-## Mobile Nimiq Pay status
-
-Physical Android 16/Nimiq Pay 2.19.1 testing initialized the provider, returned two accounts, exercised transient `consensus=false` plus live head behavior, and confirmed exact framed SHA-256 signing. A real 1000-Luna transaction with a strict redacted NR1 purchase tag was independently retrieved with matching normalized recipient/value/data, a wallet-listed observed sender, `executionResult=true`, reached macro finality, and final RPC outcome `verified`. The valid message signer differed from both the expected diagnostic account and transaction sender in this recorded run; this is an observation, not a routing rule. The authoritative v2 JSON and checksum remain private outside Git; only the sanitized checksum-bound summary is public.
+Not deployed. Vendor/region/credentials remain owner decisions. The ignored local configuration can reach the public Nimiq Watch TestAlbatross development endpoint, but that source has no SLA and is not an operated production primary/failover verifier.
 
 ## Current blockers
 
-- Deferred external/runtime: record actual-device T-001/T-002 during the Phase 1 native signing suite and T-020 during the Phase 2 payment suite. D-019 permits Phase 1 backend foundations but does not mark these cases passed.
-- External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
-- Phase 3 design gate (not a Phase 0/1 blocker): specify and security-review signed authorization between a proof-derived claim signer and the independently verified purchase sender. Direct equality is not an accepted shortcut.
-- Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
-
-These do not block the remaining backend-only Phase 1 work, pure crypto/protocol tests, or fail-closed RPC integration.
-
-## Critical path
-
-Phase 1 distinct policy-signer/settlement backend foundation → combined Phase 1 device signing plus deferred T-001/T-002 → Phase 2 verified purchase/passport plus deferred T-020 → Phase 3 claimant-authorization gate and claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
+- **Phase 1 exit:** one physical Android Nimiq Pay run must complete the merchant v1 signing/public read plus T-001 provider timeout/retry and T-002 account-permission cancellation/retry. Any failure must be fixed; no evidence is inferred from browser or deterministic tests.
+- **Phase 2 later:** T-020 native payment cancellation/safe retry remains open and is not satisfied by the earlier successful TestAlbatross transaction.
+- **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
+- **Phase 3 later:** D-018 claimant authorization must be specified and security-reviewed before any claim writes.
 
 ## Next milestone
 
-**Phase 1 read-only API boundary:** refactor Fastify into an injectable app factory and expose only the fail-closed verified-product read projection with database-unavailable/integrity-safe errors. Keep canonical Nimiq Pay policy signing plus deferred T-001/T-002 on the explicit device TODO; production NR1 writer routes and merchant screens stay disabled until that gate passes.
+Run the shortest physical Nimiq Pay Phase 1 procedure, record sanitized results for the successful policy plus T-001/T-002, update the three open outcomes truthfully, and only then mark Phase 1 complete and begin Phase 2. Do not build merchant claims, purchases, refunds, Promise Ledger, AI, NFTs, or escrow before that gate.

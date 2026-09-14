@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-019 permits only Phase 1 backend foundations while three Phase 0 native cases remain open. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-020 supersedes D-019's backend-only restriction and permits the complete Phase 1 merchant implementation while three native cases remain open; it does not permit Phase 2 to start before the Phase 1 device exit. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -39,14 +39,14 @@ D-019 does not mark the unchecked criteria complete. T-001/T-002 are due in the 
 
 ### Build
 
-Database migrations/constraints; first-proof-derived merchant policy signer; separately signed settlement address; server-issued policy challenge; canonicalization; signing/verification; append-only versions; role authorization and audit events. D-019 authorizes these backend foundations before the deferred Phase 0 device cases close. Merchant screens, product editor UI, and production writer activation remain outside the authorized batch.
+Database migrations/constraints; first-proof-derived merchant policy signer; separately signed settlement address; server-issued policy challenge; canonicalization; signing/verification; append-only versions; role authorization and audit events; configured writer routes; merchant studio; verified public proof and history. D-020 authorizes this complete implementation before the deferred Phase 0 device cases close, but keeps actual Nimiq Pay proof as the phase exit.
 
 ### Exit criteria
 
 - [ ] Merchant can create and sign a policy on device and publish product in under 60 seconds.
-- [ ] First proof atomically establishes the policy signer; later wrong-signer/invalid/altered/expired/replayed proofs fail; a distinct signed settlement address succeeds.
-- [ ] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
-- [ ] Product cannot activate without verified policy.
+- [x] First proof atomically establishes the policy signer; later wrong-signer/invalid/altered/expired/replayed proofs fail; a distinct signed settlement address succeeds.
+- [x] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
+- [x] Product cannot activate without verified policy.
 - [ ] API/database integration tests, mobile accessibility, and full gate pass.
 - [ ] Deferred T-001/T-002 actual-device cases pass during the Phase 1 signing run; failure blocks this phase exit.
 

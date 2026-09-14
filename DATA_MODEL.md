@@ -155,6 +155,8 @@ Supporting tables are required although they are not product entities.
 
 `merchant_bootstrap_sessions`: hash of a 128-bit-or-stronger opaque capability, merchant ID, expiry, consumed timestamp, and creation metadata. The raw capability exists only in a short-lived `HttpOnly`, `Secure`, `SameSite` session. It authorizes first-policy challenge creation/submission but is not wallet identity; consumption, proof verification, and signer establishment are atomic. Established signer rows have no reset through this table.
 
+The established-merchant HTTP session is intentionally stateless and is not a database authority row. Its server-HMAC-authenticated cookie contains only a merchant public ID, fixed format version, and eight-hour expiry. It is `HttpOnly`, `Secure` in production, and `SameSite=Strict`; successful policy publication rotates it. It authorizes a later challenge request for the same merchant but never satisfies policy publication, which still derives and matches the established Nimiq signer. `SESSION_SECRET` is server-only and required in production.
+
 ## Relationships
 
 ```mermaid

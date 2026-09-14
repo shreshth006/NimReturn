@@ -28,7 +28,7 @@ Run API against disposable PostgreSQL and a controllable fake RPC transport (not
 
 ### End-to-end
 
-Automated browser E2E begins in Phase 2 using a test-only provider injected by the test harness. It verifies UI state/copy/reload and sends requests through the real API; it does not claim wallet or chain proof. Production bundles contain no mock provider switch.
+Phase 1 exercises the production HTTP adapters through real PostgreSQL for draft → challenge → valid proof → publish → verified public read → changed terms → v2, including wrong-resource rejection, stale-bootstrap rejection, session authorization, and preserved v1 evidence. Browser checks cover the real draft/challenge API, reload-safe public challenge state, provider-unavailable honesty, public proof/history rendering, desktop/mobile layout, and runtime errors. A deterministic test key supplies API integration proof only; it does not claim wallet interoperability. Production bundles contain no mock provider switch.
 
 ### Actual-device Nimiq Pay
 
@@ -139,6 +139,8 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. Phase 0 is still **not complete** until actual-device T-001, T-002, and clean native payment-cancellation behavior under T-020 are recorded.
 
 D-019 changes scheduling, not outcomes: T-001/T-002 are rerun alongside the Phase 1 native policy-signing suite, and T-020 alongside the Phase 2 native purchase suite. They remain open scenario IDs and release blockers; adjacent happy-path evidence cannot mark them passed.
+
+D-020 enables the merchant implementation without changing that evidence rule. Desktop/mobile browser checks and deterministic API proof do not close T-001/T-002 or the native policy-signing exit.
 
 ## Test data rules
 
