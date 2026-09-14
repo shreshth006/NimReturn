@@ -1371,6 +1371,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
           proof: { payloadHash: v1Challenge.payloadHash },
           signerAddress: signer.address,
         },
+        policyVersions: [{ active: true, payload: { version: 1 } }],
       })
 
       const staleBootstrapResponse = await app.inject({
@@ -1435,6 +1436,10 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       expect(v2PublicResponse.json()).toMatchObject({
         policy: { payload: { priceLuna: 1_750_000, version: 2 } },
+        policyVersions: [
+          { active: false, payload: { priceLuna: 1_500_000, version: 1 } },
+          { active: true, payload: { priceLuna: 1_750_000, version: 2 } },
+        ],
       })
     } finally {
       await app.close()

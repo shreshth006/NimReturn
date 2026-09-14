@@ -98,6 +98,7 @@ describe('server app', () => {
         signerAddress: 'NQ15A4YFKG7PU2KLJ7R0K3HE36PLPCC9ND0F',
         verifiedAt,
       },
+      policyVersions: [],
       product: { publicId: 'AAAAAAAAAAAAAAAAAAAAAA' },
     }
     const app = await buildApp(config, {

@@ -18,6 +18,7 @@ const publicProductIdSchema = z.string().regex(PUBLIC_TOKEN_PATTERN)
 const UTF8_ENCODER = new TextEncoder()
 
 interface PublicProductRow {
+  active_policy_version_id: string
   canonical_message: string
   challenge_nonce: string
   display_name: string
@@ -27,6 +28,7 @@ interface PublicProductRow {
   payload_hash: string
   price_luna: string
   policy_public_id: string
+  policy_version_id: string
   policy_public_key: string | null
   policy_signature: string | null
   policy_signer_address: string | null
@@ -53,6 +55,14 @@ export interface PublicVerifiedProduct {
     signerAddress: string
     verifiedAt: Date
   }
+  policyVersions: Array<{
+    active: boolean
+    payload: PolicyPayload
+    proof: PolicyProofEnvelope
+    publicId: string
+    signerAddress: string
+    verifiedAt: Date
+  }>
   product: {
     publicId: string
   }
@@ -103,50 +113,7 @@ function parseSafeIntegerColumn(value: string): number {
   return parsed
 }
 
-export async function getPublicVerifiedProduct(
-  client: postgres.Sql,
-  rawProductPublicId: unknown,
-): Promise<PublicVerifiedProduct | null> {
-  const productIdResult = publicProductIdSchema.safeParse(rawProductPublicId)
-  if (!productIdResult.success) {
-    throw new PublicProductReadError('INVALID_REQUEST', 'The product identifier is invalid.')
-  }
-
-  const rows = await client<PublicProductRow[]>`
-    select
-      products.public_id as product_public_id,
-      merchants.public_id as merchant_public_id,
-      merchants.display_name,
-      merchants.policy_signer_address as merchant_policy_signer_address,
-      policy_versions.public_id as policy_public_id,
-      policy_versions.payload,
-      policy_versions.product_name,
-      policy_versions.price_luna::text,
-      policy_versions.return_window_seconds::text,
-      policy_versions.warranty_window_seconds::text,
-      policy_versions.warranty_transfer_allowed,
-      policy_versions.protocol_version,
-      policy_versions.challenge_nonce,
-      policy_versions.canonical_message,
-      policy_versions.payload_hash,
-      policy_versions.settlement_address,
-      policy_versions.version,
-      policy_versions.signer_address as policy_signer_address,
-      policy_versions.public_key as policy_public_key,
-      policy_versions.signature as policy_signature,
-      policy_versions.verified_at
-    from products
-    join merchants on merchants.id = products.merchant_id
-    join policy_versions on policy_versions.id = products.active_policy_version_id
-    where products.public_id = ${productIdResult.data}
-      and products.status = 'active'
-      and merchants.status = 'active'
-      and policy_versions.verification_status = 'verified'
-    limit 1
-  `
-  const row = rows[0]
-  if (!row) return null
-
+function projectVerifiedPolicy(row: PublicProductRow): PublicVerifiedProduct['policy'] {
   let payload: PolicyPayload
   let canonicalMessage: string
   let signerAddress: string
@@ -193,30 +160,83 @@ export async function getPublicVerifiedProduct(
     publicKey: row.policy_public_key,
     signature: row.policy_signature,
   })
-  if (
-    !signatureVerification.valid
-    || signatureVerification.payloadHash !== row.payload_hash
-  ) {
+  if (!signatureVerification.valid || signatureVerification.payloadHash !== row.payload_hash) {
     integrityFailure()
   }
 
   return {
+    payload,
+    proof: {
+      canonicalMessage,
+      payloadHash: row.payload_hash,
+      publicKey: row.policy_public_key,
+      signature: row.policy_signature,
+    },
+    publicId: payload.policyId,
+    signerAddress,
+    verifiedAt: row.verified_at,
+  }
+}
+
+export async function getPublicVerifiedProduct(
+  client: postgres.Sql,
+  rawProductPublicId: unknown,
+): Promise<PublicVerifiedProduct | null> {
+  const productIdResult = publicProductIdSchema.safeParse(rawProductPublicId)
+  if (!productIdResult.success) {
+    throw new PublicProductReadError('INVALID_REQUEST', 'The product identifier is invalid.')
+  }
+
+  const rows = await client<PublicProductRow[]>`
+    select
+      products.public_id as product_public_id,
+      products.active_policy_version_id,
+      merchants.public_id as merchant_public_id,
+      merchants.display_name,
+      merchants.policy_signer_address as merchant_policy_signer_address,
+      policy_versions.public_id as policy_public_id,
+      policy_versions.id as policy_version_id,
+      policy_versions.payload,
+      policy_versions.product_name,
+      policy_versions.price_luna::text,
+      policy_versions.return_window_seconds::text,
+      policy_versions.warranty_window_seconds::text,
+      policy_versions.warranty_transfer_allowed,
+      policy_versions.protocol_version,
+      policy_versions.challenge_nonce,
+      policy_versions.canonical_message,
+      policy_versions.payload_hash,
+      policy_versions.settlement_address,
+      policy_versions.version,
+      policy_versions.signer_address as policy_signer_address,
+      policy_versions.public_key as policy_public_key,
+      policy_versions.signature as policy_signature,
+      policy_versions.verified_at
+    from products
+    join merchants on merchants.id = products.merchant_id
+    join policy_versions on policy_versions.product_id = products.id
+    where products.public_id = ${productIdResult.data}
+      and products.status = 'active'
+      and merchants.status = 'active'
+      and policy_versions.verification_status = 'verified'
+    order by policy_versions.version
+  `
+  const firstRow = rows[0]
+  if (!firstRow) return null
+  const versions = rows.map((row) => ({ row, policy: projectVerifiedPolicy(row) }))
+  const active = versions.find(({ row }) => row.policy_version_id === row.active_policy_version_id)
+  if (!active) integrityFailure()
+
+  return {
     merchant: {
-      displayName: requireCanonicalDisplayName(row.display_name),
-      publicId: payload.merchantId,
+      displayName: requireCanonicalDisplayName(firstRow.display_name),
+      publicId: active.policy.payload.merchantId,
     },
-    policy: {
-      payload,
-      proof: {
-        canonicalMessage,
-        payloadHash: row.payload_hash,
-        publicKey: row.policy_public_key,
-        signature: row.policy_signature,
-      },
-      publicId: payload.policyId,
-      signerAddress,
-      verifiedAt: row.verified_at,
-    },
-    product: { publicId: payload.productId },
+    policy: active.policy,
+    policyVersions: versions.map(({ policy, row }) => ({
+      ...policy,
+      active: row.policy_version_id === row.active_policy_version_id,
+    })),
+    product: { publicId: active.policy.payload.productId },
   }
 }
