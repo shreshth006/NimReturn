@@ -270,4 +270,35 @@ describe('server app', () => {
     expect(response.statusCode).toBe(401)
     expect(response.json()).toMatchObject({ code: 'MERCHANT_AUTH_REQUIRED' })
   })
+
+  it('bounds anonymous merchant draft creation per client', async () => {
+    const app = await buildApp(writerConfig, {
+      createDraft: () => Promise.resolve({
+        bootstrapCapability: 'A'.repeat(43),
+        bootstrapExpiresAt: new Date(Date.now() + 300_000),
+        displayName: 'North Star',
+        merchantPublicId: MERCHANT_PUBLIC_ID,
+        productName: 'Trail cup',
+        productPublicId: PRODUCT_PUBLIC_ID,
+      }),
+      database: {} as postgres.Sql,
+    })
+    apps.push(app)
+    const request = {
+      method: 'POST' as const,
+      payload: {
+        defaultSettlementAddress: SETTLEMENT_ADDRESS,
+        displayName: 'North Star',
+        productName: 'Trail cup',
+      },
+      url: '/api/v1/merchants',
+    }
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(app.inject(request)).resolves.toMatchObject({ statusCode: 201 })
+    }
+    const limited = await app.inject(request)
+    expect(limited.statusCode).toBe(429)
+    expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' })
+  })
 })

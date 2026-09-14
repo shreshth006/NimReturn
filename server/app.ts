@@ -1,5 +1,6 @@
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
+import rateLimit from '@fastify/rate-limit'
 import Fastify from 'fastify'
 import type postgres from 'postgres'
 import { z } from 'zod'
@@ -124,6 +125,14 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     origin: config.NODE_ENV === 'production' ? config.CORS_ORIGIN ?? false : true,
   })
   await app.register(cookie)
+  await app.register(rateLimit, {
+    errorResponseBuilder: () => ({
+      code: 'RATE_LIMITED',
+      message: 'Too many merchant requests. Wait before retrying.',
+      statusCode: 429,
+    }),
+    global: false,
+  })
 
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
@@ -164,7 +173,9 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     status: 'ok',
   }))
 
-  app.post('/api/v1/merchants', async (request, reply) => {
+  app.post('/api/v1/merchants', {
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (request, reply) => {
     if (!writerOriginAllowed(request.headers.origin)) {
       return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
     }
@@ -196,6 +207,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
 
   app.post(
     '/api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges',
+    { config: { rateLimit: { max: 12, timeWindow: '10 minutes' } } },
     async (request, reply) => {
       if (!writerOriginAllowed(request.headers.origin)) {
         return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
@@ -239,6 +251,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
 
   app.post(
     '/api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/publish',
+    { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } } },
     async (request, reply) => {
       if (!writerOriginAllowed(request.headers.origin)) {
         return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
