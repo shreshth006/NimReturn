@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { migrateDatabase } from '../../server/db/migrate.js'
 import { createMerchantDraft } from '../../server/domain/create-merchant-draft.js'
 import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
+import { getPublicVerifiedProduct } from '../../server/domain/get-public-product.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
@@ -1078,5 +1079,83 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       select count(*)::integer as count from merchants
     `
     expect(merchantCountAfter[0]?.count).toBe(merchantCountBefore[0]?.count)
+  })
+
+  it('exposes only an active policy after independently rechecking its stored proof', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 1,
+    })
+    try {
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: VALID_ADDRESS_B,
+        displayName: 'Verified Catalog Merchant',
+        productName: 'Signed Policy Product',
+      })
+      const challenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 1_250_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 604_800,
+        settlementAddress: VALID_ADDRESS_B,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 7_776_000,
+      })
+      await expect(getPublicVerifiedProduct(runtime, draft.productPublicId)).resolves.toBeNull()
+
+      const signer = createPolicyProof(
+        'c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf',
+        challenge.canonicalMessage,
+      )
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: challenge.nonce,
+        proof: signer.proof,
+      })
+
+      const publicProduct = await getPublicVerifiedProduct(runtime, draft.productPublicId)
+      expect(publicProduct?.merchant).toEqual({
+        displayName: 'Verified Catalog Merchant',
+        publicId: draft.merchantPublicId,
+      })
+      expect(publicProduct?.policy).toMatchObject({
+        payload: challenge.payload,
+        proof: signer.proof,
+        publicId: challenge.payload.policyId,
+        signerAddress: signer.address,
+      })
+      expect(publicProduct?.policy.verifiedAt).toBeInstanceOf(Date)
+      expect(publicProduct?.product).toEqual({ publicId: draft.productPublicId })
+      expect(publicProduct?.policy.payload.settlementAddress).not.toBe(signer.address)
+
+      await client`alter table policy_versions disable trigger policy_versions_immutable`
+      try {
+        await client`
+          update policy_versions
+          set signature = ${'00'.repeat(64)}
+          where id = ${challenge.policyVersionId}
+        `
+        await expect(getPublicVerifiedProduct(runtime, draft.productPublicId))
+          .rejects.toMatchObject({
+            code: 'EVIDENCE_INTEGRITY',
+            name: 'PublicProductReadError',
+          })
+      } finally {
+        await client`
+          update policy_versions
+          set signature = ${signer.proof.signature}
+          where id = ${challenge.policyVersionId}
+        `
+        await client`alter table policy_versions enable trigger policy_versions_immutable`
+      }
+
+      await expect(getPublicVerifiedProduct(runtime, 'short')).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+        name: 'PublicProductReadError',
+      })
+    } finally {
+      await runtime.end()
+    }
   })
 })
