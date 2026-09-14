@@ -1,0 +1,279 @@
+{
+  "id": "492ae8b8-455b-4bd4-b85c-9f68062b7452",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.merchant_bootstrap_sessions": {
+      "name": "merchant_bootstrap_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_hash": {
+          "name": "capability_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "merchant_bootstrap_sessions_one_unconsumed_per_merchant": {
+          "name": "merchant_bootstrap_sessions_one_unconsumed_per_merchant",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"merchant_bootstrap_sessions\".\"consumed_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "merchant_bootstrap_sessions_expires_at_index": {
+          "name": "merchant_bootstrap_sessions_expires_at_index",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "merchant_bootstrap_sessions_merchant_id_merchants_id_fk": {
+          "name": "merchant_bootstrap_sessions_merchant_id_merchants_id_fk",
+          "tableFrom": "merchant_bootstrap_sessions",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "merchant_bootstrap_sessions_capability_hash_unique": {
+          "name": "merchant_bootstrap_sessions_capability_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "capability_hash"
+          ]
+        },
+        "merchant_bootstrap_sessions_id_merchant_unique": {
+          "name": "merchant_bootstrap_sessions_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "merchant_bootstrap_sessions_capability_hash_format": {
+          "name": "merchant_bootstrap_sessions_capability_hash_format",
+          "value": "\"merchant_bootstrap_sessions\".\"capability_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "merchant_bootstrap_sessions_valid_times": {
+          "name": "merchant_bootstrap_sessions_valid_times",
+          "value": "\"merchant_bootstrap_sessions\".\"expires_at\" > \"merchant_bootstrap_sessions\".\"created_at\" and (\"merchant_bootstrap_sessions\".\"consumed_at\" is null or (\"merchant_bootstrap_sessions\".\"consumed_at\" >= \"merchant_bootstrap_sessions\".\"created_at\" and \"merchant_bootstrap_sessions\".\"consumed_at\" <= \"merchant_bootstrap_sessions\".\"expires_at\"))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.merchants": {
+      "name": "merchants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_signer_address": {
+          "name": "policy_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_settlement_address": {
+          "name": "default_settlement_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "merchant_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "merchants_policy_signer_address_unique": {
+          "name": "merchants_policy_signer_address_unique",
+          "columns": [
+            {
+              "expression": "policy_signer_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"merchants\".\"policy_signer_address\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "merchants_status_created_at_index": {
+          "name": "merchants_status_created_at_index",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "merchants_public_id_unique": {
+          "name": "merchants_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "merchants_public_id_format": {
+          "name": "merchants_public_id_format",
+          "value": "\"merchants\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "merchants_policy_signer_address_format": {
+          "name": "merchants_policy_signer_address_format",
+          "value": "\"merchants\".\"policy_signer_address\" is null or \"merchants\".\"policy_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "merchants_default_settlement_address_format": {
+          "name": "merchants_default_settlement_address_format",
+          "value": "\"merchants\".\"default_settlement_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "merchants_display_name_not_blank": {
+          "name": "merchants_display_name_not_blank",
+          "value": "btrim(\"merchants\".\"display_name\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.merchant_status": {
+      "name": "merchant_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "disabled"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
