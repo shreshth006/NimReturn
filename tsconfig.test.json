@@ -19,6 +19,7 @@
     "server/config.ts",
     "server/http/**/*.ts",
     "src/features/diagnostics/**/*.ts",
+    "src/features/merchant/**/*.ts",
     "src/lib/api/**/*.ts",
     "src/lib/crypto/**/*.ts",
     "src/lib/nimiq/**/*.ts",
