@@ -15,7 +15,7 @@
   },
   "include": [
     "tests/**/*.ts",
-    "src/features/diagnostics/evidence.ts",
+    "src/features/diagnostics/**/*.ts",
     "src/lib/crypto/**/*.ts",
     "src/lib/nimiq/**/*.ts",
     "src/lib/protocol/**/*.ts",

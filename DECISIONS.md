@@ -133,3 +133,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** One exact upstream-compatible transformation removes ambiguity. A fallback would expand the accepted signature language and hide integration mistakes; the NR1 BLAKE2b hash remains an integrity/index handle with a distinct role.
 
 **Consequences:** The production adapter exposes both hashes with explicit labels. Regression tests cover wrong messages/keys/addresses, byte mutation, malformed values, Unicode byte length, raw-message rejection, and stable BLAKE2b output. The same device must be rerun to close T-017; no raw device key, signature, or address is committed.
+
+## D-012 — 2026-09-14 — Wallet account discovery is not signer or sender selection
+
+**Decision:** Treat `listAccounts()` as the wallet's disclosed account set, not as proof that a client dropdown controls a later NIM action. Derive a message signer from the returned public key. Learn a payment sender from independently observed chain evidence. Keep any expected-account choice as separately labeled diagnostic metadata.
+
+**Context:** The installed Mini App SDK 0.1.0 declarations, bundled provider calls, and official provider reference expose no signer parameter on `sign()` and no sender parameter on `sendBasicTransactionWithData()`. A physical Android/TestAlbatross run also observed a valid signer that differed from NimReturn's selected expectation.
+
+**Alternatives:** Assume the first or selected listed account signs and pays; infer a fixed Nimiq Pay account-order rule; use an undocumented request property.
+
+**Rationale:** Cryptographic derivation and chain evidence are authoritative and portable. A one-device account-choice pattern is not an API contract, and undocumented parameters would create fragile, misleading identity claims.
+
+**Consequences:** Phase 0 reports expected signer, actual signer, wallet-list membership, and expectation match independently. Transaction requests contain no invented sender. Future Purchase Passports derive original purchaser identity from the verified transaction sender.

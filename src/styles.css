@@ -94,7 +94,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .button-secondary:hover:not(:disabled) { background: #f1f0ea; }
 
 .status-badge--ready, .status-badge--verified { border-color: #b8dbc4; color: var(--green); background: var(--green-soft); }
-.status-badge--pending, .status-badge--sent { border-color: #e8d49c; color: var(--amber); background: var(--amber-soft); }
+.status-badge--pending, .status-badge--sent, .status-badge--warning { border-color: #e8d49c; color: var(--amber); background: var(--amber-soft); }
 .status-badge--failed { border-color: #e4b9b4; color: var(--red); background: var(--red-soft); }
 .status-badge--cancelled { color: #555f5c; background: #eeeee9; }
 

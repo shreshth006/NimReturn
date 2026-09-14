@@ -1,7 +1,7 @@
 import type { SignatureResult } from '@nimiq/mini-app-sdk'
 
-import type { NimiqSignatureVerification } from '../../lib/crypto/nimiq-signature.js'
 import type { ProviderNetworkSnapshot } from '../../lib/nimiq/provider.js'
+import type { DiagnosticSignerVerification } from './signer-identity.js'
 
 export interface PhaseZeroSentTransaction {
   data: string
@@ -24,7 +24,7 @@ export interface PhaseZeroEvidenceInput {
   selectedAccount: string
   signature: SignatureResult | null
   signatureMessage: string
-  signatureVerification: NimiqSignatureVerification | null
+  signatureVerification: DiagnosticSignerVerification | null
   transaction: PhaseZeroSentTransaction | null
 }
 

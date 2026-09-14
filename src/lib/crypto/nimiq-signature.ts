@@ -12,13 +12,23 @@ export interface NimiqSignatureProof {
   signature: string
 }
 
-export interface NimiqSignatureVerification {
-  addressMatches: boolean
-  derivedAddress?: string
+export interface NimiqMessageSignatureProof {
+  message: string
+  publicKey: string
+  signature: string
+}
+
+export interface NimiqMessageSignatureVerification {
+  actualSignerAddress?: string
   error?: string
   payloadHash?: string
   signedMessageDigest?: string
   signatureValid: boolean
+}
+
+export interface NimiqSignatureVerification extends NimiqMessageSignatureVerification {
+  addressMatches: boolean
+  derivedAddress?: string
   valid: boolean
 }
 
@@ -54,64 +64,91 @@ export function hashProtocolPayload(message: string): string {
   return toHex(Hash.computeBlake2b(UTF8_ENCODER.encode(message)))
 }
 
-export function verifyNimiqSignature(
-  proof: NimiqSignatureProof,
-): NimiqSignatureVerification {
+export function verifyNimiqMessageSignature(
+  proof: NimiqMessageSignatureProof,
+): NimiqMessageSignatureVerification {
   const publicKeyHex = proof.publicKey.toLowerCase()
   const signatureHex = proof.signature.toLowerCase()
 
   if (!PUBLIC_KEY_PATTERN.test(publicKeyHex)) {
     return {
-      valid: false,
       signatureValid: false,
-      addressMatches: false,
       error: 'Public key must be exactly 32 bytes of hexadecimal data.',
     }
   }
   if (!SIGNATURE_PATTERN.test(signatureHex)) {
     return {
-      valid: false,
       signatureValid: false,
-      addressMatches: false,
       error: 'Signature must be exactly 64 bytes of hexadecimal data.',
     }
   }
 
   let publicKey: PublicKey | undefined
   let signature: Signature | undefined
-  let claimedAddress: Address | undefined
   let derivedAddress: Address | undefined
 
   try {
     publicKey = PublicKey.fromHex(publicKeyHex)
     signature = Signature.fromHex(signatureHex)
-    claimedAddress = Address.fromString(proof.address)
     derivedAddress = publicKey.toAddress()
 
     const messageBytes = UTF8_ENCODER.encode(proof.message)
     const signedMessageDigest = hashNimiqSignedMessage(proof.message)
     const signatureValid = publicKey.verify(signature, signedMessageDigest)
-    const addressMatches = derivedAddress.equals(claimedAddress)
 
     return {
-      valid: signatureValid && addressMatches,
       signatureValid,
-      addressMatches,
-      derivedAddress: derivedAddress.toUserFriendlyAddress(),
+      actualSignerAddress: derivedAddress.toUserFriendlyAddress(),
       payloadHash: toHex(Hash.computeBlake2b(messageBytes)),
       signedMessageDigest: toHex(signedMessageDigest),
     }
   } catch {
     return {
+      signatureValid: false,
+      error: 'The signature proof contains an invalid Nimiq value.',
+    }
+  } finally {
+    derivedAddress?.free()
+    signature?.free()
+    publicKey?.free()
+  }
+}
+
+export function verifyNimiqSignature(
+  proof: NimiqSignatureProof,
+): NimiqSignatureVerification {
+  const messageVerification = verifyNimiqMessageSignature(proof)
+  if (!messageVerification.actualSignerAddress) {
+    return {
+      ...messageVerification,
       valid: false,
       signatureValid: false,
+      addressMatches: false,
+    }
+  }
+
+  let claimedAddress: Address | undefined
+  let derivedAddress: Address | undefined
+
+  try {
+    claimedAddress = Address.fromString(proof.address)
+    derivedAddress = Address.fromString(messageVerification.actualSignerAddress)
+    const addressMatches = derivedAddress.equals(claimedAddress)
+    return {
+      ...messageVerification,
+      valid: messageVerification.signatureValid && addressMatches,
+      addressMatches,
+      derivedAddress: messageVerification.actualSignerAddress,
+    }
+  } catch {
+    return {
+      ...messageVerification,
+      valid: false,
       addressMatches: false,
       error: 'The signature proof contains an invalid Nimiq value.',
     }
   } finally {
     derivedAddress?.free()
     claimedAddress?.free()
-    signature?.free()
-    publicKey?.free()
   }
 }

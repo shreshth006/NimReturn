@@ -80,13 +80,15 @@ The API role receives only the grants it needs. Migrations run with a separate r
 Current official SDK behavior inspected on 2026-09-14:
 
 - `init({ timeout })` polls for injected `window.nimiq` and defaults to a 10-second timeout.
-- `listAccounts()` returns user-friendly address strings and requires native approval on first access.
-- `sign(message | { message, isHex? })` returns hex `{ publicKey, signature }` and requires approval.
+- `listAccounts()` takes no account-selection parameter, returns user-friendly address strings, and requires native approval on first access.
+- `sign(message | { message, isHex? })` takes no signer parameter, returns hex `{ publicKey, signature }`, and requires approval. The signer is derived from the returned public key; a locally selected expected account is diagnostic metadata, not wallet control.
 - `isConsensusEstablished()` and `getBlockNumber()` require no approval.
 - `sendBasicTransactionWithData({ recipient, value, data, fee?, validityStartHeight? })` uses numeric Luna, attaches text data, returns a transaction hash according to official docs, and requires native approval.
 - Published 0.1.0 declarations also allow methods to return `{ error: { type, message } }`; adapters normalize both returned errors and thrown errors.
 
 Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebView never receives a private key. Phase 0 must still test exact `sign()` preprocessing and response behavior on the current iOS/Android host; published types and desktop unit tests cannot prove host interoperability.
+
+Confirmed contract facts are kept separate from device observations. The installed 0.1.0 declarations, bundled provider implementation, and current official provider reference expose no NIM account parameter for `sign()`. One Android/TestAlbatross run observed that changing NimReturn's expected-account dropdown did not necessarily change which wallet key signed; the implementation therefore never generalizes a fixed wallet account-order rule.
 
 ## Nimiq chain reads
 

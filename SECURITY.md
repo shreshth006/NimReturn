@@ -66,7 +66,7 @@ Explicitly outside the system. No cryptographic result proves delivery, defect, 
 - No seed phrase/private key input exists anywhere in UI/API/schema.
 - All sensitive wallet actions use Nimiq Pay native confirmation.
 - A Nimiq address is pseudonymous account identity, not verified civil identity.
-- Account is re-bound to every signature via returned public key and derived address.
+- Every signer is derived from the returned public key. A `listAccounts()` entry or client-side dropdown is never treated as proof that Nimiq Pay used that key.
 - Historical merchant address remains bound to the signed policy. Wallet migration is not improvised in MVP.
 - Server has no signing key capable of moving user money; ordinary TLS/session keys do not become wallet keys.
 
@@ -82,7 +82,7 @@ Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signat
 
 Threat: valid attacker signature submitted while claiming merchant/buyer address.
 
-Controls: derive address from parsed public key using `PublicKey.toAddress()` and byte-compare to parsed claimed address. Check the role address comes from server-bound order/policy, not request substitution.
+Controls: derive the actual signer from the parsed public key using `PublicKey.toAddress()`. For diagnostics, separately report whether it is in the wallet-returned account list and whether it matches the non-authoritative expected-account choice. For protocol actions, byte-compare the derived signer to the server-bound role address; never substitute dropdown state.
 
 ### Signature replay
 

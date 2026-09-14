@@ -2,11 +2,7 @@ import type { NimiqProvider, SignatureResult } from '@nimiq/mini-app-sdk'
 import { useMemo, useState } from 'react'
 
 import { verifyDiagnosticTransaction } from '../../lib/api/diagnostics.js'
-import {
-  normalizeNimiqAddress,
-  verifyNimiqSignature,
-  type NimiqSignatureVerification,
-} from '../../lib/crypto/nimiq-signature.js'
+import { normalizeNimiqAddress } from '../../lib/crypto/nimiq-signature.js'
 import {
   initializeNimiqProvider,
   normalizeWalletError,
@@ -23,8 +19,20 @@ import {
   transactionTagByteLength,
 } from '../../lib/protocol/transaction-data.js'
 import { buildPhaseZeroEvidence, type PhaseZeroSentTransaction } from './evidence.js'
+import {
+  verifyDiagnosticSigner,
+  type DiagnosticSignerVerification,
+} from './signer-identity.js'
 
-type StepStatus = 'cancelled' | 'failed' | 'idle' | 'pending' | 'ready' | 'sent' | 'verified'
+type StepStatus =
+  | 'cancelled'
+  | 'failed'
+  | 'idle'
+  | 'pending'
+  | 'ready'
+  | 'sent'
+  | 'verified'
+  | 'warning'
 
 interface StatusState {
   detail: string
@@ -65,6 +73,8 @@ function resultStatus(status: StepStatus): string {
       return 'Cancelled'
     case 'failed':
       return 'Needs attention'
+    case 'warning':
+      return 'Attention'
     default:
       return 'Not run'
   }
@@ -102,7 +112,7 @@ export function PhaseZeroDiagnostics() {
   const [diagnosticNonce, setDiagnosticNonce] = useState(() => generateProtocolToken())
   const [signature, setSignature] = useState<SignatureResult | null>(null)
   const [signatureVerification, setSignatureVerification] =
-    useState<NimiqSignatureVerification | null>(null)
+    useState<DiagnosticSignerVerification | null>(null)
   const [signatureState, setSignatureState] = useState<StatusState>(initialStatus)
   const [recipient, setRecipient] = useState('')
   const [valueLuna, setValueLuna] = useState('1')
@@ -180,19 +190,24 @@ export function PhaseZeroDiagnostics() {
     setSignatureState({ status: 'pending', detail: 'Awaiting native signature approval…' })
     try {
       const proof = await requestSignature(provider, signMessage)
-      const verification = verifyNimiqSignature({
-        address: selectedAccount,
+      const verification = verifyDiagnosticSigner({
+        expectedAccount: selectedAccount,
+        listedAccounts: accounts,
         message: signMessage,
-        publicKey: proof.publicKey,
-        signature: proof.signature,
+        proof,
       })
       setSignature(proof)
       setSignatureVerification(verification)
+      const expectedAccountMismatch = verification.valid && !verification.expectedMatchesSigner
       setSignatureState({
-        status: verification.valid ? 'verified' : 'failed',
-        detail: verification.valid
-          ? 'Exact message signature and public-key/address binding verified locally.'
-          : verification.error ?? 'The signature or selected-address binding did not verify.',
+        status: expectedAccountMismatch ? 'warning' : verification.valid ? 'verified' : 'failed',
+        detail: expectedAccountMismatch
+          ? 'Signature is valid, but Nimiq Pay signed with a different listed wallet account than the diagnostic expectation.'
+          : verification.valid
+            ? 'Exact framed signature verified and the actual signer is listed by the wallet.'
+            : verification.signatureValid
+              ? 'Signature is valid, but the derived signer is not in the wallet account list.'
+              : verification.error ?? 'The framed signature did not verify.',
       })
     } catch (error) {
       setSignature(null)
@@ -344,10 +359,14 @@ export function PhaseZeroDiagnostics() {
           </button>
           {accounts.length > 0 && (
             <label>
-              Selected NIM account
+              Expected signer (diagnostic only)
               <select value={selectedAccount} onChange={(event) => changeAccount(event.target.value)}>
                 {accounts.map((account) => <option key={account} value={account}>{account}</option>)}
               </select>
+              <span className="hint">
+                Nimiq Pay’s sign() API does not accept an account parameter. The actual signer is
+                derived from the returned public key.
+              </span>
             </label>
           )}
         </li>
@@ -391,11 +410,14 @@ export function PhaseZeroDiagnostics() {
             <div className="evidence-grid">
               <Evidence label="Public key" value={short(signature.publicKey)} />
               <Evidence label="Signature" value={short(signature.signature)} />
-              <Evidence label="Derived address" value={signatureVerification.derivedAddress ?? 'unavailable'} />
+              <Evidence label="Actual signer" value={signatureVerification.actualSignerAddress ?? 'unavailable'} />
+              <Evidence label="Signer listed by wallet" value={String(signatureVerification.signerIsListedAccount)} />
+              <Evidence label="Expected account" value={canonicalAccount} />
+              <Evidence label="Expected matches signer" value={String(signatureVerification.expectedMatchesSigner)} />
               <Evidence label="Nimiq signing SHA-256" value={short(signatureVerification.signedMessageDigest ?? 'unavailable')} />
               <Evidence label="NR1 payload BLAKE2b-256" value={short(signatureVerification.payloadHash ?? 'unavailable')} />
               <Evidence label="Signature valid" value={String(signatureVerification.signatureValid)} />
-              <Evidence label="Address matches" value={String(signatureVerification.addressMatches)} />
+              <Evidence label="Public-key address derived" value={String(signatureVerification.addressBindingValid)} />
             </div>
           )}
         </li>

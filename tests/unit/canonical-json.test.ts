@@ -33,7 +33,7 @@ describe('canonical JSON', () => {
 
   it('uses a separate non-production domain for Phase 0 diagnostics', () => {
     expect(buildDiagnosticMessage('NQTEST', 'token')).toBe(
-      'NIMRETURN/P0/DIAGNOSTIC\n{"address":"NQTEST","nonce":"token"}',
+      'NIMRETURN/P0/DIAGNOSTIC\n{"expectedSigner":"NQTEST","nonce":"token"}',
     )
   })
 })

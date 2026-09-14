@@ -53,6 +53,6 @@ export function buildProtocolMessage(
   return `NIMRETURN/1/${type}\n${canonicalize(payload)}`
 }
 
-export function buildDiagnosticMessage(address: string, nonce: string): string {
-  return `NIMRETURN/P0/DIAGNOSTIC\n${canonicalize({ address, nonce })}`
+export function buildDiagnosticMessage(expectedSigner: string, nonce: string): string {
+  return `NIMRETURN/P0/DIAGNOSTIC\n${canonicalize({ expectedSigner, nonce })}`
 }
