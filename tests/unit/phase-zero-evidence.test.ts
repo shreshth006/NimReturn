@@ -6,6 +6,12 @@ describe('Phase 0 evidence export', () => {
   it('records the exact UTF-8 signing bytes and public address-binding proof', () => {
     const evidence = buildPhaseZeroEvidence({
       capturedAtUtc: '2026-09-14T04:50:00.000Z',
+      device: {
+        nimiqPayVersion: 'test-version',
+        osVersion: 'test-os',
+        platform: 'Android',
+        userAgent: 'test-agent',
+      },
       network: { blockNumber: 123, consensus: true },
       rpcResult: null,
       selectedAccount: 'NQ00TEST',
@@ -28,6 +34,12 @@ describe('Phase 0 evidence export', () => {
     expect(signature).toMatchObject({
       publicKey: 'ab'.repeat(32),
       signature: 'cd'.repeat(64),
+    })
+    expect(evidence.device).toEqual({
+      nimiqPayVersion: 'test-version',
+      osVersion: 'test-os',
+      platform: 'Android',
+      userAgent: 'test-agent',
     })
     expect(JSON.stringify(evidence)).not.toMatch(/private|seed/iu)
   })

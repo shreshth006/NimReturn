@@ -13,6 +13,12 @@ export interface PhaseZeroSentTransaction {
 
 export interface PhaseZeroEvidenceInput {
   capturedAtUtc: string
+  device: {
+    nimiqPayVersion: string
+    osVersion: string
+    platform: string
+    userAgent: string
+  }
   network: ProviderNetworkSnapshot | null
   rpcResult: unknown
   selectedAccount: string
@@ -37,6 +43,12 @@ export function buildPhaseZeroEvidence(input: PhaseZeroEvidenceInput): object {
       miniAppSdk: '0.1.0',
       nimiqCore: '2.21.0',
       protocol: 'NR1-candidate',
+    },
+    device: {
+      nimiqPayVersion: input.device.nimiqPayVersion || null,
+      osVersion: input.device.osVersion || null,
+      platform: input.device.platform || null,
+      userAgent: input.device.userAgent,
     },
     wallet: {
       selectedAccount: input.selectedAccount || null,

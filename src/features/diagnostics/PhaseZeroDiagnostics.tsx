@@ -100,6 +100,9 @@ export function PhaseZeroDiagnostics() {
   const [rpcState, setRpcState] = useState<StatusState>(initialStatus)
   const [rpcDetails, setRpcDetails] = useState<unknown>(null)
   const [evidenceSnapshot, setEvidenceSnapshot] = useState('')
+  const [devicePlatform, setDevicePlatform] = useState('')
+  const [osVersion, setOsVersion] = useState('')
+  const [nimiqPayVersion, setNimiqPayVersion] = useState('')
 
   const canonicalAccount = useMemo(() => {
     if (!selectedAccount) return ''
@@ -279,6 +282,12 @@ export function PhaseZeroDiagnostics() {
   function captureEvidence() {
     setEvidenceSnapshot(JSON.stringify(buildPhaseZeroEvidence({
       capturedAtUtc: new Date().toISOString(),
+      device: {
+        nimiqPayVersion: nimiqPayVersion.trim(),
+        osVersion: osVersion.trim(),
+        platform: devicePlatform.trim(),
+        userAgent: navigator.userAgent,
+      },
       network,
       rpcResult: rpcDetails,
       selectedAccount: canonicalAccount,
@@ -438,6 +447,20 @@ export function PhaseZeroDiagnostics() {
             address-binding result, transaction request, and independent RPC result. It contains
             no private key or seed phrase.
           </p>
+          <div className="form-grid">
+            <label>
+              Device platform
+              <input value={devicePlatform} onChange={(event) => setDevicePlatform(event.target.value)} placeholder="Android or iOS" autoComplete="off" />
+            </label>
+            <label>
+              OS version
+              <input value={osVersion} onChange={(event) => setOsVersion(event.target.value)} placeholder="Example: Android 16" autoComplete="off" />
+            </label>
+            <label>
+              Nimiq Pay version
+              <input value={nimiqPayVersion} onChange={(event) => setNimiqPayVersion(event.target.value)} placeholder="From Nimiq Pay settings" autoComplete="off" />
+            </label>
+          </div>
           <button type="button" onClick={captureEvidence}>
             Capture current evidence
           </button>
