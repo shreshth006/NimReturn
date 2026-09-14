@@ -26,7 +26,6 @@ const recipient = addressFromPrivateKey('1f1e1d1c1b1a191817161514131211100f0e0d0
 const expected: ExpectedTransaction = {
   hash: 'ab'.repeat(32),
   network: 'TestAlbatross',
-  sender,
   recipient,
   valueLuna: 1,
   data: 'NR1:P:AAAAAAAAAAAAAAAAAAAAAA',
@@ -34,6 +33,7 @@ const expected: ExpectedTransaction = {
 
 const observed: ObservedTransaction = {
   ...expected,
+  sender,
   blockNumber: 123,
   confirmations: 1,
   executionResult: true,
@@ -76,7 +76,6 @@ describe('transaction verification', () => {
 
   it.each([
     ['network', { network: 'MainAlbatross' }],
-    ['sender', { sender: recipient }],
     ['recipient', { recipient: sender }],
     ['value', { valueLuna: 2 }],
     ['data', { data: `${expected.data}x` }],
@@ -89,5 +88,18 @@ describe('transaction verification', () => {
   it('distinguishes pending and unknown state from verified', () => {
     expect(verifyObservedTransaction(expected, { ...observed, state: 'pending' }).outcome).toBe('pending')
     expect(verifyObservedTransaction(expected, { ...observed, state: 'unknown' }).outcome).toBe('inconclusive')
+  })
+
+  it('takes the sender from observed chain evidence instead of client expectations', () => {
+    expect(expected).not.toHaveProperty('sender')
+    const result = verifyObservedTransaction(expected, { ...observed, sender })
+    expect(result.outcome).toBe('verified')
+    expect(observed.sender).toBe(sender)
+  })
+
+  it('rejects a malformed observed sender address', () => {
+    const result = verifyObservedTransaction(expected, { ...observed, sender: 'NQ00 TEST' })
+    expect(result.outcome).toBe('invalid')
+    expect(result.checks.sender).toBe(false)
   })
 })

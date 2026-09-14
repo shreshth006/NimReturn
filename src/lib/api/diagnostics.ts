@@ -14,7 +14,12 @@ export async function verifyDiagnosticTransaction(
   const response = await fetch(`${baseUrl}/api/v1/diagnostics/transactions/verify`, {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify(expected),
+    body: JSON.stringify({
+      data: expected.data,
+      hash: expected.hash,
+      recipient: expected.recipient,
+      valueLuna: expected.valueLuna,
+    }),
   })
 
   let body: unknown

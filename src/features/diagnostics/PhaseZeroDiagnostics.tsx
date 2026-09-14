@@ -225,7 +225,7 @@ export function PhaseZeroDiagnostics() {
   }
 
   async function sendPayment() {
-    if (!provider || !selectedAccount || !acknowledged) return
+    if (!provider || accounts.length === 0 || !acknowledged) return
     setPaymentState({ status: 'pending', detail: 'Validating the irreversible test request…' })
     setSentTransaction(null)
     setRpcDetails(null)
@@ -256,10 +256,13 @@ export function PhaseZeroDiagnostics() {
       })
       setSentTransaction({
         hash,
-        sender: selectedAccount,
         recipient: canonicalRecipient,
         valueLuna: amount,
         data: transactionData,
+        validityStartHeight: snapshot.blockNumber,
+        walletAccounts: [...accounts],
+        network: snapshot,
+        submittedAtUtc: new Date().toISOString(),
       })
       setPaymentState({
         status: 'sent',
@@ -453,15 +456,15 @@ export function PhaseZeroDiagnostics() {
               immediately before the native request.
             </p>
           )}
-          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || !selectedAccount || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || Boolean(sentTransaction)}>
+          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || accounts.length === 0 || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || Boolean(sentTransaction)}>
             Review irreversible test payment
           </button>
           {sentTransaction && (
             <div className="evidence-grid">
               <Evidence label="Wallet-returned hash · not yet verified" value={sentTransaction.hash} />
-              <Evidence label="Expected sender" value={sentTransaction.sender} />
               <Evidence label="Expected recipient" value={sentTransaction.recipient} />
               <Evidence label="Expected amount" value={`${sentTransaction.valueLuna} Luna`} />
+              <Evidence label="Sender" value="Determined by independent RPC lookup" />
             </div>
           )}
         </li>

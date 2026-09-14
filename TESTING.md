@@ -63,7 +63,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-022 Payment failed/evicted/invalid:** visible failure or exceptional recovery; no passport.
 - **T-023 RPC unavailable/timeout/malformed:** inconclusive and retryable; no client fallback.
 - **T-024 Wrong network:** rejected.
-- **T-025 Wrong sender:** rejected.
+- **T-025 Sender authority:** no sender is invented in the wallet/API expectation; malformed observed sender evidence is rejected and original buyer identity comes from the verified chain sender.
 - **T-026 Wrong recipient:** rejected.
 - **T-027 Wrong amount:** off by one Luna and overpayment both rejected for NR1.
 - **T-028 Wrong transaction data:** wrong version/type/token, suffix, whitespace, invalid UTF-8 rejected.

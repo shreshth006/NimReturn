@@ -166,14 +166,14 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 - node network equals order network;
 - transaction found with `executionResult: true`;
 - transaction inclusion block is followed by its Albatross finalizing macro block, and the independently observed chain head is at or beyond that macro block;
-- sender address equals order buyer;
+- sender is a valid ordinary Nimiq account and becomes the authoritative order buyer from verified chain evidence; a client-side expected account is not a sender claim;
 - recipient equals policy merchant;
 - value equals policy snapshot `priceLuna` exactly;
 - recipient data bytes decode to exact `NR1:P:<order-token>`;
 - transaction is an ordinary direct value transfer compatible with expected account types;
 - block time/height and transaction hash are retained.
 
-A wallet-returned hash alone only moves the state to verifying. Mempool and pre-macro inclusion are pending, regardless of ordinary confirmation count. Failed execution or a definitive field mismatch is invalid. RPC/finality evidence failure is inconclusive. None creates a passport.
+A wallet-returned hash alone only moves the state to verifying. Mempool and pre-macro inclusion are pending, regardless of ordinary confirmation count. Failed execution, an invalid observed sender, or another definitive field mismatch is invalid. RPC/finality evidence failure is inconclusive. None creates a passport.
 
 ## Refund transaction verification
 

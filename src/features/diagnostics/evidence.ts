@@ -6,9 +6,12 @@ import type { DiagnosticSignerVerification } from './signer-identity.js'
 export interface PhaseZeroSentTransaction {
   data: string
   hash: string
+  network: ProviderNetworkSnapshot
   recipient: string
-  sender: string
+  submittedAtUtc: string
+  validityStartHeight: number
   valueLuna: number
+  walletAccounts: string[]
 }
 
 export interface PhaseZeroEvidenceInput {

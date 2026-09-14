@@ -100,7 +100,7 @@ Controls: stored canonical bytes/hash/proof; signed snapshot fields; append-only
 
 Threat: attach an unrelated valid transaction, another customer's payment, or duplicate hash.
 
-Controls: 128-bit order tag; check network, sender, merchant recipient, exact Luna, exact data, state, type; shared transaction-hash registry; one transaction/order/passport constraints; idempotent compare-and-set transition.
+Controls: 128-bit order tag; check network, observed sender validity/account semantics, merchant recipient, exact Luna, exact data, state, and type; derive original buyer from independently verified sender evidence instead of client selection; shared transaction-hash registry; one transaction/order/passport constraints; idempotent compare-and-set transition.
 
 ### Wrong recipient or amount
 

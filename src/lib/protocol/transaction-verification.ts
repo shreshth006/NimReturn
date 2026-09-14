@@ -13,7 +13,6 @@ export interface ExpectedTransaction {
   hash: string
   network: string
   recipient: string
-  sender: string
   valueLuna: number
 }
 
@@ -54,6 +53,15 @@ function normalizedAddressEquals(first: string, second: string): boolean {
   }
 }
 
+function isValidAddress(value: string): boolean {
+  try {
+    normalizeNimiqAddress(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function verifyObservedTransaction(
   expected: ExpectedTransaction,
   observed: ObservedTransaction,
@@ -61,7 +69,7 @@ export function verifyObservedTransaction(
   const checks = {
     hash: expected.hash.toLowerCase() === observed.hash.toLowerCase(),
     network: expected.network === observed.network,
-    sender: normalizedAddressEquals(expected.sender, observed.sender),
+    sender: isValidAddress(observed.sender),
     recipient: normalizedAddressEquals(expected.recipient, observed.recipient),
     value:
       Number.isSafeInteger(expected.valueLuna) &&

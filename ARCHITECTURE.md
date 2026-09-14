@@ -83,12 +83,12 @@ Current official SDK behavior inspected on 2026-09-14:
 - `listAccounts()` takes no account-selection parameter, returns user-friendly address strings, and requires native approval on first access.
 - `sign(message | { message, isHex? })` takes no signer parameter, returns hex `{ publicKey, signature }`, and requires approval. The signer is derived from the returned public key; a locally selected expected account is diagnostic metadata, not wallet control.
 - `isConsensusEstablished()` and `getBlockNumber()` require no approval.
-- `sendBasicTransactionWithData({ recipient, value, data, fee?, validityStartHeight? })` uses numeric Luna, attaches text data, returns a transaction hash according to official docs, and requires native approval.
+- `sendBasicTransactionWithData({ recipient, value, data, fee?, validityStartHeight? })` uses numeric Luna, attaches text data, returns a transaction hash according to official docs, and requires native approval. It exposes no sender parameter.
 - Published 0.1.0 declarations also allow methods to return `{ error: { type, message } }`; adapters normalize both returned errors and thrown errors.
 
 Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebView never receives a private key. Phase 0 must still test exact `sign()` preprocessing and response behavior on the current iOS/Android host; published types and desktop unit tests cannot prove host interoperability.
 
-Confirmed contract facts are kept separate from device observations. The installed 0.1.0 declarations, bundled provider implementation, and current official provider reference expose no NIM account parameter for `sign()`. One Android/TestAlbatross run observed that changing NimReturn's expected-account dropdown did not necessarily change which wallet key signed; the implementation therefore never generalizes a fixed wallet account-order rule.
+Confirmed contract facts are kept separate from device observations. The installed 0.1.0 declarations, bundled provider implementation, and current official provider reference expose no NIM account parameter for `sign()` or `sendBasicTransactionWithData()`. One Android/TestAlbatross run observed that changing NimReturn's expected-account dropdown did not necessarily change which wallet key signed or paid; the implementation therefore never generalizes a fixed wallet account-order rule.
 
 ## Nimiq chain reads
 
@@ -219,7 +219,7 @@ For an expected purchase/refund and observed chain record:
 1. validate hash syntax and atomically reserve its normalized value;
 2. require the configured network and observed transaction network to match the expected order network;
 3. require the PoS `executionResult` to be `true`, then derive finality from the transaction's inclusion block, `getMacroBlockAfter(inclusionBlock)`, and a latest head at or beyond that macro block;
-4. parse addresses with `Address` and compare bytes, not display spacing/case;
+4. parse the observed sender as a valid Nimiq address and derive purchaser identity from it; compare the observed recipient to the server-bound expected recipient by address bytes, not display spacing/case;
 5. require exact safe-integer Luna value;
 6. decode raw data bytes once as strict UTF-8 and require the exact protocol tag;
 7. require basic sender/recipient semantics and no unexpected value-changing behavior;

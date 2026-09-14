@@ -34,7 +34,6 @@ const verifyBodySchema = z.object({
   data: z.string().min(1).refine((value) => new TextEncoder().encode(value).byteLength <= 64),
   hash: transactionHash,
   recipient: z.string().min(1).max(64),
-  sender: z.string().min(1).max(64),
   valueLuna: z.number().int().positive().safe(),
 }).strict()
 

@@ -56,4 +56,25 @@ describe('Nimiq provider network gate', () => {
     expect(() => assertWalletConsensusForPayment({ blockNumber: 123_456, consensus: true }))
       .not.toThrow()
   })
+
+  it('sends no invented sender field to the Mini App provider', async () => {
+    const sendBasicTransactionWithData = vi.fn().mockResolvedValue('ab'.repeat(32))
+    const provider = { sendBasicTransactionWithData } as unknown as NimiqProvider
+    const request = {
+      data: 'NR1:P:AAAAAAAAAAAAAAAAAAAAAA',
+      recipient: 'NQ00 TEST',
+      validityStartHeight: 123_456,
+      value: 1_000,
+    }
+
+    await expect(
+      sendTransactionWithData(
+        provider,
+        { blockNumber: 123_456, consensus: true },
+        request,
+      ),
+    ).resolves.toBe('ab'.repeat(32))
+    expect(request).not.toHaveProperty('sender')
+    expect(sendBasicTransactionWithData).toHaveBeenCalledExactlyOnceWith(request)
+  })
 })
