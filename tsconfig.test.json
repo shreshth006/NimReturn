@@ -20,6 +20,7 @@
     "src/lib/nimiq/**/*.ts",
     "src/lib/protocol/**/*.ts",
     "server/db/**/*.ts",
+    "server/domain/**/*.ts",
     "server/rpc/**/*.ts"
   ]
 }
