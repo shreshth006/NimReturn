@@ -20,7 +20,7 @@ Phase 0 — Technical proof. Protocol signing transport remains candidate until 
 
 # What is complete
 
-Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, accounts, consensus/head, exact-message signing, official-core signature/address verification, guarded low-value transaction-with-data, and fail-closed server RPC verification. Protocol/RPC/signature unit suites exist.
+Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, accounts, consensus/head, exact-message signing, official-core signature/address verification, guarded low-value transaction-with-data, and fail-closed server RPC verification. Verification now requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. Protocol/RPC/signature unit suites exist.
 
 # What has been manually verified
 

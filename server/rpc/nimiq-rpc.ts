@@ -1,4 +1,4 @@
-import type { ObservedTransaction, ObservedTransactionState } from '../../src/lib/protocol/transaction-verification.js'
+import type { ObservedTransaction } from '../../src/lib/protocol/transaction-verification.js'
 
 interface JsonRpcSuccess {
   result?: {
@@ -38,6 +38,13 @@ function firstNumber(record: Record<string, unknown>, keys: string[]): number | 
   return undefined
 }
 
+function firstBoolean(record: Record<string, unknown>, keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    if (typeof record[key] === 'boolean') return record[key]
+  }
+  return undefined
+}
+
 function hexToText(value: string): string | null {
   const hex = value.startsWith('0x') ? value.slice(2) : value
   if (hex.length % 2 !== 0 || !/^[0-9a-f]+$/iu.test(hex)) return null
@@ -65,19 +72,16 @@ function readData(record: Record<string, unknown>): string | undefined {
   return raw === undefined ? undefined : (hexToText(raw) ?? raw)
 }
 
-function readState(record: Record<string, unknown>): ObservedTransactionState {
-  const rawState = firstString(record, ['state'])?.toLowerCase()
-  if (rawState === 'confirmed') return 'confirmed'
-  if (rawState === 'included' || rawState === 'mined') return 'included'
-  if (rawState === 'pending' || rawState === 'mempool' || rawState === 'new') return 'pending'
-
-  const confirmations = firstNumber(record, ['confirmations'])
-  if (confirmations !== undefined && confirmations > 0) return 'confirmed'
-  const blockNumber = firstNumber(record, ['blockNumber', 'block_number'])
-  return blockNumber !== undefined && blockNumber > 0 ? 'included' : 'unknown'
+export interface RpcFinalityContext {
+  finalizingBlockNumber: number
+  headBlockNumber: number
+  network: string
 }
 
-export function normalizeRpcTransaction(value: unknown, network: string): ObservedTransaction {
+export function normalizeRpcTransaction(
+  value: unknown,
+  context: RpcFinalityContext,
+): ObservedTransaction {
   const record = asRecord(value)
   if (!record) throw new NimiqRpcError('RPC transaction result was not an object')
 
@@ -86,20 +90,47 @@ export function normalizeRpcTransaction(value: unknown, network: string): Observ
   const recipient = firstString(record, ['to', 'recipient'])
   const valueLuna = firstNumber(record, ['value', 'valueLuna', 'value_luna'])
   const data = readData(record)
+  const blockNumber = firstNumber(record, ['blockNumber', 'block_number'])
+  const executionResult = firstBoolean(record, ['executionResult', 'execution_result'])
 
-  if (!hash || !sender || !recipient || valueLuna === undefined || data === undefined) {
+  if (
+    !hash ||
+    !sender ||
+    !recipient ||
+    valueLuna === undefined ||
+    data === undefined ||
+    blockNumber === undefined ||
+    executionResult === undefined
+  ) {
     throw new NimiqRpcError('RPC transaction omitted a required verification field')
   }
 
+  if (
+    !Number.isSafeInteger(context.headBlockNumber) ||
+    !Number.isSafeInteger(context.finalizingBlockNumber) ||
+    context.headBlockNumber < blockNumber ||
+    context.finalizingBlockNumber <= blockNumber
+  ) {
+    throw new NimiqRpcError('RPC returned invalid transaction finality evidence')
+  }
+
   const confirmations = firstNumber(record, ['confirmations'])
+  const finalityReached = context.headBlockNumber >= context.finalizingBlockNumber
   return {
+    blockNumber,
     hash,
     sender,
     recipient,
     valueLuna,
     data,
-    network: firstString(record, ['network']) ?? network,
-    state: readState(record),
+    executionResult,
+    finality: {
+      finalizingBlockNumber: context.finalizingBlockNumber,
+      headBlockNumber: context.headBlockNumber,
+      reached: finalityReached,
+    },
+    network: firstString(record, ['network']) ?? context.network,
+    state: finalityReached ? 'finalized' : 'included',
     ...(confirmations === undefined ? {} : { confirmations }),
   }
 }
@@ -137,19 +168,42 @@ export class NimiqRpcClient {
     return body.result.data
   }
 
-  async getNetwork(): Promise<string> {
+  private async getHead(): Promise<{ blockNumber: number; network: string }> {
     const latest = asRecord(await this.call('getLatestBlock', [false]))
     const network = latest ? firstString(latest, ['network']) : undefined
-    if (!network) throw new NimiqRpcError('Latest block did not report its network')
-    return network
+    const blockNumber = latest ? firstNumber(latest, ['number', 'blockNumber']) : undefined
+    if (!network || blockNumber === undefined) {
+      throw new NimiqRpcError('Latest block did not report its network and height')
+    }
+    return { blockNumber, network }
+  }
+
+  async getNetwork(): Promise<string> {
+    return (await this.getHead()).network
   }
 
   async getTransaction(hash: string): Promise<ObservedTransaction | null> {
-    const [network, transaction] = await Promise.all([
-      this.getNetwork(),
+    const [head, transaction] = await Promise.all([
+      this.getHead(),
       this.call('getTransactionByHash', [hash]),
     ])
     if (transaction === null) return null
-    return normalizeRpcTransaction(transaction, network)
+
+    const record = asRecord(transaction)
+    const blockNumber = record ? firstNumber(record, ['blockNumber', 'block_number']) : undefined
+    if (blockNumber === undefined) {
+      throw new NimiqRpcError('RPC transaction omitted its inclusion block')
+    }
+
+    const finalizingBlockNumber = await this.call('getMacroBlockAfter', [blockNumber])
+    if (typeof finalizingBlockNumber !== 'number' || !Number.isSafeInteger(finalizingBlockNumber)) {
+      throw new NimiqRpcError('RPC did not return the finalizing macro block')
+    }
+
+    return normalizeRpcTransaction(transaction, {
+      finalizingBlockNumber,
+      headBlockNumber: head.blockNumber,
+      network: head.network,
+    })
   }
 }

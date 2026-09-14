@@ -1,6 +1,12 @@
 import { normalizeNimiqAddress } from '../crypto/nimiq-signature.js'
 
-export type ObservedTransactionState = 'confirmed' | 'included' | 'pending' | 'unknown'
+export type ObservedTransactionState = 'finalized' | 'included' | 'pending' | 'unknown'
+
+export interface ObservedTransactionFinality {
+  finalizingBlockNumber: number
+  headBlockNumber: number
+  reached: boolean
+}
 
 export interface ExpectedTransaction {
   data: string
@@ -12,8 +18,11 @@ export interface ExpectedTransaction {
 }
 
 export interface ObservedTransaction {
+  blockNumber: number
   confirmations?: number
   data: string
+  executionResult: boolean
+  finality: ObservedTransactionFinality
   hash: string
   network: string
   recipient: string
@@ -25,11 +34,12 @@ export interface ObservedTransaction {
 export interface TransactionVerification {
   checks: {
     data: boolean
+    execution: boolean
+    finality: boolean
     hash: boolean
     network: boolean
     recipient: boolean
     sender: boolean
-    state: boolean
     value: boolean
   }
   outcome: 'inconclusive' | 'invalid' | 'pending' | 'verified'
@@ -58,7 +68,12 @@ export function verifyObservedTransaction(
       Number.isSafeInteger(observed.valueLuna) &&
       expected.valueLuna === observed.valueLuna,
     data: expected.data === observed.data,
-    state: observed.state === 'included' || observed.state === 'confirmed',
+    execution: observed.executionResult,
+    finality:
+      observed.state === 'finalized' &&
+      observed.finality.reached &&
+      observed.finality.headBlockNumber >= observed.finality.finalizingBlockNumber &&
+      observed.finality.finalizingBlockNumber > observed.blockNumber,
   }
 
   const identityChecks = [
@@ -72,10 +87,18 @@ export function verifyObservedTransaction(
 
   if (identityChecks.some((passed) => !passed)) {
     const failed = Object.entries(checks)
-      .filter(([name, passed]) => name !== 'state' && !passed)
+      .filter(([name, passed]) => name !== 'execution' && name !== 'finality' && !passed)
       .map(([name]) => name)
       .join(', ')
     return { checks, outcome: 'invalid', reason: `Transaction mismatch: ${failed}.` }
+  }
+
+  if (!checks.execution) {
+    return {
+      checks,
+      outcome: 'invalid',
+      reason: 'Transaction was included but its on-chain executionResult is false.',
+    }
   }
 
   if (observed.state === 'pending') {
@@ -90,9 +113,26 @@ export function verifyObservedTransaction(
     }
   }
 
+
+  if (observed.state === 'included') {
+    return {
+      checks,
+      outcome: 'pending',
+      reason: `Transaction is included at block ${observed.blockNumber} but is not final until macro block ${observed.finality.finalizingBlockNumber}.`,
+    }
+  }
+
+  if (!checks.finality) {
+    return {
+      checks,
+      outcome: 'inconclusive',
+      reason: 'Transaction finality evidence is internally inconsistent.',
+    }
+  }
+
   return {
     checks,
     outcome: 'verified',
-    reason: 'Transaction fields and included state match the diagnostic request.',
+    reason: `Transaction fields, execution, and macro-block finality match at head ${observed.finality.headBlockNumber}.`,
   }
 }

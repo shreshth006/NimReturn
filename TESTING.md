@@ -70,7 +70,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-030 Hash used as refund then purchase (and inverse):** shared registry rejects.
 - **T-031 Reload while verifying:** same order/hash resumes; no second wallet request/passport.
 - **T-032 Concurrent verifier success:** one purchase transaction/passport/event.
-- **T-033 Confirmation/reorg:** insufficient confirmation remains pending; configured finality passes; reorg reconciliation enters safe exceptional state.
+- **T-033 Execution/finality/reorg:** `executionResult: false` is invalid; confirmations never substitute for the following Albatross macro block; pre-macro inclusion remains pending; reached macro finality passes; reorg reconciliation enters safe exceptional state.
 - **T-034 Data size:** purchase/refund tags are exactly expected and <64 bytes.
 - **T-035 Actual-device transaction:** native dialog shows correct recipient/value/data; returned hash is found and independently matches.
 

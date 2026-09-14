@@ -148,7 +148,7 @@ Controls: idempotency keys bound to request hash; row locks/compare-and-set; uni
 
 Threat: treat an unstable inclusion as final and create downstream state.
 
-Controls: distinguish mempool/included/confirmed; define confirmation policy in Phase 2 from current Nimiq behavior; retain block hash/height; reconcile recent transactions; surface pending until threshold; explicit reorg recovery protocol before mainnet. Never erase an observed event; append correction and move to a safe exceptional state.
+Controls: distinguish mempool/included/finalized; require `executionResult: true`; derive finality from the inclusion block and its following Albatross macro block, never from an ordinary confirmation count; retain inclusion/finalizing/head heights; reconcile recent transactions; explicit reorg recovery protocol before mainnet. Never erase an observed event; append correction and move to a safe exceptional state.
 
 ### RPC compromise/unavailability
 

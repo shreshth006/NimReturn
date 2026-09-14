@@ -34,16 +34,44 @@ const expected: ExpectedTransaction = {
 
 const observed: ObservedTransaction = {
   ...expected,
-  state: 'included',
+  blockNumber: 123,
   confirmations: 1,
+  executionResult: true,
+  finality: {
+    finalizingBlockNumber: 180,
+    headBlockNumber: 180,
+    reached: true,
+  },
+  state: 'finalized',
 }
 
 describe('transaction verification', () => {
-  it('accepts exact included evidence and address-format differences', () => {
+  it('accepts exact finalized evidence and address-format differences', () => {
     const compactSender = sender.replaceAll(' ', '')
     const result = verifyObservedTransaction(expected, { ...observed, sender: compactSender })
     expect(result.outcome).toBe('verified')
     expect(Object.values(result.checks).every(Boolean)).toBe(true)
+  })
+
+  it('rejects an included transaction whose executionResult is false', () => {
+    const result = verifyObservedTransaction(expected, { ...observed, executionResult: false })
+    expect(result.outcome).toBe('invalid')
+    expect(result.checks.execution).toBe(false)
+  })
+
+  it('keeps an included transaction pending until its finalizing macro block', () => {
+    const result = verifyObservedTransaction(expected, {
+      ...observed,
+      confirmations: 56,
+      finality: {
+        finalizingBlockNumber: 180,
+        headBlockNumber: 179,
+        reached: false,
+      },
+      state: 'included',
+    })
+    expect(result.outcome).toBe('pending')
+    expect(result.checks.finality).toBe(false)
   })
 
   it.each([

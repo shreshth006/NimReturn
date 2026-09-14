@@ -216,7 +216,7 @@ For an expected purchase/refund and observed chain record:
 
 1. validate hash syntax and atomically reserve its normalized value;
 2. require the configured network and observed transaction network to match the expected order network;
-3. map mempool to pending, inclusion with insufficient policy confirmations to pending, and final inclusion to verified;
+3. require the PoS `executionResult` to be `true`, then derive finality from the transaction's inclusion block, `getMacroBlockAfter(inclusionBlock)`, and a latest head at or beyond that macro block;
 4. parse addresses with `Address` and compare bytes, not display spacing/case;
 5. require exact safe-integer Luna value;
 6. decode raw data bytes once as strict UTF-8 and require the exact protocol tag;
@@ -224,7 +224,7 @@ For an expected purchase/refund and observed chain record:
 8. persist raw normalized evidence, provider, observed time, block/confirmations, and each check result;
 9. create downstream state only in the same database transaction as successful verification.
 
-Final confirmation policy must be fixed in Phase 2 based on current network behavior and UX measurements. Until then “included” and “confirmed enough for NimReturn” are separate fields.
+NR1 uses Albatross macro-block finality: ordinary confirmation counts are retained as observations but never authorize verification. “Included” and “finalized for NimReturn” are separate states. Phase 2 still adds persistence, retry/reconciliation, and an independent production verifier source; it does not weaken this finality rule.
 
 ## Idempotency and races
 

@@ -25,7 +25,7 @@ Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm te
 
 ## Test status
 
-21/21 unit tests passing across five files: canonicalization/domain separation, compact tags, official-core signature/address binding and tampering, transaction field/state matching, and RPC normalization. API health plus invalid-request (400) and unconfigured-RPC fail-closed (503) behavior manually checked. Actual-device and database integration/E2E remain pending by phase.
+25/25 unit tests passing across five files: canonicalization/domain separation, compact tags, official-core signature/address binding and tampering, transaction field/execution/macro-finality matching, and RPC normalization. API health plus invalid-request (400) and unconfigured-RPC fail-closed (503) behavior manually checked. Actual-device and database integration/E2E remain pending by phase.
 
 ## Deployment status
 

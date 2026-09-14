@@ -109,3 +109,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** A guarded real low-value test supplies the required interoperability evidence while preserving the core trust model and clear states.
 
 **Consequences:** A human must configure the correct TestAlbatross wallet/recipient and server RPC. Local automated tests cannot close Phase 0. The diagnostic surface remains internal and must not be presented as a Purchase Passport.
+
+## D-010 — 2026-09-14 — NR1 requires successful execution and Albatross macro finality
+
+**Decision:** A transaction is verified only when its RPC `executionResult` is `true` and the observed chain head has reached the first macro block after its inclusion block. Ordinary `confirmations` are diagnostic evidence only and never establish NR1 finality.
+
+**Context:** The initial Phase 0 normalizer treated any included transaction, or any positive confirmation count, as verified and did not inspect the PoS execution result. Nimiq PoS finalizes preceding micro blocks through Tendermint macro blocks at batch boundaries.
+
+**Alternatives:** Accept inclusion immediately; require a fixed confirmation count; trust an RPC-provided state label; wait an arbitrary duration.
+
+**Rationale:** `executionResult` prevents a failed state transition from becoming commerce evidence. The protocol-native macro boundary is deterministic and matches Albatross finality rather than approximating it with confirmations or wall-clock time.
+
+**Consequences:** Normalized evidence records inclusion, finalizing macro, and observed head heights. Pre-macro transactions remain pending even with confirmations. Missing/malformed execution or finality fields fail closed. Phase 2 must add persistence and independent-source reconciliation without weakening this rule.

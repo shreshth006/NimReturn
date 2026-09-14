@@ -162,7 +162,8 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 
 - hash syntax valid and unused by any other purchase/refund;
 - node network equals order network;
-- transaction found and state meets the configured confirmation policy;
+- transaction found with `executionResult: true`;
+- transaction inclusion block is followed by its Albatross finalizing macro block, and the independently observed chain head is at or beyond that macro block;
 - sender address equals order buyer;
 - recipient equals policy merchant;
 - value equals policy snapshot `priceLuna` exactly;
@@ -170,7 +171,7 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 - transaction is an ordinary direct value transfer compatible with expected account types;
 - block time/height and transaction hash are retained.
 
-A wallet-returned hash alone only moves the state to verifying. Mempool/pending is not purchased. RPC failure is inconclusive. A definitive mismatch is invalid and never creates a passport.
+A wallet-returned hash alone only moves the state to verifying. Mempool and pre-macro inclusion are pending, regardless of ordinary confirmation count. Failed execution or a definitive field mismatch is invalid. RPC/finality evidence failure is inconclusive. None creates a passport.
 
 ## Refund transaction verification
 
