@@ -3,6 +3,7 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { migrateDatabase } from '../../server/db/migrate.js'
+import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
@@ -748,5 +749,133 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     expect(rejected[0]).toMatchObject({
       reason: { code: 'CHALLENGE_CONSUMED', name: 'PolicyPublishError' },
     })
+  })
+
+  it('server-issues an exact first-policy challenge only for the matching bootstrap', async () => {
+    const merchantPublicId = 'hhhhhhhhhhhhhhhhhhhhhh'
+    const productPublicId = 'iiiiiiiiiiiiiiiiiiiiii'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const productId = await insertProduct(merchantId, productPublicId)
+    const bootstrapCapability = 'D'.repeat(43)
+    const bootstrapRows = await client<{ expires_at: Date; id: string }[]>`
+      insert into merchant_bootstrap_sessions (merchant_id, capability_hash, expires_at)
+      values (
+        ${merchantId}, ${hashMerchantBootstrapCapability(bootstrapCapability)},
+        now() + interval '4 minutes'
+      )
+      returning id, expires_at
+    `
+    const bootstrap = bootstrapRows[0]
+    if (!bootstrap) throw new Error('Bootstrap fixture insert returned no row.')
+    const formattedSettlementAddress = VALID_ADDRESS_B.match(/.{1,4}/gu)?.join(' ')
+    if (!formattedSettlementAddress) throw new Error('Address fixture formatting failed.')
+    const input = {
+      bootstrapCapability,
+      merchantPublicId,
+      priceLuna: 700_000,
+      productPublicId,
+      returnWindowSeconds: 86_400,
+      settlementAddress: formattedSettlementAddress,
+      warrantyTransferAllowed: true,
+      warrantyWindowSeconds: 2_592_000,
+    }
+
+    await expect(createPolicyChallenge(client, {
+      ...input,
+      bootstrapCapability: 'E'.repeat(43),
+    })).rejects.toMatchObject({ code: 'BOOTSTRAP_MISMATCH', name: 'PolicyChallengeCreationError' })
+    const failedAttemptRows = await client<{ count: number }[]>`
+      select count(*)::integer as count from policy_versions where product_id = ${productId}
+    `
+    expect(failedAttemptRows[0]?.count).toBe(0)
+
+    const created = await createPolicyChallenge(client, input)
+    expect(created).toMatchObject({
+      merchantId,
+      payload: {
+        merchantId: merchantPublicId,
+        priceLuna: input.priceLuna,
+        productId: productPublicId,
+        settlementAddress: VALID_ADDRESS_B,
+        version: 1,
+      },
+      productId,
+    })
+    expect(created.nonce).toMatch(/^[A-Za-z0-9_-]{22}$/u)
+    expect(created.payload.policyId).toMatch(/^[A-Za-z0-9_-]{22}$/u)
+    expect(created.canonicalMessage).toBe(buildPolicyMessage(created.payload))
+    expect(created.payloadHash).toBe(hashProtocolPayload(created.canonicalMessage))
+    expect(created.expiresAt.getTime()).toBeLessThanOrEqual(bootstrap.expires_at.getTime())
+
+    const storedRows = await client<{
+      bootstrap_session_id: string | null
+      expected_signer_address: string | null
+      payload: PolicyPayload
+      verification_status: string
+    }[]>`
+      select
+        signing_challenges.bootstrap_session_id,
+        signing_challenges.expected_signer_address,
+        policy_versions.payload,
+        policy_versions.verification_status
+      from signing_challenges
+      join policy_versions on policy_versions.id = signing_challenges.policy_version_id
+      where signing_challenges.nonce = ${created.nonce}
+    `
+    expect(storedRows[0]).toEqual({
+      bootstrap_session_id: bootstrap.id,
+      expected_signer_address: null,
+      payload: created.payload,
+      verification_status: 'pending',
+    })
+  })
+
+  it('allocates monotonic policy versions under concurrent established-signer requests', async () => {
+    const merchantPublicId = 'jjjjjjjjjjjjjjjjjjjjjj'
+    const productPublicId = 'kkkkkkkkkkkkkkkkkkkkkk'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const signerFixture = createPolicyProof(
+      '808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f',
+      'challenge-allocator-signer',
+    )
+    await client`
+      update merchants set policy_signer_address = ${signerFixture.address} where id = ${merchantId}
+    `
+    const productId = await insertProduct(merchantId, productPublicId)
+    const input = {
+      merchantPublicId,
+      productPublicId,
+      returnWindowSeconds: 604_800,
+      settlementAddress: VALID_ADDRESS_B,
+      warrantyTransferAllowed: false,
+      warrantyWindowSeconds: 7_776_000,
+    }
+
+    const created = await Promise.all([
+      createPolicyChallenge(client, { ...input, priceLuna: 800_000 }),
+      createPolicyChallenge(client, { ...input, priceLuna: 900_000 }),
+    ])
+    expect(created.map((challenge) => challenge.payload.version).sort()).toEqual([1, 2])
+    expect(new Set(created.map((challenge) => challenge.nonce))).toHaveProperty('size', 2)
+    expect(new Set(created.map((challenge) => challenge.payload.policyId))).toHaveProperty('size', 2)
+
+    const storedRows = await client<{
+      expected_signer_address: string | null
+      product_id: string
+      version: number
+    }[]>`
+      select
+        signing_challenges.expected_signer_address,
+        policy_versions.product_id,
+        policy_versions.version
+      from policy_versions
+      join signing_challenges on signing_challenges.policy_version_id = policy_versions.id
+      where policy_versions.product_id = ${productId}
+      order by policy_versions.version
+    `
+    expect(storedRows).toEqual([
+      { expected_signer_address: signerFixture.address, product_id: productId, version: 1 },
+      { expected_signer_address: signerFixture.address, product_id: productId, version: 2 },
+    ])
   })
 })
