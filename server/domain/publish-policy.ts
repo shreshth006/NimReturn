@@ -1,7 +1,11 @@
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type postgres from 'postgres'
 import { z } from 'zod'
 
+import {
+  merchantBootstrapCapabilityMatches,
+  merchantBootstrapCapabilitySchema,
+} from './merchant-bootstrap.js'
 import {
   type PolicyProofFailureCode,
   type PolicyProofVerification,
@@ -9,11 +13,9 @@ import {
 } from './policy-proof.js'
 
 const PUBLIC_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/u
-const BOOTSTRAP_CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/u
-const LOWER_HEX_32_PATTERN = /^[0-9a-f]{64}$/u
 
 const publishPolicyInputSchema = z.object({
-  bootstrapCapability: z.string().regex(BOOTSTRAP_CAPABILITY_PATTERN).optional(),
+  bootstrapCapability: merchantBootstrapCapabilitySchema.optional(),
   challengeNonce: z.string().regex(PUBLIC_TOKEN_PATTERN),
   proof: z.unknown(),
 }).strict()
@@ -80,13 +82,6 @@ export class PolicyPublishError extends Error {
   }
 }
 
-export function hashMerchantBootstrapCapability(capability: string): string {
-  if (!BOOTSTRAP_CAPABILITY_PATTERN.test(capability)) {
-    throw new TypeError('Merchant bootstrap capability must be 32-byte base64url data.')
-  }
-  return createHash('sha256').update(capability, 'utf8').digest('hex')
-}
-
 function fail(code: PolicyPublishErrorCode, message: string): never {
   throw new PolicyPublishError(code, message)
 }
@@ -95,11 +90,6 @@ function requireOne<T>(rows: T[], code: PolicyPublishErrorCode, message: string)
   const row = rows[0]
   if (!row) fail(code, message)
   return row
-}
-
-function safeHashMatches(left: string, right: string): boolean {
-  if (!LOWER_HEX_32_PATTERN.test(left) || !LOWER_HEX_32_PATTERN.test(right)) return false
-  return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'))
 }
 
 function requireValidProof(
@@ -197,11 +187,13 @@ export async function publishVerifiedPolicy(
         'BOOTSTRAP_MISMATCH',
         'The merchant bootstrap does not match this policy challenge.',
       )
-      const suppliedHash = hashMerchantBootstrapCapability(input.bootstrapCapability)
       if (
         bootstrap.consumed_at
         || databaseNow.getTime() >= bootstrap.expires_at.getTime()
-        || !safeHashMatches(suppliedHash, bootstrap.capability_hash)
+        || !merchantBootstrapCapabilityMatches(
+          input.bootstrapCapability,
+          bootstrap.capability_hash,
+        )
       ) {
         fail('BOOTSTRAP_MISMATCH', 'The merchant bootstrap does not match this policy challenge.')
       }

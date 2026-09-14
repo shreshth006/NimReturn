@@ -3,10 +3,8 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { migrateDatabase } from '../../server/db/migrate.js'
-import {
-  hashMerchantBootstrapCapability,
-  publishVerifiedPolicy,
-} from '../../server/domain/publish-policy.js'
+import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
+import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
 
