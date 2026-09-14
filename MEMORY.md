@@ -16,7 +16,7 @@ One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle
 
 # Current phase
 
-Phase 1 backend foundations are 45% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
+Phase 1 backend foundations are 55% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
 
 # What is complete
 
@@ -36,10 +36,10 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 
 # Next 5 highest-priority actions
 
-1. Add least-privilege PostgreSQL runtime-role grants and prove direct historical evidence mutation remains denied.
-2. Add the strict merchant/product draft bootstrap domain operation without exposing production writer routes.
+1. Add a fail-closed public read projection that exposes only an active, verified policy and revalidates stored evidence.
+2. Add a bounded stale-challenge expiry transition with rollback/retry coverage.
 3. Run Phase 1 native canonical policy signing together with deferred T-001/T-002 before Phase 1 exits.
-4. Only after that device gate, add the reviewed HTTP authorization boundary; merchant screens remain explicitly out of the current batch.
+4. Only after that device gate, add the reviewed HTTP writer authorization boundary; merchant screens remain explicitly out of the current batch.
 5. Run deferred T-020 with the Phase 2 native purchase suite; do not mark it passed from the earlier successful transaction.
 
 # Competition deadline/status
