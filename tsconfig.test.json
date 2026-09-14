@@ -11,7 +11,7 @@
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vite/client", "vitest/globals"]
   },
   "include": [
     "tests/**/*.ts",
@@ -19,6 +19,7 @@
     "server/config.ts",
     "server/http/**/*.ts",
     "src/features/diagnostics/**/*.ts",
+    "src/lib/api/**/*.ts",
     "src/lib/crypto/**/*.ts",
     "src/lib/nimiq/**/*.ts",
     "src/lib/protocol/**/*.ts",
