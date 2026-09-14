@@ -43,7 +43,7 @@ Responsive browser inspection passed at 390×844: no horizontal overflow, primar
 
 - External: access to current Nimiq Pay iOS/Android, dedicated TestAlbatross wallet/recipient, and test funds.
 - External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
-- Later external: deployment/database credentials, public GitHub remote, pilot merchant/users, promotion accounts.
+- Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
 
 These do not block local scaffold, pure crypto/protocol tests, or fail-closed RPC integration.
 

@@ -24,7 +24,7 @@ Repository initialized; all required planning/security/protocol/design/testing/c
 
 # What has been manually verified
 
-Official live docs/rules/scoring and npm package declarations/source were reviewed on 2026-09-14. Lint, typecheck, 26 unit tests, frontend/API production builds, API health/400/503 failure behavior, a 390×844 responsive layout, minimum 48px primary controls, no horizontal overflow, and no browser console warnings/errors were manually checked. The API reached the currently listed public development endpoint at `rpc.testnet.nimiqwatch.com`, observed `TestAlbatross`, and returned a live head over both loopback and LAN. No actual Nimiq Pay device signature/payment, tagged transaction round-trip, deployment, or database has been verified.
+Official live docs/rules/scoring and npm package declarations/source were reviewed on 2026-09-14. Lint, typecheck, 27 unit tests, frontend/API production builds, API health/400/503 failure behavior, a 390×844 responsive layout, minimum 48px primary controls, no horizontal overflow, and no browser console warnings/errors were manually checked. The API reached the currently listed public development endpoint at `rpc.testnet.nimiqwatch.com`, observed `TestAlbatross`, and returned a live head over both loopback and LAN. No actual Nimiq Pay device signature/payment, tagged transaction round-trip, deployment, or database has been verified.
 
 # Known bugs/blockers
 
