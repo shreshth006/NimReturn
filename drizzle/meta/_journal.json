@@ -15,6 +15,13 @@
       "when": 1789415111802,
       "tag": "0001_phase_one_policy_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789415801737,
+      "tag": "0002_signing_challenge_bootstrap_binding",
+      "breakpoints": true
     }
   ]
 }

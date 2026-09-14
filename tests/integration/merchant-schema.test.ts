@@ -246,6 +246,28 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     const challenge = challengeRows[0]
     if (!challenge) throw new Error('Challenge fixture insert returned no row.')
 
+    const competingProductPublicId = '2222222222222222222222'
+    const competingProductId = await insertProduct(merchantId, competingProductPublicId)
+    const competingPolicy = await insertPolicy({
+      merchantId,
+      merchantPublicId,
+      nonce: '3333333333333333333333',
+      policyPublicId: '4444444444444444444444',
+      productId: competingProductId,
+      productPublicId: competingProductPublicId,
+    })
+    await expect(client`
+      insert into signing_challenges (
+        nonce, action, merchant_id, policy_version_id, bootstrap_session_id,
+        canonical_message, payload_hash, expires_at
+      ) values (
+        ${competingPolicy.payload.nonce}, 'POLICY', ${merchantId},
+        ${competingPolicy.policyVersionId}, ${bootstrapSession.id},
+        ${competingPolicy.canonicalMessage}, ${competingPolicy.payloadHash},
+        now() + interval '5 minutes'
+      )
+    `).rejects.toThrow(/signing_challenges_bootstrap_session_unique/u)
+
     await expect(client`
       update products
       set status = 'active', active_policy_version_id = ${policy.policyVersionId}

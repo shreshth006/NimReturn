@@ -1,0 +1,1 @@
+ALTER TABLE "signing_challenges" ADD CONSTRAINT "signing_challenges_bootstrap_session_unique" UNIQUE("bootstrap_session_id");

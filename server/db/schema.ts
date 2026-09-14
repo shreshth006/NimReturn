@@ -220,6 +220,7 @@ export const signingChallenges = pgTable('signing_challenges', {
 }, (table) => [
   unique('signing_challenges_nonce_unique').on(table.nonce),
   unique('signing_challenges_policy_version_unique').on(table.policyVersionId),
+  unique('signing_challenges_bootstrap_session_unique').on(table.bootstrapSessionId),
   foreignKey({
     name: 'signing_challenges_policy_merchant_fk',
     columns: [table.policyVersionId, table.merchantId],
