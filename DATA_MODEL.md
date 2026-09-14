@@ -55,12 +55,12 @@ Indexes: `(product_id, version desc)`, `(merchant_id, verification_status)`, uni
 
 - `id uuid primary key`, `public_id char(22) unique` — BACKEND, immutable token used in purchase tag.
 - `product_id`, `policy_version_id`, `merchant_id` foreign keys — BACKEND, immutable bindings.
-- `buyer_address varchar(36) not null` — wallet account selected at order creation; later corroborated by CHAIN.
+- `buyer_address varchar(36) null` — unset at order creation; populated immutably from the macro-final verified CHAIN sender in the purchase transaction.
 - `network varchar(24) not null`, `expected_recipient varchar(36)`, `expected_value_luna bigint`, `expected_data varchar(64)` — BACKEND copied from verified policy; immutable.
 - `payment_state` (`payment_requested`, `payment_cancelled`, `payment_pending`, `payment_verifying`, `purchased`, `payment_failed`) — BACKEND, constrained transition.
 - `failure_code varchar(50) null`, `expires_at timestamptz`, timestamps/version — BACKEND, mutable.
 
-Indexes: `(buyer_address, created_at desc)`, `(merchant_id, payment_state, created_at)`, `(payment_state, updated_at)` for retries. Expected data must equal protocol encoder output via application/check constraint where practical.
+Indexes: partial `(buyer_address, created_at desc) where buyer_address is not null`, `(merchant_id, payment_state, created_at)`, `(payment_state, updated_at)` for retries. A constraint/transaction guard permits setting `buyer_address` only during the `purchased` transition and requires it thereafter. Expected data must equal protocol encoder output via application/check constraint where practical.
 
 ## chain_transactions (shared replay registry)
 

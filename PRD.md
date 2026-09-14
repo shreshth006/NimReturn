@@ -76,13 +76,13 @@ Public factual aggregates derived from verified events. It contains no user-ente
 
 1. Buyer opens product and sees merchant, integer-derived NIM price, return/warranty terms, and no guarantee language.
 2. Buyer grants wallet account access.
-3. Server creates a pending order bound to product, policy version, merchant, buyer, price, network, and an expiring nonce.
+3. Server creates a pending order bound to product, policy version, merchant, price, network, and an expiring nonce. The Mini App does not invent a buyer address before the chain reveals the payment sender.
 4. Client requests `sendBasicTransactionWithData()` directly to the merchant with the server-issued compact tag.
 5. Cancellation returns to an actionable cancelled state; no passport is created.
 6. A returned hash moves the order to verifying and is sent to the server.
-7. Server independently queries chain/mempool evidence and checks every expected field and hash uniqueness.
+7. Server independently queries chain/mempool evidence, derives the buyer from the observed sender, and checks every expected field and hash uniqueness.
 8. Pending/inconclusive transactions remain retryable. Invalid evidence becomes failed with a non-sensitive reason.
-9. Included/confirmed valid evidence atomically creates one passport and one protocol event.
+9. Successfully executed, macro-final valid evidence atomically records the buyer and creates one passport and one protocol event.
 
 ### Claim
 
@@ -186,7 +186,7 @@ Eligibility describes a result attached to a submitted claim, not merchant appro
 ## Edge cases
 
 - Provider missing or injected after app load; init timeout and retry.
-- Multiple wallet accounts; explicit selected address and revalidation on each signed action.
+- Multiple wallet accounts; the actual signer is derived from each returned public key, while an expected-account choice remains diagnostic unless the SDK action explicitly accepts an account selector. The actual purchase sender comes only from verified chain evidence.
 - Wallet returns an SDK `ErrorResponse` as a value instead of throwing; normalize both paths.
 - Browser insecure context lacks `crypto.randomUUID`; IDs are server-generated, with no client security dependence.
 - User double taps or reloads during approval.

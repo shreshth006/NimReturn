@@ -4,11 +4,11 @@ Last updated: 2026-09-14 (IST)
 
 ## Current phase
 
-**Phase 0 — Technical proof: in progress.** Documentation, architecture, code scaffold, diagnostics, and local automated/runtime checks are established. A live TestAlbatross development RPC is connected through the API. A first physical Android/Nimiq Pay run proved provider/accounts/head and exposed the signed-message framing mismatch now patched locally. Device verification of that patch plus the tagged transaction round-trip remain on the critical path.
+**Phase 0 — Technical proof: in progress.** Documentation, architecture, code scaffold, diagnostics, and local automated/runtime checks are established. A live TestAlbatross development RPC is connected through the API. Physical Android/Nimiq Pay testing has confirmed the framing patch and submitted a real tagged transaction that the backend observed included. A clean macro-final verification and v2 evidence capture remain on the critical path; Phase 1 has not started.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **70%** (provider/accounts/head observed on a physical device; framed-signature retest and successful-execution/macro-final transaction proof pending).
+- Phase 0 — Technical proof: **85%** (provider/accounts/head, framed signing, real tagged submission, and independent inclusion lookup observed on a physical device; clean successful-execution/macro-final verification and evidence capture pending).
 - Phase 1 — Policy + Merchant: **0%**.
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
@@ -25,7 +25,7 @@ Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm te
 
 ## Test status
 
-36/36 unit tests passing across seven files: canonicalization/domain separation, compact tags, exact Nimiq framed signature/address binding and negative cases, UTF-8 length/raw-message rejection, exact-byte device evidence export, wallet consensus payment gating, transaction field/execution/macro-finality matching, and RPC normalization/readiness. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior manually checked. Full device transaction and database integration/E2E remain pending by phase.
+63/63 unit tests passing across ten files: canonicalization/domain separation, compact tags, exact Nimiq framed signature/address binding and negative cases, diagnostic expected/actual signer separation, UTF-8 length/raw-message rejection, truthful v2 evidence export, reload-safe transaction records and duplicate locking, wallet consensus payment gating, transaction field/execution/macro-finality matching, retryable RPC outcome state, and RPC normalization/readiness. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. A final clean device macro-finality run and database integration/E2E remain pending by phase.
 
 ## Deployment status
 
@@ -37,11 +37,11 @@ The local API is configured through ignored `.env` state to use the public Nimiq
 
 ## Mobile Nimiq Pay status
 
-The first physical Android/Nimiq Pay run initialized the provider, returned two accounts, returned a block head with `consensus=false`, and returned a sign proof whose public key derived to the selected address. No payment was attempted. The raw-message verifier rejected the proof, leading to the exact framed SHA-256 patch; Step 4 must now be rerun to prove it against the device artifact. The updated consensus-locked layout passed browser inspection at 390×844 with no horizontal overflow, 48px minimum buttons, the payment control disabled, clear retry copy, and no console warnings/errors.
+Physical Android/Nimiq Pay testing initialized the provider, returned two accounts, exercised transient `consensus=false` plus live head behavior, and confirmed the exact framed SHA-256 signature fix. It also showed that changing NimReturn's expected-account dropdown does not select the signer. After consensus became available, the device submitted one approximately 1000-Luna transaction with an `NR1:P:<redacted-token>` tag to an owned recipient; the backend independently found it included on TestAlbatross and waiting for its finalizing macro block. No raw address, hash, signature, or token is committed. The final hardened UI still needs a from-scratch device run through `VERIFIED` and v2 evidence capture.
 
 ## Current blockers
 
-- External/runtime: the current wallet must establish TestAlbatross consensus; the physical device must rerun signing and then approve one deliberately tiny tagged payment to an owned recipient.
+- External/runtime: the physical device must perform one clean hardened-flow run, allow TestAlbatross consensus to establish, approve one deliberately tiny tagged payment to an owned recipient, recheck through the finalizing macro block, and capture sanitized v2 evidence.
 - External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
 - Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
 
@@ -49,8 +49,8 @@ These do not block local scaffold, pure crypto/protocol tests, or fail-closed RP
 
 ## Critical path
 
-Finish local Phase 0 gate → verify framed signature on device → wait for wallet consensus → actual-device payment/RPC finality proof → freeze NR1 → Phase 1 immutable policy → Phase 2 verified purchase/passport → Phase 3 claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
+Finish local Phase 0 gate → clean actual-device payment/RPC macro-finality proof and v2 evidence → freeze NR1 → Phase 1 immutable policy → Phase 2 verified purchase/passport → Phase 3 claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
 
 ## Next milestone
 
-**Phase 0 device proof:** rerun signing and confirm framed signature/address binding, retry until wallet consensus is true, then send and independently retrieve one guarded 1-Luna TestAlbatross transaction whose sender/recipient/value/data/execution/macro-finality all match.
+**Phase 0 device proof:** run from initialization, observe the derived actual signer, retry until wallet consensus is true, then send and independently retrieve one guarded 1000-Luna TestAlbatross transaction whose observed sender/recipient/value/data/execution/macro-finality all match; capture v2 evidence. Do not start Phase 1 before this passes.

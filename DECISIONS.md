@@ -157,3 +157,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Session-scoped recovery survives ordinary reloads without creating a long-lived device history. Conservative locking treats uncertainty as a duplicate-payment risk. The stored fields are public transaction expectations and wallet-disclosed addresses, never signing secrets.
 
 **Consequences:** Reload restores Step 6 and visibly warns against resubmission. Unresolved and outcome-unknown records require explicit confirmation before clearing. Closing the browser session may remove the record, so the product phases still require server-side durable correlation before a real purchase request.
+
+## D-014 — 2026-09-14 — Phase 0 evidence v2 separates expectations from authority
+
+**Decision:** Version the diagnostic export as `nimreturn.phase0.evidence.v2` and record provider availability, wallet-disclosed accounts, expected versus derived signer facts, sender-free transaction expectations, and independently observed sender/execution/finality facts in separate objects.
+
+**Context:** The v1 export nested selected account with wallet/network data and retained a raw RPC result, which made it too easy to read a UI expectation as signer or payment-sender authority.
+
+**Alternatives:** Keep v1 field names; record the selected account as sender; export only the raw RPC response; omit mismatch diagnostics.
+
+**Rationale:** Explicit provenance makes the evidence reviewable without trusting UI state or reinterpreting an opaque server blob. The schema directly mirrors the cryptographic and chain trust boundaries proven in Phase 0.
+
+**Consequences:** Existing diagnostic v1 exports are not upgraded in place. V2 never contains an expected sender and remains a local public-proof artifact, not production persistence or authorization.

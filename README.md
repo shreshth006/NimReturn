@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented; all local gates pass. A first Android/Nimiq Pay run proved provider injection, two returned accounts, a live wallet head, and public-key/address derivation. It also exposed the now-patched Nimiq signed-message framing mismatch and correctly stopped before payment because wallet consensus was false. A framed-signature retest plus one independently verified, macro-finalized TestAlbatross transaction still gate Phase 1. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
+The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented. Physical Android/Nimiq Pay testing has proved provider injection, multiple returned accounts, consensus/head calls, exact framed signing, a real 1000-Luna NR1-tagged TestAlbatross submission, and independent backend inclusion lookup. That run also proved that an app dropdown is neither a signer nor sender selector under the Mini App SDK contract. The hardened diagnostic now derives signer/sender evidence, preserves an irreversible submission across reloads, and keeps macro-finality rechecks usable. One clean device run reaching macro-final `VERIFIED` plus v2 evidence capture still gates Phase 1. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
 
 ## Local development
 

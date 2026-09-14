@@ -72,7 +72,7 @@ function providerNetworkState(snapshot: ProviderNetworkSnapshot): StatusState {
         + ', and consensus established.'
       : 'Provider reachable and head available at block '
         + snapshot.blockNumber.toLocaleString()
-        + ', but consensus is not established. Payment remains locked; wait and retry.',
+        + ', but wallet consensus is not established. This is network state, not account state. Payment remains locked; wait and retry.',
   }
 }
 
@@ -130,6 +130,7 @@ export function PhaseZeroDiagnostics() {
   const [accountState, setAccountState] = useState<StatusState>(initialStatus)
   const [network, setNetwork] = useState<ProviderNetworkSnapshot | null>(null)
   const [networkState, setNetworkState] = useState<StatusState>(initialStatus)
+  const [networkCheckedAtUtc, setNetworkCheckedAtUtc] = useState<string | null>(null)
   const [diagnosticNonce, setDiagnosticNonce] = useState(() => generateProtocolToken())
   const [signature, setSignature] = useState<SignatureResult | null>(null)
   const [signatureVerification, setSignatureVerification] =
@@ -193,6 +194,7 @@ export function PhaseZeroDiagnostics() {
     setProviderState({ status: 'pending', detail: 'Waiting for Nimiq Pay to inject the provider…' })
     setNetwork(null)
     setNetworkState(initialStatus)
+    setNetworkCheckedAtUtc(null)
     try {
       const initialized = await initializeNimiqProvider()
       setProvider(initialized)
@@ -226,9 +228,11 @@ export function PhaseZeroDiagnostics() {
     try {
       const snapshot = await readProviderNetwork(provider)
       setNetwork(snapshot)
+      setNetworkCheckedAtUtc(new Date().toISOString())
       setNetworkState(providerNetworkState(snapshot))
     } catch (error) {
       setNetwork(null)
+      setNetworkCheckedAtUtc(new Date().toISOString())
       setNetworkState(errorState(error))
     }
   }
@@ -291,10 +295,12 @@ export function PhaseZeroDiagnostics() {
       setNetwork(null)
       setNetworkState({ status: 'pending', detail: 'Rechecking wallet consensus and head height…' })
       const snapshot = await readProviderNetwork(provider).catch((error: unknown) => {
+        setNetworkCheckedAtUtc(new Date().toISOString())
         setNetworkState(errorState(error))
         throw error
       })
       setNetwork(snapshot)
+      setNetworkCheckedAtUtc(new Date().toISOString())
       setNetworkState(providerNetworkState(snapshot))
       assertWalletConsensusForPayment(snapshot)
 
@@ -399,9 +405,13 @@ export function PhaseZeroDiagnostics() {
         platform: devicePlatform.trim(),
         userAgent: navigator.userAgent,
       },
+      expectedAccount: canonicalAccount,
+      listedAccounts: accounts,
       network,
+      networkCheckedAtUtc,
+      providerAvailable: provider !== null,
       rpcResult: rpcDetails,
-      selectedAccount: canonicalAccount,
+      rpcVerification,
       signature,
       signatureMessage: signMessage,
       signatureVerification,
@@ -463,6 +473,7 @@ export function PhaseZeroDiagnostics() {
               <Evidence label="Provider reachable" value="true" />
               <Evidence label="Head available" value={'block ' + network.blockNumber.toString()} />
               <Evidence label="Consensus established" value={String(network.consensus)} />
+              <Evidence label="Last checked" value={networkCheckedAtUtc ?? 'unavailable'} />
               <Evidence
                 label="Payment gate"
                 value={network.consensus ? 'unlocked; click rechecks' : 'locked; retry required'}
