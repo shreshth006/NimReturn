@@ -168,7 +168,7 @@ export class NimiqRpcClient {
     return body.result.data
   }
 
-  private async getHead(): Promise<{ blockNumber: number; network: string }> {
+  async getHead(): Promise<{ blockNumber: number; network: string }> {
     const latest = asRecord(await this.call('getLatestBlock', [false]))
     const network = latest ? firstString(latest, ['network']) : undefined
     const blockNumber = latest ? firstNumber(latest, ['number', 'blockNumber']) : undefined

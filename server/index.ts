@@ -59,10 +59,37 @@ app.get('/health', () => ({
   phase: 0,
 }))
 
-app.get('/api/v1/diagnostics/rpc', () => ({
-  configured: rpc !== null,
-  expectedNetwork: config.NIMIQ_NETWORK,
-}))
+app.get('/api/v1/diagnostics/rpc', async (request, reply) => {
+  if (!rpc) {
+    return {
+      configured: false,
+      connected: false,
+      expectedNetwork: config.NIMIQ_NETWORK,
+    }
+  }
+
+  try {
+    const head = await rpc.getHead()
+    const networkMatches = head.network === config.NIMIQ_NETWORK
+    return reply.code(networkMatches ? 200 : 502).send({
+      configured: true,
+      connected: true,
+      expectedNetwork: config.NIMIQ_NETWORK,
+      headBlockNumber: head.blockNumber,
+      networkMatches,
+      observedNetwork: head.network,
+    })
+  } catch (error) {
+    request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'RPC readiness check failed')
+    return reply.code(502).send({
+      code: 'RPC_INCONCLUSIVE',
+      configured: true,
+      connected: false,
+      expectedNetwork: config.NIMIQ_NETWORK,
+      message: 'The configured transaction verifier is not currently reachable.',
+    })
+  }
+})
 
 app.post('/api/v1/diagnostics/transactions/verify', async (request, reply) => {
   const parsed = verifyBodySchema.safeParse(request.body)

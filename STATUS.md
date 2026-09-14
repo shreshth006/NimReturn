@@ -4,7 +4,7 @@ Last updated: 2026-09-14 (IST)
 
 ## Current phase
 
-**Phase 0 — Technical proof: in progress.** Documentation, architecture, code scaffold, diagnostics, and local automated/runtime checks are established. Actual Nimiq Pay and configured TestAlbatross RPC evidence remain on the critical path.
+**Phase 0 — Technical proof: in progress.** Documentation, architecture, code scaffold, diagnostics, and local automated/runtime checks are established. A live TestAlbatross development RPC is connected through the API. Actual Nimiq Pay signing/payment and tagged transaction round-trip evidence remain on the critical path.
 
 ## Completion by phase
 
@@ -25,11 +25,15 @@ Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm te
 
 ## Test status
 
-25/25 unit tests passing across five files: canonicalization/domain separation, compact tags, official-core signature/address binding and tampering, transaction field/execution/macro-finality matching, and RPC normalization. API health plus invalid-request (400) and unconfigured-RPC fail-closed (503) behavior manually checked. Actual-device and database integration/E2E remain pending by phase.
+26/26 unit tests passing across five files: canonicalization/domain separation, compact tags, official-core signature/address binding and tampering, transaction field/execution/macro-finality matching, and RPC normalization/readiness. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior manually checked. Actual-device and database integration/E2E remain pending by phase.
 
 ## Deployment status
 
 Not deployed. Vendor intentionally deferred pending owner credentials/region/current limits. Required topology is documented.
+
+## RPC status
+
+The local API is configured through ignored `.env` state to use the public Nimiq Watch TestAlbatross development endpoint. On 2026-09-14 it reported `connected=true`, `networkMatches=true`, network `TestAlbatross`, and a current head through both loopback and LAN. The endpoint is rate-limited and has no SLA; it is evidence for Phase 0 development, not the production primary/failover design.
 
 ## Mobile Nimiq Pay status
 
@@ -38,7 +42,7 @@ Responsive browser inspection passed at 390×844: no horizontal overflow, primar
 ## Current blockers
 
 - External: access to current Nimiq Pay iOS/Android, dedicated TestAlbatross wallet/recipient, and test funds.
-- External for transaction lookup: configured Nimiq RPC/node endpoint; official open-server page lists no guaranteed endpoints.
+- External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
 - Later external: deployment/database credentials, public GitHub remote, pilot merchant/users, promotion accounts.
 
 These do not block local scaffold, pure crypto/protocol tests, or fail-closed RPC integration.

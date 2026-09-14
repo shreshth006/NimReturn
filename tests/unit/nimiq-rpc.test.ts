@@ -1,12 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { NimiqRpcError, normalizeRpcTransaction } from '../../server/rpc/nimiq-rpc.js'
+import { NimiqRpcClient, NimiqRpcError, normalizeRpcTransaction } from '../../server/rpc/nimiq-rpc.js'
 
 function textToHex(value: string): string {
   return Array.from(new TextEncoder().encode(value), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 describe('Nimiq RPC normalization', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('normalizes the current provider-shaped transaction fields and hex data', () => {
     const tag = 'NR1:P:AAAAAAAAAAAAAAAAAAAAAA'
     const result = normalizeRpcTransaction({
@@ -80,5 +84,22 @@ describe('Nimiq RPC normalization', () => {
       headBlockNumber: 180,
       network: 'TestAlbatross',
     })).toThrow(NimiqRpcError)
+  })
+
+  it('retrieves the live head shape without exposing transport metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      jsonrpc: '2.0',
+      result: {
+        data: { network: 'TestAlbatross', number: 123 },
+        metadata: null,
+      },
+      id: 'test',
+    }), { status: 200 }))))
+
+    const client = new NimiqRpcClient('https://rpc.test.invalid')
+    await expect(client.getHead()).resolves.toEqual({
+      blockNumber: 123,
+      network: 'TestAlbatross',
+    })
   })
 })

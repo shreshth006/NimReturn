@@ -24,11 +24,11 @@ Repository initialized; all required planning/security/protocol/design/testing/c
 
 # What has been manually verified
 
-Official live docs/rules/scoring and npm package declarations/source were reviewed on 2026-09-14. Lint, typecheck, 21 unit tests, frontend/API production builds, API health/400/503 failure behavior, a 390×844 responsive layout, minimum 48px primary controls, no horizontal overflow, and no browser console warnings/errors were manually checked. No actual Nimiq Pay device, wallet signature/payment, configured RPC transaction, deployment, or database has been verified.
+Official live docs/rules/scoring and npm package declarations/source were reviewed on 2026-09-14. Lint, typecheck, 26 unit tests, frontend/API production builds, API health/400/503 failure behavior, a 390×844 responsive layout, minimum 48px primary controls, no horizontal overflow, and no browser console warnings/errors were manually checked. The API reached the currently listed public development endpoint at `rpc.testnet.nimiqwatch.com`, observed `TestAlbatross`, and returned a live head over both loopback and LAN. No actual Nimiq Pay device signature/payment, tagged transaction round-trip, deployment, or database has been verified.
 
 # Known bugs/blockers
 
-Physical Nimiq Pay iOS/Android access and funded TestAlbatross wallet are external. A production-grade Nimiq RPC endpoint, database/deployment credentials, public repo, and pilot merchant/users are not configured.
+Physical Nimiq Pay iOS/Android access and a funded TestAlbatross wallet are external. The public development RPC is operational but has no SLA and is not a production-grade independent verifier. Database/deployment credentials and pilot merchant/users are not configured; the public GitHub repository is configured.
 
 # Important implementation details
 
@@ -37,7 +37,7 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 # Next 5 highest-priority actions
 
 1. Open diagnostics inside current Nimiq Pay and capture exact sign interoperability fixture.
-2. Configure a TestAlbatross RPC/node, send/retrieve one low-value transaction with exact data, and record result shape.
+2. Send/retrieve one low-value transaction with exact data through the configured development RPC and record result shape/finality.
 3. Repeat provider/sign/payment cancellation and WebView resume checks on target iOS/Android.
 4. Resolve any host/RPC shape differences and freeze NR1 writer behavior with a decision/test fixture.
 5. Begin Phase 1 PostgreSQL migrations and immutable merchant policy flow only after Phase 0 exits.

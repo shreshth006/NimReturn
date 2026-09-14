@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented; all local gates pass. Only an actual Nimiq Pay device and configured TestAlbatross node can close the wallet/transaction interoperability exit criteria. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
+The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented; all local gates pass. A live TestAlbatross development RPC is proven through the local API, but only an actual Nimiq Pay device transaction can close the wallet/transaction interoperability exit criteria. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
 
 ## Local development
 
