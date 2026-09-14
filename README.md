@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. A checksum-bound private v2 artifact proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly leaving iOS untested. D-017 separates proof-derived policy authority from signed settlement, while D-018 keeps claimant authorization closed until its Phase 3 design gate. Three short actual-device cancellation/recovery results still gate Phase 0 completion and Phase 1 implementation. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+The repository is beginning **Phase 1 backend foundations** under the narrow D-019 deferral. Phase 0 remains honestly recorded at 98%: a checksum-bound private v2 artifact proves exact Android/Nimiq Pay signing plus a real, successfully executed and macro-final 1000-Luna NR1-tagged TestAlbatross transaction, while three cancellation/recovery cases remain scheduled into the Phase 1/2 device suites. D-017 separates proof-derived policy authority from signed settlement, and D-018 keeps claimant authorization closed until its Phase 3 design gate. No merchant screens or production NR1 writer are enabled by the deferral. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 

@@ -217,3 +217,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Both direct equality and unrestricted signing are unsafe without a defensible account-control relationship. Phase 3 is the first phase that needs this protocol and can evaluate recovery, multiple accounts, authorization replay, privacy, and device behavior together.
 
 **Consequences:** Claim payload/schema text is explicitly candidate, stores purchase-sender and derived-signer facts separately, and has no enabled production write path before the Phase 3 gate closes. PRD, security controls, tests, and UI copy may describe the intended claim outcome but cannot claim original-buyer authorization until that protocol exists. This decision does not expand Phase 0 or start claim implementation.
+
+## D-019 — 2026-09-15 — Defer three Phase 0 device cases into later phase suites
+
+**Decision:** At the project lead's direction, keep T-001 provider recovery, T-002 repeated account-permission cancellation/recovery, and T-020 native payment cancellation/safe retry open, but allow Phase 1 backend foundations to begin. Phase 0 remains recorded at 98% rather than being declared complete. T-001/T-002 join the Phase 1 actual-device signing suite; T-020 joins the Phase 2 actual-device payment suite.
+
+**Context:** The high-risk interoperability proof already covers exact Nimiq Pay signed bytes/address derivation and one independently retrieved TestAlbatross transaction with exact sender, recipient, value, data, successful execution, and macro finality. Repeating separate device sessions now would delay the same host interactions that later end-to-end phase tests must exercise again.
+
+**Alternatives:** Stop all implementation until the three isolated checks are recorded; falsely mark them passed from adjacent evidence; remove them from the test plan.
+
+**Rationale:** Combining the open cases with later native flows reduces duplicated setup without weakening their expected assertions or misrepresenting current evidence. The account-cancellation regression is also covered hermetically while awaiting physical confirmation.
+
+**Consequences:** Phase 1 may implement database, canonical policy, verification, and API foundations, but no merchant screens are authorized by this exception. The NR1 production writer and release claims remain disabled until the applicable device suite passes. The three scenario IDs stay visibly open in `TESTING.md`, `STATUS.md`, and `MEMORY.md`; any failure must be fixed before the associated later phase exits.

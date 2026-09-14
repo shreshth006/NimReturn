@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-019 permits only Phase 1 backend foundations while three Phase 0 native cases remain open. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -33,11 +33,13 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 
 If sign preprocessing differs from the NR1 candidate, change it once with captured evidence and a decision before any product signature exists.
 
+D-019 does not mark the unchecked criteria complete. T-001/T-002 are due in the Phase 1 actual-device suite and T-020 in the Phase 2 payment suite; all remain release-blocking until recorded.
+
 ## Phase 1 — Policy + Merchant
 
 ### Build
 
-Database migrations/constraints; first-proof-derived merchant policy signer; separately signed settlement address; minimal product editor; server-issued policy challenge; canonicalization; signing/verification; append-only versions; active verified policy product page; role authorization and audit events. No merchant screen implementation begins until Phase 0 exits.
+Database migrations/constraints; first-proof-derived merchant policy signer; separately signed settlement address; server-issued policy challenge; canonicalization; signing/verification; append-only versions; role authorization and audit events. D-019 authorizes these backend foundations before the deferred Phase 0 device cases close. Merchant screens, product editor UI, and production writer activation remain outside the authorized batch.
 
 ### Exit criteria
 
@@ -46,6 +48,7 @@ Database migrations/constraints; first-proof-derived merchant policy signer; sep
 - [ ] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
 - [ ] Product cannot activate without verified policy.
 - [ ] API/database integration tests, mobile accessibility, and full gate pass.
+- [ ] Deferred T-001/T-002 actual-device cases pass during the Phase 1 signing run; failure blocks this phase exit.
 
 ## Phase 2 — Purchase Passport
 

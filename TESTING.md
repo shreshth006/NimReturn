@@ -138,6 +138,8 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. Phase 0 is still **not complete** until actual-device T-001, T-002, and clean native payment-cancellation behavior under T-020 are recorded.
 
+D-019 changes scheduling, not outcomes: T-001/T-002 are rerun alongside the Phase 1 native policy-signing suite, and T-020 alongside the Phase 2 native purchase suite. They remain open scenario IDs and release blockers; adjacent happy-path evidence cannot mark them passed.
+
 ## Test data rules
 
 - Keys are generated at test runtime or labeled deterministic fixtures with no funds/use outside tests.

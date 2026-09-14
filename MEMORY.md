@@ -16,7 +16,7 @@ One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle
 
 # Current phase
 
-Phase 0 — Technical proof, 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while deferring iOS. D-017 separates policy signer from signed settlement address; D-018 defers claimant authorization to a required Phase 3 design gate. The NR1 policy writer remains candidate until three actual-device cancellation/recovery results close. Phase 1 has not started.
+Phase 1 backend foundations are authorized under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
 
 # What is complete
 
@@ -28,7 +28,7 @@ Official Mini App SDK 0.1.0 declarations/bundle and current provider documentati
 
 # Known bugs/blockers
 
-Actual-device T-001 provider timeout/recovery, T-002 account-permission cancellation/recovery, and T-020 native payment cancellation/safe retry still need recorded results. iOS is explicitly untested and deferred by D-016, not claimed compatible. Wallet consensus can be transiently false despite a valid head and remains fail-closed. The public development RPC has no SLA and is not a production-grade independent verifier. Phase 3 must design claimant authorization without assuming the proof signer equals the purchase sender. Database/deployment credentials and pilot merchant/users are not configured.
+Actual-device T-001 provider timeout/recovery and T-002 account-permission cancellation/recovery remain due with Phase 1 device signing; T-020 native payment cancellation/safe retry remains due with Phase 2 purchase testing. iOS is explicitly untested and deferred by D-016, not claimed compatible. Wallet consensus can be transiently false despite a valid head and remains fail-closed. The public development RPC has no SLA and is not a production-grade independent verifier. Phase 3 must design claimant authorization without assuming the proof signer equals the purchase sender. Database/deployment credentials and pilot merchant/users are not configured.
 
 # Important implementation details
 
@@ -36,11 +36,11 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 
 # Next 5 highest-priority actions
 
-1. Record actual-device T-001 provider timeout/recovery behavior without sending a transaction.
-2. Record actual-device T-002 account-permission cancellation/recovery without retaining stale authority.
-3. Record actual-device T-020 native payment cancellation and one safe retry without broadcasting a transaction.
-4. Freeze the D-017-corrected NR1 policy writer only after those remaining exit criteria are closed.
-5. Begin Phase 1 PostgreSQL migrations and immutable merchant policy flow—with distinct policy signer and settlement columns—only after Phase 0 exits.
+1. Implement the Phase 1 PostgreSQL schema/migration for merchant bootstrap, distinct policy signer/settlement identity, products, policy versions, and signing challenges.
+2. Add database constraint/migration tests and strict Phase 1 boundary schemas without exposing production writer routes.
+3. Implement pure canonical policy challenge/proof verification and first-signer compare-and-set domain behavior.
+4. Run Phase 1 native policy signing together with deferred T-001/T-002 before Phase 1 exits.
+5. Run deferred T-020 with the Phase 2 native purchase suite; do not mark it passed from the earlier successful transaction.
 
 # Competition deadline/status
 
