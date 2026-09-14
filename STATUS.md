@@ -4,12 +4,12 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 1 — Policy + Merchant backend foundations: authorized to start under D-019.** Phase 0 remains 98% rather than being declared complete. Its critical Android cryptographic/chain proof is complete; T-001/T-002 are scheduled into the Phase 1 device suite and T-020 into Phase 2. D-019 authorizes backend/data/protocol work only—no merchant screens or production NR1 writer activation.
+**Phase 1 — Policy + Merchant backend foundations: in progress under D-019.** Phase 0 remains 98% rather than being declared complete. Its critical Android cryptographic/chain proof is complete; T-001/T-002 are scheduled into the Phase 1 device suite and T-020 into Phase 2. The canonical policy, PostgreSQL, challenge, proof-verification, and atomic-publication foundations are implemented. D-019 still authorizes backend/data/protocol work only—no merchant screens or production NR1 writer activation.
 
 ## Completion by phase
 
 - Phase 0 — Technical proof: **98%** (Android chain/signature proof complete, stale cancellation state fixed, and Android-only exception documented; three short actual-device cancellation/recovery results pending).
-- Phase 1 — Policy + Merchant: **0%** (backend foundations authorized; implementation not yet committed).
+- Phase 1 — Policy + Merchant: **45%** (canonical policy and database/domain trust core implemented; runtime-role/API authorization, native signing, deferred device cases, and user flow remain).
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
@@ -21,11 +21,11 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build status
 
-Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions runs the same locked-install gate on pushes to `main` and pull requests; cancellation-fix run `34884517479` and Android-exception run `34884852652` passed. Frontend output includes official Nimiq core WASM (~1.11 MB raw/~471 KB gzip); track mobile performance.
+Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions runs the same locked-install gate plus PostgreSQL 16 integration tests on pushes to `main` and pull requests. Frontend output includes official Nimiq core WASM (~1.11 MB raw/~471 KB gzip); track mobile performance.
 
 ## Test status
 
-69/69 unit tests pass across eleven files, including atomic account-authority reset/retry coverage and a policy fixture proving that a settlement address can differ from the proof signer while remaining signature-bound. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Database integration/E2E remain pending by phase.
+95 hermetic tests pass across fourteen files. Fourteen additional integration cases pass against PostgreSQL 16 (109 total with `TEST_DATABASE_URL`), covering migrations, immutable identity/evidence, one-bootstrap/one-challenge binding, exact stored policy evidence, invalid-attempt rollback, safe retry, replay rejection, first-signer compare-and-set, wrong established signer, verified-only activation, append-only events, and concurrent monotonic versions/publication. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Phase 1 HTTP and browser/device E2E remain pending.
 
 ## Deployment status
 
@@ -46,7 +46,7 @@ Physical Android 16/Nimiq Pay 2.19.1 testing initialized the provider, returned 
 - Phase 3 design gate (not a Phase 0/1 blocker): specify and security-review signed authorization between a proof-derived claim signer and the independently verified purchase sender. Direct equality is not an accepted shortcut.
 - Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
 
-These do not block local scaffold, pure crypto/protocol tests, or fail-closed RPC integration.
+These do not block the remaining backend-only Phase 1 work, pure crypto/protocol tests, or fail-closed RPC integration.
 
 ## Critical path
 
@@ -54,4 +54,4 @@ Phase 1 distinct policy-signer/settlement backend foundation → combined Phase 
 
 ## Next milestone
 
-**Phase 1 foundation:** implement the PostgreSQL schema and migration constraints for merchant bootstrap, distinct policy signer/settlement identity, products, immutable policy versions, and signing challenges. Keep all deferred device cases visible and do not build merchant screens yet.
+**Phase 1 authorization boundary:** add least-privilege runtime database grants and the merchant/product draft bootstrap domain operation, then exercise canonical policy signing in Nimiq Pay together with deferred T-001/T-002. Keep production NR1 routes and merchant screens disabled until that device gate passes.

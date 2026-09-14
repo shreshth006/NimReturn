@@ -151,7 +151,7 @@ Supporting tables are required although they are not product entities.
 
 `idempotency_keys`: wallet/action/key unique, request hash, response status/body reference, created/expiry. A key reused with a different request hash returns conflict.
 
-`signing_challenges`: nonce unique, action, resource, nullable `expected_signer_address`, canonical message/hash, expires/consumed timestamps. The expected signer is null only for a new merchant's first policy bootstrap; successful proof derivation and merchant binding occur in the same transaction as challenge consumption. Claim authorization fields remain undefined until the Phase 3 gate closes.
+`signing_challenges`: nonce unique, action, resource, nullable `expected_signer_address`, canonical message/hash, expires/consumed timestamps. A bootstrap session can bind to at most one challenge. The expected signer is null only for a new merchant's first policy bootstrap; successful proof derivation and merchant binding occur in the same transaction as challenge consumption. Claim authorization fields remain undefined until the Phase 3 gate closes.
 
 `merchant_bootstrap_sessions`: hash of a 128-bit-or-stronger opaque capability, merchant ID, expiry, consumed timestamp, and creation metadata. The raw capability exists only in a short-lived `HttpOnly`, `Secure`, `SameSite` session. It authorizes first-policy challenge creation/submission but is not wallet identity; consumption, proof verification, and signer establishment are atomic. Established signer rows have no reset through this table.
 

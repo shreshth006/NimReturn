@@ -213,7 +213,7 @@ Pin lockfile; use official Nimiq packages; review new install scripts, licenses,
 - [ ] Known-good/tampered/wrong-address signature tests pass.
 - [ ] Purchase/refund wrong network/sender/recipient/value/data/state/hash tests pass.
 - [ ] Global hash/nonces and one-to-one constraints verified under concurrency.
-- [ ] Historical policy update/delete denied at database level.
+- [x] Historical policy update/delete denied at database level.
 - [ ] RPC failure/reorg/timeout is inconclusive, never success.
 - [ ] Authz prevents buyer/merchant cross-resource actions and ID enumeration.
 - [ ] Rate/body limits, TLS, CORS, CSP, security headers, and error redaction reviewed.

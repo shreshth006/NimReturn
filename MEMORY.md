@@ -12,19 +12,19 @@ No custody/private keys/fake chain success. Integer Luna only. Exact canonical s
 
 # Current architecture
 
-One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle planned; Nimiq Pay SDK 0.1.0; official core 2.21.0; configurable server RPC/node adapter. NR1 uses domain-separated RFC 8785 JSON, the exact Nimiq signed-message frame/SHA-256 convention, a separate BLAKE2b-256 payload hash, and 28-byte 128-bit-token transaction tags.
+One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle with checked-in migrations and real-Postgres tests; Nimiq Pay SDK 0.1.0; official core 2.21.0; configurable server RPC/node adapter. NR1 uses domain-separated RFC 8785 JSON, the exact Nimiq signed-message frame/SHA-256 convention, a separate BLAKE2b-256 payload hash, and 28-byte 128-bit-token transaction tags.
 
 # Current phase
 
-Phase 1 backend foundations are authorized under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
+Phase 1 backend foundations are 45% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
 
 # What is complete
 
-Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, account discovery, account-independent consensus/head, exact-message signing with cryptographically derived signer identity, guarded 1000-Luna transaction-with-data, chain-derived sender evidence, fail-closed/retryable server RPC verification, reload-safe session records, ambiguous-submission locking, and a truthful v2 local evidence export. Payment remains locked without fresh wallet consensus. Verification requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. GitHub Actions runs the locked quality gate on pushes to `main` and pull requests.
+Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, account discovery, account-independent consensus/head, exact-message signing with cryptographically derived signer identity, guarded 1000-Luna transaction-with-data, chain-derived sender evidence, fail-closed/retryable server RPC verification, reload-safe session records, ambiguous-submission locking, and a truthful v2 local evidence export. Payment remains locked without fresh wallet consensus. Verification requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. Phase 1 now has strict NR1 policy schemas, four PostgreSQL migrations, 256-bit hashed merchant bootstraps, immutable merchant/product/policy identity, one-bootstrap/one-challenge binding, canonical server challenge allocation, pure exact-proof verification, atomic first-signer establishment/publication, verified-only product activation, and append-only audit events. GitHub Actions runs the locked quality gate and real PostgreSQL integration suite on pushes to `main` and pull requests.
 
 # What has been manually verified
 
-Official Mini App SDK 0.1.0 declarations/bundle and current provider documentation confirm that `listAccounts()` returns disclosed addresses, `sign()` has no account selector, and `sendBasicTransactionWithData()` has no sender selector. Physical Android 16/Nimiq Pay 2.19.1 evidence proves provider availability, two accounts, consensus, exact framed signing/address binding, strict 1000-Luna NR1 data round trip, chain-derived wallet-listed sender, successful execution, macro finality, and final RPC `verified`. The actual signer differed from the expected diagnostic account and payment sender in this run; this is an observation, not a wallet-selection rule. The authoritative artifact remains private outside Git; its sanitized public summary contains only the checksum and non-identifying results. Deployment and database have not been verified.
+Official Mini App SDK 0.1.0 declarations/bundle and current provider documentation confirm that `listAccounts()` returns disclosed addresses, `sign()` has no account selector, and `sendBasicTransactionWithData()` has no sender selector. Physical Android 16/Nimiq Pay 2.19.1 evidence proves provider availability, two accounts, consensus, exact framed signing/address binding, strict 1000-Luna NR1 data round trip, chain-derived wallet-listed sender, successful execution, macro finality, and final RPC `verified`. The actual signer differed from the expected diagnostic account and payment sender in this run; this is an observation, not a wallet-selection rule. The authoritative artifact remains private outside Git; its sanitized public summary contains only the checksum and non-identifying results. PostgreSQL 16 migrations and domain transactions are verified locally and in GitHub Actions; deployment is not verified.
 
 # Known bugs/blockers
 
@@ -36,10 +36,10 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 
 # Next 5 highest-priority actions
 
-1. Implement the Phase 1 PostgreSQL schema/migration for merchant bootstrap, distinct policy signer/settlement identity, products, policy versions, and signing challenges.
-2. Add database constraint/migration tests and strict Phase 1 boundary schemas without exposing production writer routes.
-3. Implement pure canonical policy challenge/proof verification and first-signer compare-and-set domain behavior.
-4. Run Phase 1 native policy signing together with deferred T-001/T-002 before Phase 1 exits.
+1. Add least-privilege PostgreSQL runtime-role grants and prove direct historical evidence mutation remains denied.
+2. Add the strict merchant/product draft bootstrap domain operation without exposing production writer routes.
+3. Run Phase 1 native canonical policy signing together with deferred T-001/T-002 before Phase 1 exits.
+4. Only after that device gate, add the reviewed HTTP authorization boundary; merchant screens remain explicitly out of the current batch.
 5. Run deferred T-020 with the Phase 2 native purchase suite; do not mark it passed from the earlier successful transaction.
 
 # Competition deadline/status

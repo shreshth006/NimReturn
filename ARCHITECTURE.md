@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements only the wallet/cryptographic/transaction diagnostic slice. Persistence routes and product flows remain designs until their phases begin.
+This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 now implements the PostgreSQL and domain trust core for canonical policy challenges and atomic verified publication; production writer routes and merchant UI remain disabled pending the D-019 device gate.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
