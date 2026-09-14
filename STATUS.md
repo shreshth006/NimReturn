@@ -9,7 +9,7 @@ Last updated: 2026-09-15 (IST)
 ## Completion by phase
 
 - Phase 0 — Technical proof: **98%** (Android chain/signature proof complete, stale cancellation state fixed, and Android-only exception documented; three short actual-device cancellation/recovery results pending).
-- Phase 1 — Policy + Merchant: **55%** (canonical policy, least-privilege database, and complete write-domain trust core implemented; read/expiry projections, HTTP authorization, native signing, deferred device cases, and user flow remain).
+- Phase 1 — Policy + Merchant: **65%** (canonical policy, least-privilege database, write-domain trust core, bounded expiry, and verified public projection implemented; HTTP adapters, native signing, deferred device cases, and user flow remain).
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
@@ -25,7 +25,7 @@ Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm te
 
 ## Test status
 
-95 hermetic tests pass across fourteen files. Seventeen additional integration cases pass against PostgreSQL 16 (112 total with `TEST_DATABASE_URL`), covering migrations, restricted runtime-role behavior, immutable identity/evidence, one-bootstrap/one-challenge binding, hashed capability storage, normalized atomic draft creation, exact stored policy evidence, invalid-attempt rollback, safe retry, replay rejection, first-signer compare-and-set, wrong established signer, verified-only activation, append-only events, and concurrent monotonic versions/publication. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Phase 1 HTTP and browser/device E2E remain pending.
+95 hermetic tests pass across fourteen files. Nineteen additional integration cases pass against PostgreSQL 16 (114 total with `TEST_DATABASE_URL`), covering migrations, restricted runtime-role behavior, immutable identity/evidence, one-bootstrap/one-challenge binding, hashed capability storage, normalized atomic draft creation, exact stored policy evidence, invalid-attempt rollback, safe retry, replay/expiry rejection, concurrent bounded expiry, first-signer compare-and-set, wrong established signer, verified-only activation, fail-closed public proof reprojection, append-only events, and concurrent monotonic versions/publication. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Phase 1 HTTP and browser/device E2E remain pending.
 
 ## Deployment status
 
@@ -54,4 +54,4 @@ Phase 1 distinct policy-signer/settlement backend foundation → combined Phase 
 
 ## Next milestone
 
-**Phase 1 read/expiry boundary:** add the verified-only public product projection and bounded stale-challenge expiry transition. Keep canonical Nimiq Pay policy signing plus deferred T-001/T-002 on the explicit device TODO; production NR1 writer routes and merchant screens stay disabled until that gate passes.
+**Phase 1 read-only API boundary:** refactor Fastify into an injectable app factory and expose only the fail-closed verified-product read projection with database-unavailable/integrity-safe errors. Keep canonical Nimiq Pay policy signing plus deferred T-001/T-002 on the explicit device TODO; production NR1 writer routes and merchant screens stay disabled until that gate passes.

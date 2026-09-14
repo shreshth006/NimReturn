@@ -16,11 +16,11 @@ One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle
 
 # Current phase
 
-Phase 1 backend foundations are 55% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
+Phase 1 backend foundations are 65% complete under D-019 while Phase 0 remains honestly recorded at 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. T-001/T-002 move into the Phase 1 device suite and T-020 into Phase 2; none is marked passed. D-017 separates policy signer from signed settlement address, and D-018 defers claimant authorization to a required Phase 3 design gate. Merchant screens and production NR1 writer activation remain blocked.
 
 # What is complete
 
-Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, account discovery, account-independent consensus/head, exact-message signing with cryptographically derived signer identity, guarded 1000-Luna transaction-with-data, chain-derived sender evidence, fail-closed/retryable server RPC verification, reload-safe session records, ambiguous-submission locking, and a truthful v2 local evidence export. Payment remains locked without fresh wallet consensus. Verification requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. Phase 1 now has strict NR1 policy schemas, four PostgreSQL migrations, 256-bit hashed merchant bootstraps, immutable merchant/product/policy identity, one-bootstrap/one-challenge binding, canonical server challenge allocation, pure exact-proof verification, atomic first-signer establishment/publication, verified-only product activation, and append-only audit events. GitHub Actions runs the locked quality gate and real PostgreSQL integration suite on pushes to `main` and pull requests.
+Repository initialized; all required planning/security/protocol/design/testing/competition documents and MIT license created. React/Vite and Fastify scaffold is installed. Phase 0 diagnostics implement provider init, account discovery, account-independent consensus/head, exact-message signing with cryptographically derived signer identity, guarded 1000-Luna transaction-with-data, chain-derived sender evidence, fail-closed/retryable server RPC verification, reload-safe session records, ambiguous-submission locking, and a truthful v2 local evidence export. Payment remains locked without fresh wallet consensus. Verification requires PoS `executionResult: true` plus the finalizing Albatross macro block; confirmation counts are non-authoritative. Phase 1 now has strict NR1 policy schemas, five PostgreSQL migrations including a restricted runtime role, 256-bit hashed merchant bootstraps, immutable merchant/product/policy identity, one-bootstrap/one-challenge binding, normalized atomic draft creation, canonical server challenge allocation, pure exact-proof verification, atomic first-signer establishment/publication, verified-only product activation, bounded concurrent expiry, fail-closed public proof reprojection, and append-only audit events. GitHub Actions runs the locked quality gate and real PostgreSQL integration suite on pushes to `main` and pull requests.
 
 # What has been manually verified
 
@@ -36,8 +36,8 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 
 # Next 5 highest-priority actions
 
-1. Add a fail-closed public read projection that exposes only an active, verified policy and revalidates stored evidence.
-2. Add a bounded stale-challenge expiry transition with rollback/retry coverage.
+1. Refactor Fastify into an injectable app factory and add the read-only verified-product HTTP endpoint with fail-closed errors.
+2. Add HTTP integration coverage for missing database, invalid/not-found IDs, verified reads, and evidence-integrity failure; do not register writers.
 3. Run Phase 1 native canonical policy signing together with deferred T-001/T-002 before Phase 1 exits.
 4. Only after that device gate, add the reviewed HTTP writer authorization boundary; merchant screens remain explicitly out of the current batch.
 5. Run deferred T-020 with the Phase 2 native purchase suite; do not mark it passed from the earlier successful transaction.
