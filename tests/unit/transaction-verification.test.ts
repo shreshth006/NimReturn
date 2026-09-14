@@ -70,7 +70,7 @@ describe('transaction verification', () => {
       },
       state: 'included',
     })
-    expect(result.outcome).toBe('pending')
+    expect(result.outcome).toBe('pending-finality')
     expect(result.checks.finality).toBe(false)
   })
 
@@ -86,7 +86,7 @@ describe('transaction verification', () => {
   })
 
   it('distinguishes pending and unknown state from verified', () => {
-    expect(verifyObservedTransaction(expected, { ...observed, state: 'pending' }).outcome).toBe('pending')
+    expect(verifyObservedTransaction(expected, { ...observed, state: 'pending' }).outcome).toBe('pending-inclusion')
     expect(verifyObservedTransaction(expected, { ...observed, state: 'unknown' }).outcome).toBe('inconclusive')
   })
 

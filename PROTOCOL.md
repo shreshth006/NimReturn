@@ -173,7 +173,7 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 - transaction is an ordinary direct value transfer compatible with expected account types;
 - block time/height and transaction hash are retained.
 
-A wallet-returned hash alone only moves the state to verifying. Mempool and pre-macro inclusion are pending, regardless of ordinary confirmation count. Failed execution, an invalid observed sender, or another definitive field mismatch is invalid. RPC/finality evidence failure is inconclusive. None creates a passport.
+A wallet-returned hash alone only moves the state to verifying. An absent/mempool transaction is `pending-inclusion`; a successfully executed pre-macro inclusion is `pending-finality`, regardless of ordinary confirmation count. Both remain retryable after each RPC request completes. Failed execution, an invalid observed sender, or another definitive field mismatch is `invalid`. RPC transport or malformed evidence is `inconclusive`. None creates a passport.
 
 ## Refund transaction verification
 

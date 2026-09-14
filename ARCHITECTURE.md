@@ -226,7 +226,7 @@ For an expected purchase/refund and observed chain record:
 8. persist raw normalized evidence, provider, observed time, block/confirmations, and each check result;
 9. create downstream state only in the same database transaction as successful verification.
 
-NR1 uses Albatross macro-block finality: ordinary confirmation counts are retained as observations but never authorize verification. “Included” and “finalized for NimReturn” are separate states. Phase 2 still adds persistence, retry/reconciliation, and an independent production verifier source; it does not weaken this finality rule.
+NR1 uses Albatross macro-block finality: ordinary confirmation counts are retained as observations but never authorize verification. The verifier exposes `pending-inclusion`, `pending-finality`, `verified`, `invalid`, and `inconclusive` as distinct outcomes. The client separately tracks whether an RPC HTTP request is currently in flight; a chain-pending outcome never disables a later recheck. “Included” and “finalized for NimReturn” are separate states. Phase 2 still adds persistence, retry/reconciliation, and an independent production verifier source; it does not weaken this finality rule.
 
 ## Idempotency and races
 

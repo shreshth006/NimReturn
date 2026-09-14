@@ -110,7 +110,7 @@ app.post('/api/v1/diagnostics/transactions/verify', async (request, reply) => {
     const observed = await rpc.getTransaction(parsed.data.hash.toLowerCase())
     if (!observed) {
       return reply.code(202).send({
-        outcome: 'pending',
+        outcome: 'pending-inclusion',
         reason: 'The configured node has not returned this transaction yet.',
       })
     }

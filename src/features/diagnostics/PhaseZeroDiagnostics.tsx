@@ -20,6 +20,15 @@ import {
 } from '../../lib/protocol/transaction-data.js'
 import { buildPhaseZeroEvidence, type PhaseZeroSentTransaction } from './evidence.js'
 import {
+  classifyRpcVerification,
+  extractRpcObservedEvidence,
+  initialRpcVerificationState,
+  isRpcRetryDisabled,
+  rpcFailureState,
+  rpcRetryLabel,
+  type RpcVerificationOutcome,
+} from './rpc-verification.js'
+import {
   verifyDiagnosticSigner,
   type DiagnosticSignerVerification,
 } from './signer-identity.js'
@@ -88,17 +97,12 @@ function errorState(error: unknown): StatusState {
   }
 }
 
-function resultSummary(body: unknown): string {
-  if (typeof body !== 'object' || body === null) return 'The API returned an unreadable result.'
-  const record = body as Record<string, unknown>
-  const verification =
-    typeof record.verification === 'object' && record.verification !== null
-      ? (record.verification as Record<string, unknown>)
-      : null
-  if (verification && typeof verification.reason === 'string') return verification.reason
-  if (typeof record.reason === 'string') return record.reason
-  if (typeof record.message === 'string') return record.message
-  return 'The API returned a result without a summary.'
+function rpcStepStatus(outcome: RpcVerificationOutcome): StepStatus {
+  if (outcome === 'verified') return 'verified'
+  if (outcome === 'invalid') return 'failed'
+  if (outcome === 'pending-finality' || outcome === 'pending-inclusion') return 'pending'
+  if (outcome === 'inconclusive') return 'warning'
+  return 'idle'
 }
 
 export function PhaseZeroDiagnostics() {
@@ -120,7 +124,8 @@ export function PhaseZeroDiagnostics() {
   const [acknowledged, setAcknowledged] = useState(false)
   const [paymentState, setPaymentState] = useState<StatusState>(initialStatus)
   const [sentTransaction, setSentTransaction] = useState<PhaseZeroSentTransaction | null>(null)
-  const [rpcState, setRpcState] = useState<StatusState>(initialStatus)
+  const [rpcVerification, setRpcVerification] = useState(initialRpcVerificationState)
+  const [rpcRequestInFlight, setRpcRequestInFlight] = useState(false)
   const [rpcDetails, setRpcDetails] = useState<unknown>(null)
   const [evidenceSnapshot, setEvidenceSnapshot] = useState('')
   const [devicePlatform, setDevicePlatform] = useState('')
@@ -140,6 +145,10 @@ export function PhaseZeroDiagnostics() {
     [canonicalAccount, diagnosticNonce],
   )
   const transactionData = useMemo(() => encodePurchaseTag(paymentToken), [paymentToken])
+  const rpcObserved = useMemo(
+    () => extractRpcObservedEvidence(rpcDetails, sentTransaction?.walletAccounts ?? []),
+    [rpcDetails, sentTransaction],
+  )
 
   async function initialize() {
     setProviderState({ status: 'pending', detail: 'Waiting for Nimiq Pay to inject the provider…' })
@@ -229,7 +238,7 @@ export function PhaseZeroDiagnostics() {
     setPaymentState({ status: 'pending', detail: 'Validating the irreversible test request…' })
     setSentTransaction(null)
     setRpcDetails(null)
-    setRpcState(initialStatus)
+    setRpcVerification(initialRpcVerificationState)
 
     try {
       const canonicalRecipient = normalizeNimiqAddress(recipient)
@@ -274,31 +283,17 @@ export function PhaseZeroDiagnostics() {
   }
 
   async function verifyTransaction() {
-    if (!sentTransaction) return
-    setRpcState({ status: 'pending', detail: 'Asking the API to query its configured Nimiq node…' })
+    if (!sentTransaction || rpcRequestInFlight) return
+    setRpcRequestInFlight(true)
     try {
       const result = await verifyDiagnosticTransaction(sentTransaction)
       setRpcDetails(result.body)
-      const body =
-        typeof result.body === 'object' && result.body !== null
-          ? (result.body as Record<string, unknown>)
-          : null
-      const verification =
-        body && typeof body.verification === 'object' && body.verification !== null
-          ? (body.verification as Record<string, unknown>)
-          : null
-      const outcome = verification?.outcome ?? body?.outcome
-
-      setRpcState({
-        status: outcome === 'verified' ? 'verified' : outcome === 'pending' ? 'pending' : 'failed',
-        detail: `${resultSummary(result.body)}${result.ok ? '' : ` (HTTP ${result.status})`}`,
-      })
+      setRpcVerification(classifyRpcVerification(result, new Date().toISOString()))
     } catch {
       setRpcDetails(null)
-      setRpcState({
-        status: 'failed',
-        detail: 'The API is unreachable. The transaction remains unverified; do not send again.',
-      })
+      setRpcVerification(rpcFailureState(new Date().toISOString()))
+    } finally {
+      setRpcRequestInFlight(false)
     }
   }
 
@@ -307,7 +302,7 @@ export function PhaseZeroDiagnostics() {
     setSentTransaction(null)
     setAcknowledged(false)
     setPaymentState(initialStatus)
-    setRpcState(initialStatus)
+    setRpcVerification(initialRpcVerificationState)
     setRpcDetails(null)
     setEvidenceSnapshot('')
   }
@@ -472,22 +467,49 @@ export function PhaseZeroDiagnostics() {
         <li className="diagnostic-card">
           <div className="card-heading">
             <div><span className="step-number">06</span><h3>Independent transaction lookup</h3></div>
-            <StatusBadge state={rpcState.status} />
+            <StatusBadge
+              state={rpcRequestInFlight ? 'pending' : rpcStepStatus(rpcVerification.outcome)}
+              label={rpcRequestInFlight ? 'Request in flight' : undefined}
+            />
           </div>
-          <p>{rpcState.detail}</p>
-          <p className="secondary-copy">
-            The API—not this screen—queries its configured Nimiq node and compares network, hash, sender, recipient, integer Luna, data, and inclusion state.
+          <p>
+            {rpcRequestInFlight
+              ? 'Asking the API to query its configured Nimiq node…'
+              : rpcVerification.detail}
           </p>
-          <button type="button" onClick={() => void verifyTransaction()} disabled={!sentTransaction || rpcState.status === 'pending'}>
-            Verify through server RPC
+          <p className="secondary-copy">
+            The API—not this screen—queries its configured Nimiq node and compares network, hash,
+            recipient, integer Luna, data, execution result, inclusion, and macro-block finality.
+            The sender is taken from chain evidence and checked against the wallet’s submitted
+            account list.
+          </p>
+          {rpcVerification.lastCheckedAtUtc && (
+            <p className="hint">Last checked: {rpcVerification.lastCheckedAtUtc}</p>
+          )}
+          <button type="button" onClick={() => void verifyTransaction()} disabled={isRpcRetryDisabled(Boolean(sentTransaction), rpcRequestInFlight)}>
+            {rpcRetryLabel(rpcVerification.outcome, rpcRequestInFlight)}
           </button>
+          {rpcObserved && (
+            <div className="evidence-grid">
+              <Evidence label="Observed sender" value={rpcObserved.observedSender ?? 'unavailable'} />
+              <Evidence label="Sender listed by wallet" value={String(rpcObserved.senderIsListedWalletAccount)} />
+              <Evidence label="Observed recipient" value={rpcObserved.observedRecipient ?? 'unavailable'} />
+              <Evidence label="Observed amount" value={rpcObserved.observedValueLuna === null ? 'unavailable' : `${rpcObserved.observedValueLuna} Luna`} />
+              <Evidence label="Observed data" value={rpcObserved.observedData ?? 'unavailable'} />
+              <Evidence label="Execution result" value={String(rpcObserved.executionResult)} />
+              <Evidence label="Inclusion block" value={String(rpcObserved.inclusionBlock)} />
+              <Evidence label="Finalizing macro block" value={String(rpcObserved.finalizingMacroBlock)} />
+              <Evidence label="Head block" value={String(rpcObserved.headBlock)} />
+              <Evidence label="Finality reached" value={String(rpcObserved.finalityReached)} />
+            </div>
+          )}
           {rpcDetails !== null && (
             <details className="evidence-details">
               <summary>Normalized API result</summary>
               <pre>{JSON.stringify(rpcDetails, null, 2)}</pre>
             </details>
           )}
-          {sentTransaction && rpcState.status !== 'verified' && (
+          {sentTransaction && rpcVerification.outcome !== 'verified' && (
             <button type="button" className="button-secondary" onClick={prepareAnotherPayment}>
               Clear result and prepare another token
             </button>
@@ -541,8 +563,8 @@ export function PhaseZeroDiagnostics() {
   )
 }
 
-function StatusBadge({ state }: { state: StepStatus }) {
-  return <span className={`status-badge status-badge--${state}`}>{resultStatus(state)}</span>
+function StatusBadge({ state, label }: { label?: string | undefined; state: StepStatus }) {
+  return <span className={`status-badge status-badge--${state}`}>{label ?? resultStatus(state)}</span>
 }
 
 function Evidence({ label, value }: { label: string; value: string }) {

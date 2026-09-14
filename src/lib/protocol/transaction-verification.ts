@@ -41,7 +41,7 @@ export interface TransactionVerification {
     sender: boolean
     value: boolean
   }
-  outcome: 'inconclusive' | 'invalid' | 'pending' | 'verified'
+  outcome: 'inconclusive' | 'invalid' | 'pending-finality' | 'pending-inclusion' | 'verified'
   reason: string
 }
 
@@ -110,7 +110,11 @@ export function verifyObservedTransaction(
   }
 
   if (observed.state === 'pending') {
-    return { checks, outcome: 'pending', reason: 'Transaction matches but is still pending.' }
+    return {
+      checks,
+      outcome: 'pending-inclusion',
+      reason: 'Transaction matches but is still pending inclusion.',
+    }
   }
 
   if (observed.state === 'unknown') {
@@ -125,7 +129,7 @@ export function verifyObservedTransaction(
   if (observed.state === 'included') {
     return {
       checks,
-      outcome: 'pending',
+      outcome: 'pending-finality',
       reason: `Transaction is included at block ${observed.blockNumber} but is not final until macro block ${observed.finality.finalizingBlockNumber}.`,
     }
   }

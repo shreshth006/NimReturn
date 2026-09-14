@@ -59,9 +59,9 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 ### Payment and transaction verification
 
 - **T-020 Payment cancelled:** order not purchased, no passport, safe retry.
-- **T-021 Payment pending/mempool:** visible pending; no passport.
+- **T-021 Payment pending/mempool:** visible `pending-inclusion`; the completed lookup leaves “Check again” enabled; no passport.
 - **T-022 Payment failed/evicted/invalid:** visible failure or exceptional recovery; no passport.
-- **T-023 RPC unavailable/timeout/malformed:** inconclusive and retryable; no client fallback.
+- **T-023 RPC unavailable/timeout/malformed:** inconclusive and retryable; no client fallback; only an actively running HTTP request disables the retry control.
 - **T-024 Wrong network:** rejected.
 - **T-025 Sender authority:** no sender is invented in the wallet/API expectation; malformed observed sender evidence is rejected and original buyer identity comes from the verified chain sender.
 - **T-026 Wrong recipient:** rejected.
@@ -71,7 +71,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-030 Hash used as refund then purchase (and inverse):** shared registry rejects.
 - **T-031 Reload while verifying:** same order/hash resumes; no second wallet request/passport.
 - **T-032 Concurrent verifier success:** one purchase transaction/passport/event.
-- **T-033 Execution/finality/reorg:** `executionResult: false` is invalid; confirmations never substitute for the following Albatross macro block; pre-macro inclusion remains pending; reached macro finality passes; reorg reconciliation enters safe exceptional state.
+- **T-033 Execution/finality/reorg:** `executionResult: false` is invalid; confirmations never substitute for the following Albatross macro block; pre-macro inclusion is `pending-finality` with “Recheck finality” enabled; reached macro finality passes; reorg reconciliation enters safe exceptional state.
 - **T-034 Data size:** purchase/refund tags are exactly expected and <64 bytes.
 - **T-035 Actual-device transaction:** native dialog shows correct recipient/value/data; returned hash is found and independently matches.
 
