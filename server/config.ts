@@ -13,6 +13,25 @@ const configSchema = z.object({
   NIMIQ_RPC_URL: optionalUrl,
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+  SESSION_SECRET: z.preprocess(
+    (value) => value === '' ? undefined : value,
+    z.string().min(32).optional(),
+  ),
+}).superRefine((config, context) => {
+  if (config.NODE_ENV !== 'production') return
+  for (const [field, value] of [
+    ['CORS_ORIGIN', config.CORS_ORIGIN],
+    ['DATABASE_URL', config.DATABASE_URL],
+    ['SESSION_SECRET', config.SESSION_SECRET],
+  ] as const) {
+    if (!value) {
+      context.addIssue({
+        code: 'custom',
+        message: `${field} is required in production.`,
+        path: [field],
+      })
+    }
+  }
 })
 
 export type ServerConfig = z.infer<typeof configSchema>

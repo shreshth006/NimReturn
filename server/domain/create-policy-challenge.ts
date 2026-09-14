@@ -181,6 +181,8 @@ export async function createPolicyChallenge(
       ) {
         fail('BOOTSTRAP_MISMATCH', 'The merchant bootstrap does not authorize this policy.')
       }
+    } else if (input.bootstrapCapability) {
+      fail('BOOTSTRAP_MISMATCH', 'An established merchant requires its authenticated session.')
     }
 
     const version = requireOne(

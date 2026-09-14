@@ -17,7 +17,9 @@ const PUBLIC_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/u
 const publishPolicyInputSchema = z.object({
   bootstrapCapability: merchantBootstrapCapabilitySchema.optional(),
   challengeNonce: z.string().regex(PUBLIC_TOKEN_PATTERN),
+  merchantPublicId: z.string().regex(PUBLIC_TOKEN_PATTERN),
   proof: z.unknown(),
+  productPublicId: z.string().regex(PUBLIC_TOKEN_PATTERN),
 }).strict()
 
 type PolicyPublishErrorCode =
@@ -110,7 +112,14 @@ export async function publishVerifiedPolicy(
   return client.begin(async (transaction) => {
     const locator = requireOne(
       await transaction<ChallengeLocatorRow[]>`
-        select merchant_id from signing_challenges where nonce = ${input.challengeNonce}
+        select signing_challenges.merchant_id
+        from signing_challenges
+        join merchants on merchants.id = signing_challenges.merchant_id
+        join policy_versions on policy_versions.id = signing_challenges.policy_version_id
+        join products on products.id = policy_versions.product_id
+        where signing_challenges.nonce = ${input.challengeNonce}
+          and merchants.public_id = ${input.merchantPublicId}
+          and products.public_id = ${input.productPublicId}
       `,
       'POLICY_NOT_FOUND',
       'The policy signing challenge was not found.',
@@ -199,8 +208,8 @@ export async function publishVerifiedPolicy(
       ) {
         fail('BOOTSTRAP_MISMATCH', 'The merchant bootstrap does not match this policy challenge.')
       }
-    } else if (challenge.bootstrap_session_id) {
-      fail('POLICY_STATE_CONFLICT', 'An established merchant cannot use a bootstrap challenge.')
+    } else if (challenge.bootstrap_session_id || input.bootstrapCapability) {
+      fail('BOOTSTRAP_MISMATCH', 'An established merchant requires its authenticated session.')
     }
 
     const proof = requireValidProof(verifyPolicyProof({

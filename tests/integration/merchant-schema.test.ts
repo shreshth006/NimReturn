@@ -3,6 +3,8 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { migrateDatabase } from '../../server/db/migrate.js'
+import { buildApp } from '../../server/app.js'
+import type { ServerConfig } from '../../server/config.js'
 import { createMerchantDraft } from '../../server/domain/create-merchant-draft.js'
 import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
 import { expireStalePolicyChallenges } from '../../server/domain/expire-policy-challenges.js'
@@ -22,6 +24,7 @@ const VALID_ADDRESS_F = 'NQ707XHXFXUTMGTAFND7MAABY7TBHKT5KFBT'
 const PRIVATE_KEY_POLICY_FIRST = '202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f'
 const PRIVATE_KEY_POLICY_ESTABLISHED = '404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f'
 const PRIVATE_KEY_POLICY_CONCURRENT = '606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f'
+const PRIVATE_KEY_POLICY_API_JOURNEY = '0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
 const UTF8_ENCODER = new TextEncoder()
 const SIGNED_MESSAGE_PREFIX = '\x16Nimiq Signed Message:\n'
 
@@ -63,6 +66,19 @@ function requireSafeTestDatabaseUrl(): string {
     throw new Error('Database integration tests require a local database whose name ends in _test.')
   }
   return databaseUrl
+}
+
+function responseCookie(
+  headers: string | string[] | undefined,
+  name: string,
+): { name: string; value: string } {
+  const values = Array.isArray(headers) ? headers : headers ? [headers] : []
+  const rawCookie = values.find((value) => value.startsWith(`${name}=`))
+  if (!rawCookie) throw new Error(`Missing ${name} response cookie.`)
+  const pair = rawCookie.split(';')[0]
+  const separator = pair?.indexOf('=') ?? -1
+  if (!pair || separator < 1) throw new Error(`Invalid ${name} response cookie.`)
+  return { name: pair.slice(0, separator), value: pair.slice(separator + 1) }
 }
 
 describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation', () => {
@@ -582,14 +598,18 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     await expect(publishVerifiedPolicy(client, {
       bootstrapCapability: 'B'.repeat(43),
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: validProof,
+      productPublicId,
     })).rejects.toMatchObject({ code: 'BOOTSTRAP_MISMATCH', name: 'PolicyPublishError' })
 
     const changedByte = validProof.signature.startsWith('00') ? '01' : '00'
     await expect(publishVerifiedPolicy(client, {
       bootstrapCapability,
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: { ...validProof, signature: changedByte + validProof.signature.slice(2) },
+      productPublicId,
     })).rejects.toMatchObject({ code: 'INVALID_SIGNATURE', name: 'PolicyPublishError' })
 
     const beforeSuccess = await client<{
@@ -620,7 +640,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     const published = await publishVerifiedPolicy(client, {
       bootstrapCapability,
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: validProof,
+      productPublicId,
     })
     expect(published).toMatchObject({
       actualSignerAddress: validFixture.address,
@@ -669,7 +691,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     await expect(publishVerifiedPolicy(client, {
       bootstrapCapability,
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: validProof,
+      productPublicId,
     })).rejects.toMatchObject({ code: 'CHALLENGE_CONSUMED', name: 'PolicyPublishError' })
   })
 
@@ -707,7 +731,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     const wrongProof = createPolicyProof(PRIVATE_KEY_POLICY_FIRST, policy.canonicalMessage).proof
     await expect(publishVerifiedPolicy(client, {
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: wrongProof,
+      productPublicId,
     })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH', name: 'PolicyPublishError' })
     const pendingRows = await client<{
       consumed_at: Date | null
@@ -726,7 +752,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     ).proof
     await expect(publishVerifiedPolicy(client, {
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof: validProof,
+      productPublicId,
     })).resolves.toMatchObject({
       actualSignerAddress: signerFixture.address,
       firstPolicyForMerchant: false,
@@ -771,7 +799,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     const submission = {
       bootstrapCapability,
       challengeNonce: policy.payload.nonce,
+      merchantPublicId,
       proof,
+      productPublicId,
     }
 
     const results = await Promise.allSettled([
@@ -948,7 +978,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     try {
       await expect(publishVerifiedPolicy(runtime, {
         challengeNonce: challenge.nonce,
+        merchantPublicId,
         proof,
+        productPublicId,
       })).resolves.toMatchObject({
         actualSignerAddress: signerFixture.address,
         policyVersionId: challenge.policyVersionId,
@@ -1112,7 +1144,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       await publishVerifiedPolicy(runtime, {
         bootstrapCapability: draft.bootstrapCapability,
         challengeNonce: challenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
         proof: signer.proof,
+        productPublicId: draft.productPublicId,
       })
 
       const publicProduct = await getPublicVerifiedProduct(runtime, draft.productPublicId)
@@ -1230,11 +1264,180 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       await expect(publishVerifiedPolicy(runtime, {
         challengeNonce: policy.payload.nonce,
+        merchantPublicId,
         proof,
+        productPublicId,
       })).rejects.toMatchObject({ code: 'CHALLENGE_EXPIRED', name: 'PolicyPublishError' })
       await expect(expireStalePolicyChallenges(runtime, { limit: 0 }))
         .rejects.toMatchObject({ code: 'INVALID_REQUEST', name: 'PolicyExpiryError' })
     } finally {
+      await runtime.end()
+    }
+  })
+
+  it('runs the production merchant API through v1 and v2 while preserving v1', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 2,
+    })
+    const apiConfig: ServerConfig = {
+      HOST: '127.0.0.1',
+      NIMIQ_NETWORK: 'TestAlbatross',
+      NODE_ENV: 'test',
+      PORT: 3001,
+      SESSION_SECRET: 'phase-one-integration-session-secret-32-bytes',
+    }
+    const app = await buildApp(apiConfig, { database: runtime })
+    try {
+      const draftResponse = await app.inject({
+        method: 'POST',
+        payload: {
+          defaultSettlementAddress: VALID_ADDRESS_B,
+          description: 'A signed promise for one durable cup.',
+          displayName: 'API Journey Merchant',
+          productName: 'API Journey Cup',
+        },
+        url: '/api/v1/merchants',
+      })
+      expect(draftResponse.statusCode).toBe(201)
+      const draft = draftResponse.json<{
+        merchant: { publicId: string }
+        product: { publicId: string }
+      }>()
+      const bootstrap = responseCookie(
+        draftResponse.headers['set-cookie'],
+        'nimreturn_merchant_bootstrap',
+      )
+      expect(draftResponse.body).not.toContain(bootstrap.value)
+
+      const v1Terms = {
+        priceLuna: 1_500_000,
+        returnWindowSeconds: 604_800,
+        settlementAddress: VALID_ADDRESS_B,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 31_536_000,
+      }
+      const challengeUrl = `/api/v1/merchants/${draft.merchant.publicId}/products/${draft.product.publicId}/policies/challenges`
+      const publishUrl = `/api/v1/merchants/${draft.merchant.publicId}/products/${draft.product.publicId}/policies/publish`
+      const v1ChallengeResponse = await app.inject({
+        cookies: { [bootstrap.name]: bootstrap.value },
+        method: 'POST',
+        payload: v1Terms,
+        url: challengeUrl,
+      })
+      expect(v1ChallengeResponse.statusCode).toBe(201)
+      const v1Challenge = v1ChallengeResponse.json<{
+        canonicalMessage: string
+        nonce: string
+        payload: PolicyPayload
+        payloadHash: string
+      }>()
+      expect(v1Challenge.payload.version).toBe(1)
+      const signer = createPolicyProof(PRIVATE_KEY_POLICY_API_JOURNEY, v1Challenge.canonicalMessage)
+
+      const wrongResourceResponse = await app.inject({
+        cookies: { [bootstrap.name]: bootstrap.value },
+        method: 'POST',
+        payload: { challengeNonce: v1Challenge.nonce, proof: signer.proof },
+        url: `/api/v1/merchants/${draft.merchant.publicId}/products/ZZZZZZZZZZZZZZZZZZZZZZ/policies/publish`,
+      })
+      expect(wrongResourceResponse.statusCode).toBe(404)
+
+      const v1PublishResponse = await app.inject({
+        cookies: { [bootstrap.name]: bootstrap.value },
+        method: 'POST',
+        payload: { challengeNonce: v1Challenge.nonce, proof: signer.proof },
+        url: publishUrl,
+      })
+      expect(v1PublishResponse.statusCode).toBe(200)
+      expect(v1PublishResponse.json()).toMatchObject({
+        firstPolicyForMerchant: true,
+        signerAddress: signer.address,
+        verified: true,
+      })
+      const merchantSession = responseCookie(
+        v1PublishResponse.headers['set-cookie'],
+        'nimreturn_merchant_session',
+      )
+
+      const v1PublicResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/products/${draft.product.publicId}`,
+      })
+      expect(v1PublicResponse.statusCode).toBe(200)
+      expect(v1PublicResponse.json()).toMatchObject({
+        policy: {
+          payload: { priceLuna: v1Terms.priceLuna, version: 1 },
+          proof: { payloadHash: v1Challenge.payloadHash },
+          signerAddress: signer.address,
+        },
+      })
+
+      const staleBootstrapResponse = await app.inject({
+        cookies: { [bootstrap.name]: bootstrap.value },
+        method: 'POST',
+        payload: { ...v1Terms, priceLuna: 1_750_000 },
+        url: challengeUrl,
+      })
+      expect(staleBootstrapResponse.statusCode).toBe(401)
+
+      const v2ChallengeResponse = await app.inject({
+        cookies: { [merchantSession.name]: merchantSession.value },
+        method: 'POST',
+        payload: { ...v1Terms, priceLuna: 1_750_000, returnWindowSeconds: 1_209_600 },
+        url: challengeUrl,
+      })
+      expect(v2ChallengeResponse.statusCode).toBe(201)
+      const v2Challenge = v2ChallengeResponse.json<{
+        canonicalMessage: string
+        nonce: string
+        payload: PolicyPayload
+      }>()
+      expect(v2Challenge.payload).toMatchObject({
+        priceLuna: 1_750_000,
+        returnWindowSeconds: 1_209_600,
+        version: 2,
+      })
+      const v2Proof = createPolicyProof(PRIVATE_KEY_POLICY_API_JOURNEY, v2Challenge.canonicalMessage)
+      const v2PublishResponse = await app.inject({
+        cookies: { [merchantSession.name]: merchantSession.value },
+        method: 'POST',
+        payload: { challengeNonce: v2Challenge.nonce, proof: v2Proof.proof },
+        url: publishUrl,
+      })
+      expect(v2PublishResponse.statusCode).toBe(200)
+      expect(v2PublishResponse.json()).toMatchObject({
+        firstPolicyForMerchant: false,
+        signerAddress: signer.address,
+        verified: true,
+      })
+
+      const versionRows = await runtime<{
+        price_luna: string
+        verification_status: string
+        version: number
+      }[]>`
+        select policy_versions.version, policy_versions.price_luna::text,
+          policy_versions.verification_status
+        from policy_versions
+        join products on products.id = policy_versions.product_id
+        where products.public_id = ${draft.product.publicId}
+        order by policy_versions.version
+      `
+      expect(versionRows).toEqual([
+        { price_luna: '1500000', verification_status: 'verified', version: 1 },
+        { price_luna: '1750000', verification_status: 'verified', version: 2 },
+      ])
+
+      const v2PublicResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/products/${draft.product.publicId}`,
+      })
+      expect(v2PublicResponse.json()).toMatchObject({
+        policy: { payload: { priceLuna: 1_750_000, version: 2 } },
+      })
+    } finally {
+      await app.close()
       await runtime.end()
     }
   })
