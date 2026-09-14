@@ -22,20 +22,13 @@ import {
   generateProtocolToken,
   transactionTagByteLength,
 } from '../../lib/protocol/transaction-data.js'
+import { buildPhaseZeroEvidence, type PhaseZeroSentTransaction } from './evidence.js'
 
 type StepStatus = 'cancelled' | 'failed' | 'idle' | 'pending' | 'ready' | 'sent' | 'verified'
 
 interface StatusState {
   detail: string
   status: StepStatus
-}
-
-interface SentTransaction {
-  data: string
-  hash: string
-  recipient: string
-  sender: string
-  valueLuna: number
 }
 
 const initialStatus: StatusState = { status: 'idle', detail: 'Not run yet.' }
@@ -103,9 +96,10 @@ export function PhaseZeroDiagnostics() {
   const [paymentToken, setPaymentToken] = useState(() => generateProtocolToken())
   const [acknowledged, setAcknowledged] = useState(false)
   const [paymentState, setPaymentState] = useState<StatusState>(initialStatus)
-  const [sentTransaction, setSentTransaction] = useState<SentTransaction | null>(null)
+  const [sentTransaction, setSentTransaction] = useState<PhaseZeroSentTransaction | null>(null)
   const [rpcState, setRpcState] = useState<StatusState>(initialStatus)
   const [rpcDetails, setRpcDetails] = useState<unknown>(null)
+  const [evidenceSnapshot, setEvidenceSnapshot] = useState('')
 
   const canonicalAccount = useMemo(() => {
     if (!selectedAccount) return ''
@@ -279,6 +273,20 @@ export function PhaseZeroDiagnostics() {
     setPaymentState(initialStatus)
     setRpcState(initialStatus)
     setRpcDetails(null)
+    setEvidenceSnapshot('')
+  }
+
+  function captureEvidence() {
+    setEvidenceSnapshot(JSON.stringify(buildPhaseZeroEvidence({
+      capturedAtUtc: new Date().toISOString(),
+      network,
+      rpcResult: rpcDetails,
+      selectedAccount: canonicalAccount,
+      signature,
+      signatureMessage: signMessage,
+      signatureVerification,
+      transaction: sentTransaction,
+    }), null, 2))
   }
 
   return (
@@ -417,6 +425,27 @@ export function PhaseZeroDiagnostics() {
             <button type="button" className="button-secondary" onClick={prepareAnotherPayment}>
               Clear result and prepare another token
             </button>
+          )}
+        </li>
+
+        <li className="diagnostic-card">
+          <div className="card-heading">
+            <div><span className="step-number">07</span><h3>Capture device evidence</h3></div>
+            <StatusBadge state={evidenceSnapshot ? 'ready' : 'idle'} />
+          </div>
+          <p>
+            Build a local JSON record containing the exact signed UTF-8 bytes, public proof,
+            address-binding result, transaction request, and independent RPC result. It contains
+            no private key or seed phrase.
+          </p>
+          <button type="button" onClick={captureEvidence}>
+            Capture current evidence
+          </button>
+          {evidenceSnapshot && (
+            <label>
+              Evidence JSON · copy this record for the Phase 0 review
+              <textarea className="evidence-export" readOnly value={evidenceSnapshot} rows={16} />
+            </label>
           )}
         </li>
       </ol>

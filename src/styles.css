@@ -27,11 +27,11 @@ html { scroll-behavior: smooth; }
 
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 
 button, input, select, summary { -webkit-tap-highlight-color: transparent; }
 
-button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, a:focus-visible {
   outline: 3px solid #3f7c8c;
   outline-offset: 3px;
 }
@@ -100,7 +100,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 label { display: grid; gap: 8px; margin-top: 16px; color: #35413e; font-size: 0.82rem; font-weight: 760; }
 
-input, select { width: 100%; min-height: 48px; padding: 11px 12px; border: 1px solid #c8ceca; border-radius: 10px; color: var(--ink); background: white; }
+input, select, textarea { width: 100%; min-height: 48px; padding: 11px 12px; border: 1px solid #c8ceca; border-radius: 10px; color: var(--ink); background: white; }
+
+.evidence-export { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; line-height: 1.5; }
 
 .form-grid { display: grid; gap: 12px; }
 .hint { color: var(--muted); font-size: 0.75rem; font-weight: 500; }

@@ -131,6 +131,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - Official-core known-good signature verifies; tampered message/signature and wrong address fail.
 - Canonical message and transaction tags have stable fixtures.
 - Diagnostic screen can test provider ready, accounts, sign, local verification/address binding, consensus/head, direct payment-with-data, and server transaction lookup.
+- Diagnostic screen exports one local JSON evidence record with the exact signing message/UTF-8 hex, public key/signature, derived address result, transaction expectation, and independent RPC result; no secret key material is collected.
 - Server lookup accepts only validated hashes and reports unavailable configuration/failure without fabrication.
 - Lint, typecheck, unit tests, and production build pass.
 
