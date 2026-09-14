@@ -73,6 +73,8 @@ npm run build
 
 `npm run check` runs the complete local gate. Real-device cases are tracked separately in [TESTING.md](./TESTING.md); an automated browser pass is not evidence that Nimiq Pay approval dialogs or network interoperability work.
 
+GitHub Actions runs the same locked-install, lint, typecheck, test, and production-build gate on every push to `main` and every pull request.
+
 ## Deployment
 
 The intended topology is a static frontend plus one Node API and managed PostgreSQL in one region. HTTPS, same-origin API routing, database migrations, production RPC credentials, health checks, and structured logs are required before deployment. No deployment exists yet.
