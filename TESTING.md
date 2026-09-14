@@ -136,7 +136,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - Server lookup accepts only validated hashes and reports unavailable configuration/failure without fabrication.
 - Lint, typecheck, unit tests, and production build pass.
 
-The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. Phase 0 is still **not complete** until actual-device T-001/T-002 evidence is recorded and the iOS-or-approved-target-device-exception criterion is closed.
+The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. Phase 0 is still **not complete** until actual-device T-001, T-002, and clean native payment-cancellation behavior under T-020 are recorded.
 
 ## Test data rules
 

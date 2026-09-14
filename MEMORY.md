@@ -16,7 +16,7 @@ One React/TypeScript/Vite frontend; one Node/Fastify/Zod API; PostgreSQL/Drizzle
 
 # Current phase
 
-Phase 0 — Technical proof, 95%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. The NR1 writer remains candidate until actual-device cancellation/recovery and the existing iOS-or-project-lead-exception criterion close. Phase 1 has not started.
+Phase 0 — Technical proof, 98%. A private checksum-bound Android/Nimiq Pay v2 artifact confirms framed signing plus successful execution, macro finality, and independent verification of a real 1000-Luna NR1 transaction. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while deferring iOS. The NR1 writer remains candidate until three actual-device cancellation/recovery results close. Phase 1 has not started.
 
 # What is complete
 
@@ -28,7 +28,7 @@ Official Mini App SDK 0.1.0 declarations/bundle and current provider documentati
 
 # Known bugs/blockers
 
-Actual-device T-001 provider timeout/recovery and T-002 account-permission cancellation still need recorded results. Current Nimiq Pay must also be tested on iOS or the project lead must explicitly accept the Android-only Phase 0 exception. Wallet consensus can be transiently false despite a valid head and remains fail-closed. The public development RPC has no SLA and is not a production-grade independent verifier. Database/deployment credentials and pilot merchant/users are not configured.
+Actual-device T-001 provider timeout/recovery, T-002 account-permission cancellation/recovery, and T-020 native payment cancellation/safe retry still need recorded results. iOS is explicitly untested and deferred by D-016, not claimed compatible. Wallet consensus can be transiently false despite a valid head and remains fail-closed. The public development RPC has no SLA and is not a production-grade independent verifier. Database/deployment credentials and pilot merchant/users are not configured.
 
 # Important implementation details
 
@@ -37,8 +37,8 @@ SDK methods can return `{error}` values despite docs emphasizing thrown errors; 
 # Next 5 highest-priority actions
 
 1. Record actual-device T-001 provider timeout/recovery behavior without sending a transaction.
-2. Record actual-device T-002 account-permission cancellation behavior without consuming later state.
-3. Test current Nimiq Pay on iOS or obtain and append an explicit project-lead Android-only Phase 0 exception.
+2. Record actual-device T-002 account-permission cancellation/recovery without retaining stale authority.
+3. Record actual-device T-020 native payment cancellation and one safe retry without broadcasting a transaction.
 4. Freeze the NR1 writer only after those remaining exit criteria are closed.
 5. Begin Phase 1 PostgreSQL migrations and immutable merchant policy flow only after Phase 0 exits.
 

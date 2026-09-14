@@ -4,11 +4,11 @@ Last updated: 2026-09-14 (IST)
 
 ## Current phase
 
-**Phase 0 — Technical proof: in progress.** The critical Android cryptographic/chain proof is complete: a private checksum-bound v2 artifact records valid framed signing and an independently verified, successfully executed, macro-final NR1-tagged TestAlbatross transaction. Existing Phase 0 iOS-or-approved-exception and actual-device provider/account cancellation-recovery criteria remain open. Phase 1 has not started.
+**Phase 0 — Technical proof: in progress.** The critical Android cryptographic/chain proof is complete, the stale account-authority cancellation bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly deferring iOS. Only actual-device provider recovery, account-permission cancellation/recovery, and clean native payment cancellation/retry evidence remain. Phase 1 has not started.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **95%** (Android provider/accounts/head, framed signing, real tagged submission, successful execution, macro finality, independent verification, and private v2 evidence complete; cross-platform exception/coverage and cancellation-recovery evidence pending).
+- Phase 0 — Technical proof: **98%** (Android chain/signature proof complete, stale cancellation state fixed, and Android-only exception documented; three short actual-device cancellation/recovery results pending).
 - Phase 1 — Policy + Merchant: **0%**.
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
@@ -25,7 +25,7 @@ Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm te
 
 ## Test status
 
-63/63 unit tests pass across ten files: canonicalization/domain separation, compact tags, exact Nimiq framed signature/address binding and negative cases, diagnostic expected/actual signer separation, UTF-8 length/raw-message rejection, truthful v2 evidence export, reload-safe transaction records and duplicate locking, wallet consensus payment gating, transaction field/execution/macro-finality matching, retryable RPC outcome state, and RPC normalization/readiness. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact now supplies actual-device T-017 and T-035 proof. Database integration/E2E remain pending by phase.
+68/68 unit tests pass across eleven files, adding atomic account-authority reset/retry coverage to the existing canonicalization, cryptography, evidence, persistence, consensus, transaction, and RPC suites. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Database integration/E2E remain pending by phase.
 
 ## Deployment status
 
@@ -41,7 +41,7 @@ Physical Android 16/Nimiq Pay 2.19.1 testing initialized the provider, returned 
 
 ## Current blockers
 
-- External/runtime: record actual-device provider-timeout/recovery and account-permission cancellation behavior, then test current Nimiq Pay on iOS or obtain an explicit project-lead exception to the existing Phase 0 cross-platform criterion.
+- External/runtime: record actual-device T-001 provider-timeout/recovery, T-002 account-permission cancellation/recovery, and T-020 clean native payment cancellation/safe retry behavior. D-016 has closed the Cycle II cross-platform criterion by explicit Android-only exception.
 - External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
 - Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
 
@@ -49,8 +49,8 @@ These do not block local scaffold, pure crypto/protocol tests, or fail-closed RP
 
 ## Critical path
 
-Close actual-device cancellation/recovery plus iOS-or-approved-exception criteria → freeze NR1 → Phase 1 immutable policy → Phase 2 verified purchase/passport → Phase 3 claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
+Close the three actual-device cancellation/recovery results → freeze NR1 → Phase 1 immutable policy → Phase 2 verified purchase/passport → Phase 3 claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
 
 ## Next milestone
 
-**Phase 0 closeout:** record T-001 provider timeout/recovery and T-002 account-permission cancellation on an actual host; then run current Nimiq Pay on iOS or have the project lead explicitly accept the documented Android-only Phase 0 exception. Do not start Phase 1 before that decision is recorded.
+**Phase 0 closeout:** record T-001 provider timeout/recovery, T-002 account-permission cancellation/recovery, and T-020 clean native payment cancellation/safe retry on the validated Android host. Do not start Phase 1 before those results are recorded.

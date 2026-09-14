@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented. A checksum-bound private v2 artifact now proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The run also observed that the valid message signer and transaction sender were different wallet-disclosed accounts, reinforcing that an app dropdown controls neither action under the current SDK contract. Phase 0 remains open only for its existing iOS-or-approved-exception and actual-device cancellation/recovery criteria; Phase 1 has not started. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+The repository is in **Phase 0 — Technical proof**. A checksum-bound private v2 artifact proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly leaving iOS untested. Three short actual-device cancellation/recovery results still gate Phase 0 completion and Phase 1 implementation. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 

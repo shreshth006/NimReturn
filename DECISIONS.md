@@ -181,3 +181,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** A checksum binds the public claim to the preserved private artifact without publishing pseudonymous identifiers. A prose summary is less likely than partially redacted structured data to leak overlooked fields.
 
 **Consequences:** The sanitized summary proves that Android T-017/T-035 were reviewed but cannot independently reproduce the private proof. Maintainers must preserve the external file/checksum and repeat the no-secret audit before evidence-related pushes. Phase 0's separate cancellation and iOS-or-exception exit criteria remain unchanged.
+
+## D-016 — 2026-09-15 — Cycle II Phase 0 target-device validation is Android-only
+
+**Decision:** For the Cycle II Phase 0 exit, the project lead accepts Android 16 with Nimiq Pay 2.19.1 as the sole physical target-device validation scope. iOS remains explicitly untested and is deferred until after the competition submission.
+
+**Context:** Android has supplied checksum-bound physical evidence for provider/account discovery, consensus/head behavior, exact framed signing, direct transaction data, independent execution verification, and Albatross macro finality. Acquiring an iOS test device before the 2026-09-18 submission deadline would displace completion of the judge-visible core lifecycle.
+
+**Alternatives:** Block Phase 0 and all product implementation until an iPhone is acquired; claim cross-platform equivalence from SDK types; remove iOS from longer-term compatibility requirements.
+
+**Rationale:** The documented exception is narrower and more truthful than an untested compatibility claim. Deadline risk now outweighs the incremental Phase 0 value of a second host, while Android proof covers the current competition demonstration target.
+
+**Consequences:** The Phase 0 Android/iOS-or-exception criterion is satisfied by exception, not by iOS evidence. Documentation and submission claims must say Android-validated rather than cross-platform validated. iOS testing remains required before a mainnet pilot and after the competition submission unless reprioritized by a later decision.

@@ -22,7 +22,7 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 
 ### Exit criteria
 
-- [ ] App loads in current Nimiq Pay on Android and iOS, or a documented target-device exception is accepted by the project lead. Android 16/Nimiq Pay 2.19.1 is evidenced; iOS/exception remains open.
+- [x] App loads in current Nimiq Pay on Android and iOS, or a documented target-device exception is accepted by the project lead. Android 16/Nimiq Pay 2.19.1 is evidenced; D-016 accepts Android-only Cycle II validation and explicitly defers iOS.
 - [ ] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled.
 - [x] Actual `sign()` output verifies over exactly one documented byte sequence, derives the actual signer, and proves wallet-list membership; expected-account mismatch remains diagnostic metadata.
 - [x] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
