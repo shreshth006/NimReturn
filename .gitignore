@@ -12,3 +12,9 @@ coverage/
 .vscode/
 playwright-report/
 test-results/
+
+# Private device evidence — never commit
+/private-evidence/
+/evidence/private/
+*.phase0.raw.json
+*.phase0.evidence.raw.json

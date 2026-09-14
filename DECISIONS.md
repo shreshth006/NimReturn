@@ -169,3 +169,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Explicit provenance makes the evidence reviewable without trusting UI state or reinterpreting an opaque server blob. The schema directly mirrors the cryptographic and chain trust boundaries proven in Phase 0.
 
 **Consequences:** Existing diagnostic v1 exports are not upgraded in place. V2 never contains an expected sender and remains a local public-proof artifact, not production persistence or authorization.
+
+## D-015 — 2026-09-14 — Keep authoritative device evidence private and checksum its public summary
+
+**Decision:** Retain the authoritative Phase 0 device JSON and its checksum outside Git. Commit only a sanitized summary containing non-identifying environment/outcome facts and the raw file's SHA-256 digest, backed by narrow ignore rules and a pre-push tracked-secret audit.
+
+**Context:** The v2 artifact necessarily contains full wallet addresses, a transaction relationship, public signing proof, a diagnostic nonce, and a detailed device user agent. Those values are useful for private engineering verification but unnecessary and privacy-invasive in a public repository.
+
+**Alternatives:** Commit the raw proof; redact a second JSON copy; omit all public evidence; rely only on `.gitignore` without a tracked-content audit.
+
+**Rationale:** A checksum binds the public claim to the preserved private artifact without publishing pseudonymous identifiers. A prose summary is less likely than partially redacted structured data to leak overlooked fields.
+
+**Consequences:** The sanitized summary proves that Android T-017/T-035 were reviewed but cannot independently reproduce the private proof. Maintainers must preserve the external file/checksum and repeat the no-secret audit before evidence-related pushes. Phase 0's separate cancellation and iOS-or-exception exit criteria remain unchanged.

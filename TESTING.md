@@ -136,12 +136,13 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - Server lookup accepts only validated hashes and reports unavailable configuration/failure without fabrication.
 - Lint, typecheck, unit tests, and production build pass.
 
-Phase 0 is still **not complete** until actual-device T-001/T-002/T-017/T-035 evidence is recorded.
+The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. Phase 0 is still **not complete** until actual-device T-001/T-002 evidence is recorded and the iOS-or-approved-target-device-exception criterion is closed.
 
 ## Test data rules
 
 - Keys are generated at test runtime or labeled deterministic fixtures with no funds/use outside tests.
 - Never copy a real user's note, address relationship, or authenticated RPC response into the repository without sanitization and consent.
+- Keep authoritative device evidence and checksum files outside the repository. Public summaries may record non-identifying outcomes and the SHA-256 digest, but never full addresses, hashes, public keys, signatures, nonces, tags, user agents, or raw JSON.
 - Network tests use TestAlbatross and a dedicated low-risk wallet.
 - Fixtures name source, protocol/SDK/core version, and whether they are synthetic or actual-device.
 - Production code has no environment flag that returns fixtures as verified evidence.

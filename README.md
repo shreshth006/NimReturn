@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented. Physical Android/Nimiq Pay testing has proved provider injection, multiple returned accounts, consensus/head calls, exact framed signing, a real 1000-Luna NR1-tagged TestAlbatross submission, and independent backend inclusion lookup. That run also proved that an app dropdown is neither a signer nor sender selector under the Mini App SDK contract. The hardened diagnostic now derives signer/sender evidence, preserves an irreversible submission across reloads, and keeps macro-finality rechecks usable. One clean device run reaching macro-final `VERIFIED` plus v2 evidence capture still gates Phase 1. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
+The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented. A checksum-bound private v2 artifact now proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The run also observed that the valid message signer and transaction sender were different wallet-disclosed accounts, reinforcing that an app dropdown controls neither action under the current SDK contract. Phase 0 remains open only for its existing iOS-or-approved-exception and actual-device cancellation/recovery criteria; Phase 1 has not started. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 
@@ -89,6 +89,7 @@ NimReturn is being built for **Nimiq Mini Apps Competition — Cycle II** (Augus
 - [DESIGN.md](./DESIGN.md): UX, screens, states, and copy.
 - [SECURITY.md](./SECURITY.md): threat model and launch checklist.
 - [TESTING.md](./TESTING.md): automated and actual-device test strategy.
+- [docs/evidence/phase0-device-verification-2026-09-14.md](./docs/evidence/phase0-device-verification-2026-09-14.md): sanitized, checksum-bound Android Phase 0 proof summary.
 - [PHASES.md](./PHASES.md): phased execution and exit criteria.
 - [RULES.md](./RULES.md): non-negotiable project constitution.
 - [DECISIONS.md](./DECISIONS.md): append-only decisions.

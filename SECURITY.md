@@ -187,6 +187,8 @@ Controls: chain block timestamp anchors purchase; server-issued challenge time a
 
 Wallet addresses and transaction relationships are public-chain data but remain personal/pseudonymous context when indexed with products and claims. Collect no names, emails, phone numbers, passwords, KYC, photos, or delivery evidence in MVP. Notes are optional, bounded, and warn users not to include sensitive information. Public Passport visibility and raw notes default private-to-parties unless an explicit share action is later designed. Publish a privacy notice covering purpose, retention, public-chain permanence, processors, and rights before pilot.
 
+Authoritative actual-device evidence remains outside the public repository with a companion checksum. A public evidence summary may retain the SHA-256 digest and non-identifying pass/fail facts, but never full wallet addresses, transaction hashes, public keys, signatures, nonces, tags, user-agent/build identifiers, or raw JSON. Narrow repository ignore rules are defense in depth; pre-push tracked-content inspection remains required.
+
 Pilot unique-wallet instrumentation must be truthful and minimal. Hashing an address does not anonymize a small address set by itself. Use aggregate queries with access control; do not create public user profiles or cross-app/device correlation.
 
 ## Denial and failure handling

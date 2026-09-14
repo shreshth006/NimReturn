@@ -22,14 +22,14 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 
 ### Exit criteria
 
-- [ ] App loads in current Nimiq Pay on at least one Android and one iOS target, or documented target-device exception is accepted by project lead.
+- [ ] App loads in current Nimiq Pay on Android and iOS, or a documented target-device exception is accepted by the project lead. Android 16/Nimiq Pay 2.19.1 is evidenced; iOS/exception remains open.
 - [ ] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled.
-- [ ] Actual `sign()` output verifies over exactly one documented byte sequence and derives the selected address.
-- [ ] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
-- [ ] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag.
-- [ ] Returned hash is independently retrieved; network, sender, recipient, value, data, and state match.
-- [ ] SDK/core versions and any host differences are documented in architecture/protocol/decisions.
-- [ ] Lint, typecheck, tests, and build pass.
+- [x] Actual `sign()` output verifies over exactly one documented byte sequence, derives the actual signer, and proves wallet-list membership; expected-account mismatch remains diagnostic metadata.
+- [x] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
+- [ ] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. Approval and verified finality are evidenced; actual-device cancellation remains open.
+- [x] Returned hash is independently retrieved; network, sender, normalized recipient, value, data, successful execution, and macro finality match.
+- [x] SDK/core versions and observed host differences are documented in architecture/protocol/decisions.
+- [x] Lint, typecheck, tests, and build pass.
 
 If sign preprocessing differs from the NR1 candidate, change it once with captured evidence and a decision before any product signature exists.
 
