@@ -104,6 +104,14 @@ export function rpcRetryLabel(
   return 'Verify through server RPC'
 }
 
+export function rpcOutcomeLabel(outcome: RpcVerificationOutcome): string | undefined {
+  if (outcome === 'pending-finality') return 'Waiting for finality'
+  if (outcome === 'pending-inclusion') return 'Waiting for inclusion'
+  if (outcome === 'inconclusive') return 'Inconclusive'
+  if (outcome === 'invalid') return 'Invalid'
+  return undefined
+}
+
 function listedAddressMatches(address: string, walletAccounts: string[]): boolean {
   try {
     const normalized = normalizeNimiqAddress(address)

@@ -69,7 +69,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-028 Wrong transaction data:** wrong version/type/token, suffix, whitespace, invalid UTF-8 rejected.
 - **T-029 Duplicate purchase hash:** same order exact retry returns stored result; different order conflicts.
 - **T-030 Hash used as refund then purchase (and inverse):** shared registry rejects.
-- **T-031 Reload while verifying:** same order/hash resumes; no second wallet request/passport.
+- **T-031 Reload while verifying:** strict session-storage parsing restores the same public transaction context and resumes RPC verification without another wallet request; no private/recovery material is stored, and unresolved/ambiguous records require explicit confirmed clearing.
 - **T-032 Concurrent verifier success:** one purchase transaction/passport/event.
 - **T-033 Execution/finality/reorg:** `executionResult: false` is invalid; confirmations never substitute for the following Albatross macro block; pre-macro inclusion is `pending-finality` with “Recheck finality” enabled; reached macro finality passes; reorg reconciliation enters safe exceptional state.
 - **T-034 Data size:** purchase/refund tags are exactly expected and <64 bytes.

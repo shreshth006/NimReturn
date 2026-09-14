@@ -145,3 +145,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Cryptographic derivation and chain evidence are authoritative and portable. A one-device account-choice pattern is not an API contract, and undocumented parameters would create fragile, misleading identity claims.
 
 **Consequences:** Phase 0 reports expected signer, actual signer, wallet-list membership, and expectation match independently. Transaction requests contain no invented sender. Future Purchase Passports derive original purchaser identity from the verified transaction sender.
+
+## D-013 — 2026-09-14 — Preserve irreversible diagnostic submissions in session storage
+
+**Decision:** Immediately after a valid wallet transaction hash is returned, persist its public verification context in strictly validated session storage and lock another diagnostic payment until the record is explicitly cleared. If the native request might have completed but no hash is available, persist an outcome-unknown record and require wallet/chain inspection before a confirmed clear.
+
+**Context:** Physical-device testing showed that a page reload could erase the only client copy of a real submitted hash, and an ambiguous post-approval error could tempt a blind second payment.
+
+**Alternatives:** React state only; indefinite local storage; automatic retry; silently clear on reload or token regeneration.
+
+**Rationale:** Session-scoped recovery survives ordinary reloads without creating a long-lived device history. Conservative locking treats uncertainty as a duplicate-payment risk. The stored fields are public transaction expectations and wallet-disclosed addresses, never signing secrets.
+
+**Consequences:** Reload restores Step 6 and visibly warns against resubmission. Unresolved and outcome-unknown records require explicit confirmation before clearing. Closing the browser session may remove the record, so the product phases still require server-side durable correlation before a real purchase request.

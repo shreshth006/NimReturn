@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { verifyDiagnosticTransaction } from '../../lib/api/diagnostics.js'
 import { normalizeNimiqAddress } from '../../lib/crypto/nimiq-signature.js'
 import {
+  assertWalletConsensusForPayment,
   initializeNimiqProvider,
   normalizeWalletError,
   readProviderNetwork,
@@ -18,13 +19,14 @@ import {
   generateProtocolToken,
   transactionTagByteLength,
 } from '../../lib/protocol/transaction-data.js'
-import { buildPhaseZeroEvidence, type PhaseZeroSentTransaction } from './evidence.js'
+import { buildPhaseZeroEvidence } from './evidence.js'
 import {
   classifyRpcVerification,
   extractRpcObservedEvidence,
   initialRpcVerificationState,
   isRpcRetryDisabled,
   rpcFailureState,
+  rpcOutcomeLabel,
   rpcRetryLabel,
   type RpcVerificationOutcome,
 } from './rpc-verification.js'
@@ -32,6 +34,17 @@ import {
   verifyDiagnosticSigner,
   type DiagnosticSignerVerification,
 } from './signer-identity.js'
+import {
+  DEFAULT_DIAGNOSTIC_VALUE_LUNA,
+  clearPhaseZeroPaymentRecord,
+  createSubmittedTransaction,
+  createUnknownSubmission,
+  isDiagnosticPaymentLocked,
+  loadPhaseZeroPaymentRecord,
+  persistPhaseZeroPaymentRecord,
+  requiresClearConfirmation,
+  submittedTransactionFromRecord,
+} from './transaction-record.js'
 
 type StepStatus =
   | 'cancelled'
@@ -106,6 +119,10 @@ function rpcStepStatus(outcome: RpcVerificationOutcome): StepStatus {
 }
 
 export function PhaseZeroDiagnostics() {
+  const [paymentRecord, setPaymentRecord] = useState(loadPhaseZeroPaymentRecord)
+  const [paymentRecordRestored, setPaymentRecordRestored] = useState(
+    () => paymentRecord !== null,
+  )
   const [provider, setProvider] = useState<NimiqProvider | null>(null)
   const [providerState, setProviderState] = useState<StatusState>(initialStatus)
   const [accounts, setAccounts] = useState<string[]>([])
@@ -118,12 +135,27 @@ export function PhaseZeroDiagnostics() {
   const [signatureVerification, setSignatureVerification] =
     useState<DiagnosticSignerVerification | null>(null)
   const [signatureState, setSignatureState] = useState<StatusState>(initialStatus)
-  const [recipient, setRecipient] = useState('')
-  const [valueLuna, setValueLuna] = useState('1')
+  const [recipient, setRecipient] = useState(() => paymentRecord?.recipient ?? '')
+  const [valueLuna, setValueLuna] = useState(
+    () => String(paymentRecord?.valueLuna ?? DEFAULT_DIAGNOSTIC_VALUE_LUNA),
+  )
   const [paymentToken, setPaymentToken] = useState(() => generateProtocolToken())
   const [acknowledged, setAcknowledged] = useState(false)
-  const [paymentState, setPaymentState] = useState<StatusState>(initialStatus)
-  const [sentTransaction, setSentTransaction] = useState<PhaseZeroSentTransaction | null>(null)
+  const [paymentState, setPaymentState] = useState<StatusState>(() => {
+    if (paymentRecord?.status === 'submitted') {
+      return {
+        status: 'sent',
+        detail: 'Previous submitted diagnostic transaction restored. Do not send another transaction.',
+      }
+    }
+    if (paymentRecord?.status === 'submission-outcome-unknown') {
+      return {
+        status: 'warning',
+        detail: 'Previous submission outcome is unknown. Check wallet history and the chain before sending again.',
+      }
+    }
+    return initialStatus
+  })
   const [rpcVerification, setRpcVerification] = useState(initialRpcVerificationState)
   const [rpcRequestInFlight, setRpcRequestInFlight] = useState(false)
   const [rpcDetails, setRpcDetails] = useState<unknown>(null)
@@ -144,7 +176,14 @@ export function PhaseZeroDiagnostics() {
     () => buildDiagnosticMessage(canonicalAccount || 'NO_ACCOUNT_SELECTED', diagnosticNonce),
     [canonicalAccount, diagnosticNonce],
   )
-  const transactionData = useMemo(() => encodePurchaseTag(paymentToken), [paymentToken])
+  const sentTransaction = useMemo(
+    () => submittedTransactionFromRecord(paymentRecord),
+    [paymentRecord],
+  )
+  const transactionData = useMemo(
+    () => paymentRecord?.data ?? encodePurchaseTag(paymentToken),
+    [paymentRecord, paymentToken],
+  )
   const rpcObserved = useMemo(
     () => extractRpcObservedEvidence(rpcDetails, sentTransaction?.walletAccounts ?? []),
     [rpcDetails, sentTransaction],
@@ -234,11 +273,13 @@ export function PhaseZeroDiagnostics() {
   }
 
   async function sendPayment() {
-    if (!provider || accounts.length === 0 || !acknowledged) return
+    if (!provider || accounts.length === 0 || !acknowledged || paymentRecord) return
     setPaymentState({ status: 'pending', detail: 'Validating the irreversible test request…' })
-    setSentTransaction(null)
     setRpcDetails(null)
     setRpcVerification(initialRpcVerificationState)
+
+    let nativeRequestStarted = false
+    let requestContext: Parameters<typeof createUnknownSubmission>[0] | null = null
 
     try {
       const canonicalRecipient = normalizeNimiqAddress(recipient)
@@ -255,30 +296,53 @@ export function PhaseZeroDiagnostics() {
       })
       setNetwork(snapshot)
       setNetworkState(providerNetworkState(snapshot))
+      assertWalletConsensusForPayment(snapshot)
 
+      requestContext = {
+        data: transactionData,
+        network: snapshot,
+        recipient: canonicalRecipient,
+        submittedAtUtc: new Date().toISOString(),
+        validityStartHeight: snapshot.blockNumber,
+        valueLuna: amount,
+        walletAccounts: [...accounts],
+      }
       setPaymentState({ status: 'pending', detail: 'Awaiting native payment approval…' })
+      nativeRequestStarted = true
       const hash = await sendTransactionWithData(provider, snapshot, {
         recipient: canonicalRecipient,
         value: amount,
         data: transactionData,
         validityStartHeight: snapshot.blockNumber,
       })
-      setSentTransaction({
+      const submitted = createSubmittedTransaction({
+        ...requestContext,
         hash,
-        recipient: canonicalRecipient,
-        valueLuna: amount,
-        data: transactionData,
-        validityStartHeight: snapshot.blockNumber,
-        walletAccounts: [...accounts],
-        network: snapshot,
         submittedAtUtc: new Date().toISOString(),
       })
+      const persisted = persistPhaseZeroPaymentRecord(submitted)
+      setPaymentRecord(submitted)
+      setPaymentRecordRestored(false)
       setPaymentState({
         status: 'sent',
-        detail: 'Transaction submitted. This is not payment verification.',
+        detail: persisted
+          ? 'Transaction submitted and preserved for reload recovery. This is not payment verification.'
+          : 'Transaction submitted, but session storage was unavailable. Copy the hash now; do not send again.',
       })
     } catch (error) {
-      setPaymentState(errorState(error))
+      const normalized = normalizeWalletError(error)
+      if (nativeRequestStarted && requestContext && normalized.kind !== 'cancelled') {
+        const unknownSubmission = createUnknownSubmission(requestContext)
+        persistPhaseZeroPaymentRecord(unknownSubmission)
+        setPaymentRecord(unknownSubmission)
+        setPaymentRecordRestored(false)
+        setPaymentState({
+          status: 'warning',
+          detail: 'Submission outcome unknown. Check wallet history / chain before sending again.',
+        })
+        return
+      }
+      setPaymentState(errorState(normalized))
     }
   }
 
@@ -297,9 +361,28 @@ export function PhaseZeroDiagnostics() {
     }
   }
 
-  function prepareAnotherPayment() {
+  function clearLocalDiagnosticRecord() {
+    if (!paymentRecord) return
+    if (
+      requiresClearConfirmation(paymentRecord, rpcVerification.outcome) &&
+      !globalThis.confirm(
+        'This transaction is not verified. Clear the local record only after checking wallet history and the chain. Continue?',
+      )
+    ) {
+      return
+    }
+    if (!clearPhaseZeroPaymentRecord()) {
+      setPaymentState({
+        status: 'warning',
+        detail: 'The local diagnostic record could not be cleared. No new payment was enabled.',
+      })
+      return
+    }
     setPaymentToken(generateProtocolToken())
-    setSentTransaction(null)
+    setPaymentRecord(null)
+    setPaymentRecordRestored(false)
+    setRecipient('')
+    setValueLuna(String(DEFAULT_DIAGNOSTIC_VALUE_LUNA))
     setAcknowledged(false)
     setPaymentState(initialStatus)
     setRpcVerification(initialRpcVerificationState)
@@ -429,15 +512,27 @@ export function PhaseZeroDiagnostics() {
           <div className="warning" role="note">
             This opens a real, irreversible NIM payment request. Use Nimiq Pay testnet and a test recipient you control. NimReturn cannot recover funds.
           </div>
+          {paymentRecordRestored && paymentRecord?.status === 'submitted' && (
+            <div className="warning" role="alert">
+              Previous submitted diagnostic transaction restored. Do not send another transaction.
+              Resume independent verification in Step 6.
+            </div>
+          )}
+          {paymentRecord?.status === 'submission-outcome-unknown' && (
+            <div className="warning" role="alert">
+              Submission outcome unknown. Check wallet history / chain before sending again. NimReturn
+              will not retry this payment automatically.
+            </div>
+          )}
           <div className="form-grid">
             <label>
               Test recipient
-              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="NQ…" autoComplete="off" />
+              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="NQ…" autoComplete="off" disabled={isDiagnosticPaymentLocked(paymentRecord)} />
             </label>
             <label>
               Amount in Luna
-              <input value={valueLuna} onChange={(event) => setValueLuna(event.target.value)} inputMode="numeric" pattern="[0-9]*" />
-              <span className="hint">1 Luna = 0.00001 NIM</span>
+              <input value={valueLuna} onChange={(event) => setValueLuna(event.target.value)} inputMode="numeric" pattern="[0-9]*" disabled={isDiagnosticPaymentLocked(paymentRecord)} />
+              <span className="hint">Default: 1000 Luna = 0.01 NIM. Verification remains integer Luna.</span>
             </label>
           </div>
           <Evidence label={`Transaction data · ${transactionTagByteLength(transactionData)} bytes`} value={transactionData} />
@@ -451,7 +546,7 @@ export function PhaseZeroDiagnostics() {
               immediately before the native request.
             </p>
           )}
-          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || accounts.length === 0 || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || Boolean(sentTransaction)}>
+          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || accounts.length === 0 || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || isDiagnosticPaymentLocked(paymentRecord)}>
             Review irreversible test payment
           </button>
           {sentTransaction && (
@@ -469,7 +564,7 @@ export function PhaseZeroDiagnostics() {
             <div><span className="step-number">06</span><h3>Independent transaction lookup</h3></div>
             <StatusBadge
               state={rpcRequestInFlight ? 'pending' : rpcStepStatus(rpcVerification.outcome)}
-              label={rpcRequestInFlight ? 'Request in flight' : undefined}
+              label={rpcRequestInFlight ? 'Request in flight' : rpcOutcomeLabel(rpcVerification.outcome)}
             />
           </div>
           <p>
@@ -509,9 +604,14 @@ export function PhaseZeroDiagnostics() {
               <pre>{JSON.stringify(rpcDetails, null, 2)}</pre>
             </details>
           )}
-          {sentTransaction && rpcVerification.outcome !== 'verified' && (
-            <button type="button" className="button-secondary" onClick={prepareAnotherPayment}>
-              Clear result and prepare another token
+          {sentTransaction && (
+            <button type="button" className="button-secondary" onClick={clearLocalDiagnosticRecord}>
+              Clear local diagnostic record
+            </button>
+          )}
+          {paymentRecord?.status === 'submission-outcome-unknown' && (
+            <button type="button" className="button-secondary" onClick={clearLocalDiagnosticRecord}>
+              Clear local diagnostic record
             </button>
           )}
         </li>

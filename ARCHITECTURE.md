@@ -242,9 +242,9 @@ NR1 uses Albatross macro-block finality: ordinary confirmation counts are retain
 - Wallet cancellation: client-only cancelled state plus server audit event if an order/challenge existed; retry is safe.
 - Provider unavailable: actionable “Open in Nimiq Pay” and retry initialization.
 - RPC unavailable/malformed: persist inconclusive, expose no success, retry with exponential backoff and jitter.
-- Transaction pending/absent: bounded polling; do not ask user to pay again while a hash exists.
+- Transaction pending/absent: preserve the submitted hash and exact verification context in session storage, offer manual rechecks, and do not ask the user to pay again while the record exists.
 - Validation mismatch: terminal invalid evidence for that hash, with safe field-level reason; order recovery requires explicit new attempt rules.
-- Database unavailable: do not request a wallet action that cannot be durably correlated; after returned hash, preserve it client-side only long enough to retry attachment and explain uncertainty.
+- Database unavailable: do not request a wallet action that cannot be durably correlated; after a returned hash, preserve it client-side only long enough to retry attachment and explain uncertainty. If the native request may have completed but no hash was returned, lock duplicate submission and direct the user to wallet/chain history.
 - Signature verification error: reject without partially activating policy/claim/resolution.
 
 ## Deployment topology

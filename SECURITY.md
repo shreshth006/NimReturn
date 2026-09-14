@@ -191,7 +191,7 @@ Pilot unique-wallet instrumentation must be truthful and minimal. Hashing an add
 
 ## Denial and failure handling
 
-Availability loss must not become integrity loss. If API/database cannot durably create an order, do not begin payment. If a wallet returns a hash while the API is temporarily unavailable, UI preserves and retries the exact attachment without requesting a second payment. If RPC is unavailable, status is inconclusive and retryable. Rate limits never block a user from viewing existing evidence or attaching a just-returned hash without a recovery path.
+Availability loss must not become integrity loss. If API/database cannot durably create an order, do not begin payment. If a wallet returns a hash while the API is temporarily unavailable, UI preserves and retries the exact attachment without requesting a second payment. Phase 0 stores only public transaction verification context in session storage—never keys, seeds, recovery words, or credentials—and requires an explicit, confirmed clear while unresolved. If a native approval may have succeeded but no hash was returned, the client records an ambiguous outcome and locks blind resubmission. If RPC is unavailable, status is inconclusive and retryable. Rate limits never block a user from viewing existing evidence or attaching a just-returned hash without a recovery path.
 
 ## Dependency risk
 

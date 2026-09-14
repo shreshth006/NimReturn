@@ -2,17 +2,7 @@ import type { SignatureResult } from '@nimiq/mini-app-sdk'
 
 import type { ProviderNetworkSnapshot } from '../../lib/nimiq/provider.js'
 import type { DiagnosticSignerVerification } from './signer-identity.js'
-
-export interface PhaseZeroSentTransaction {
-  data: string
-  hash: string
-  network: ProviderNetworkSnapshot
-  recipient: string
-  submittedAtUtc: string
-  validityStartHeight: number
-  valueLuna: number
-  walletAccounts: string[]
-}
+import type { PhaseZeroSentTransaction } from './transaction-record.js'
 
 export interface PhaseZeroEvidenceInput {
   capturedAtUtc: string

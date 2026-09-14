@@ -5,6 +5,7 @@ import {
   extractRpcObservedEvidence,
   isRpcRetryDisabled,
   rpcFailureState,
+  rpcOutcomeLabel,
   rpcRetryLabel,
 } from '../../src/features/diagnostics/rpc-verification.js'
 
@@ -26,6 +27,14 @@ describe('Phase 0 RPC verification state', () => {
     expect(isRpcRetryDisabled(true, true)).toBe(true)
     expect(rpcRetryLabel('pending-finality', true)).toBe('Checking…')
     expect(isRpcRetryDisabled(false, false)).toBe(true)
+  })
+
+  it('labels chain outcomes independently from request execution', () => {
+    expect(rpcOutcomeLabel('pending-finality')).toBe('Waiting for finality')
+    expect(rpcOutcomeLabel('pending-inclusion')).toBe('Waiting for inclusion')
+    expect(rpcOutcomeLabel('inconclusive')).toBe('Inconclusive')
+    expect(rpcOutcomeLabel('invalid')).toBe('Invalid')
+    expect(rpcOutcomeLabel('verified')).toBeUndefined()
   })
 
   it.each([
