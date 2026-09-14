@@ -472,6 +472,13 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       productId,
       productPublicId,
     })).rejects.toThrow(/policy_versions_product_version_unique/u)
+
+    await expect(client`
+      update products set public_id = 'gggggggggggggggggggggg' where id = ${productId}
+    `).rejects.toThrow(/product identity and ownership are immutable/u)
+    await expect(client`
+      update products set merchant_id = ${otherMerchantId} where id = ${productId}
+    `).rejects.toThrow(/product identity and ownership are immutable/u)
   })
 
   it('keeps protocol events append-only', async () => {
