@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { migrateDatabase } from '../../server/db/migrate.js'
 import { createMerchantDraft } from '../../server/domain/create-merchant-draft.js'
 import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
+import { expireStalePolicyChallenges } from '../../server/domain/expire-policy-challenges.js'
 import { getPublicVerifiedProduct } from '../../server/domain/get-public-product.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
@@ -1154,6 +1155,85 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         code: 'INVALID_REQUEST',
         name: 'PublicProductReadError',
       })
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('expires each stale policy once under concurrent bounded workers', async () => {
+    const merchantPublicId = 'ssssssssssssssssssssss'
+    const productPublicId = 'tttttttttttttttttttttt'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const signer = createPolicyProof(
+      'e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff',
+      'expiry-worker-signer',
+    )
+    await client`
+      update merchants set policy_signer_address = ${signer.address} where id = ${merchantId}
+    `
+    const productId = await insertProduct(merchantId, productPublicId)
+    const policy = await insertPolicy({
+      merchantId,
+      merchantPublicId,
+      nonce: 'vvvvvvvvvvvvvvvvvvvvvv',
+      policyPublicId: 'uuuuuuuuuuuuuuuuuuuuuu',
+      productId,
+      productPublicId,
+    })
+    await client`
+      insert into signing_challenges (
+        nonce, action, merchant_id, policy_version_id, expected_signer_address,
+        canonical_message, payload_hash, created_at, expires_at
+      ) values (
+        ${policy.payload.nonce}, 'POLICY', ${merchantId}, ${policy.policyVersionId},
+        ${signer.address}, ${policy.canonicalMessage}, ${policy.payloadHash},
+        now() - interval '10 minutes', now() - interval '5 minutes'
+      )
+    `
+    const proof = createPolicyProof(
+      'e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff',
+      policy.canonicalMessage,
+    ).proof
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 4,
+    })
+    try {
+      const results = await Promise.all([
+        expireStalePolicyChallenges(runtime, { limit: 1 }),
+        expireStalePolicyChallenges(runtime, { limit: 1 }),
+      ])
+      expect(results.sort()).toEqual([0, 1])
+      await expect(expireStalePolicyChallenges(runtime, { limit: 1 })).resolves.toBe(0)
+
+      const expiredRows = await runtime<{
+        consumed_at: Date | null
+        event_count: number
+        verification_status: string
+      }[]>`
+        select
+          policy_versions.verification_status,
+          signing_challenges.consumed_at,
+          count(protocol_events.id)::integer as event_count
+        from policy_versions
+        join signing_challenges on signing_challenges.policy_version_id = policy_versions.id
+        left join protocol_events
+          on protocol_events.aggregate_id = policy_versions.id
+          and protocol_events.event_type = 'policy.expired'
+        where policy_versions.id = ${policy.policyVersionId}
+        group by policy_versions.verification_status, signing_challenges.consumed_at
+      `
+      expect(expiredRows[0]).toEqual({
+        consumed_at: null,
+        event_count: 1,
+        verification_status: 'expired',
+      })
+      await expect(publishVerifiedPolicy(runtime, {
+        challengeNonce: policy.payload.nonce,
+        proof,
+      })).rejects.toMatchObject({ code: 'CHALLENGE_EXPIRED', name: 'PolicyPublishError' })
+      await expect(expireStalePolicyChallenges(runtime, { limit: 0 }))
+        .rejects.toMatchObject({ code: 'INVALID_REQUEST', name: 'PolicyExpiryError' })
     } finally {
       await runtime.end()
     }

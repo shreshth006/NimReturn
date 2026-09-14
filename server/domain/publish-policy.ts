@@ -154,8 +154,16 @@ export async function publishVerifiedPolicy(
       'The policy signing challenge was not found.',
     )
 
+    const databaseNow = requireOne(
+      await transaction<DatabaseNowRow[]>`select clock_timestamp() as now`,
+      'POLICY_STATE_CONFLICT',
+      'The database clock was unavailable.',
+    ).now
     if (challenge.consumed_at) {
       fail('CHALLENGE_CONSUMED', 'The policy signing challenge was already consumed.')
+    }
+    if (databaseNow.getTime() >= challenge.expires_at.getTime()) {
+      fail('CHALLENGE_EXPIRED', 'The policy signing challenge has expired.')
     }
     if (challenge.verification_status !== 'pending') {
       fail('POLICY_STATE_CONFLICT', 'The policy version is no longer pending verification.')
@@ -163,12 +171,6 @@ export async function publishVerifiedPolicy(
     if (challenge.expected_signer_address !== merchant.policy_signer_address) {
       fail('POLICY_STATE_CONFLICT', 'The challenge signer no longer matches merchant authority.')
     }
-
-    const databaseNow = requireOne(
-      await transaction<DatabaseNowRow[]>`select clock_timestamp() as now`,
-      'POLICY_STATE_CONFLICT',
-      'The database clock was unavailable.',
-    ).now
     const firstPolicyForMerchant = merchant.policy_signer_address === null
     let bootstrap: BootstrapRow | undefined
 
