@@ -179,6 +179,13 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       insert into merchants (public_id, default_settlement_address, display_name)
       values ('CCCCCCCCCCCCCCCCCCCCCC', ${VALID_ADDRESS_B}, '   ')
     `).rejects.toThrow(/merchants_display_name_not_blank/u)
+    await expect(client`
+      insert into merchants (
+        public_id, policy_signer_address, default_settlement_address, display_name
+      ) values (
+        'mmmmmmmmmmmmmmmmmmmmmm', ${VALID_ADDRESS_E}, ${VALID_ADDRESS_B}, 'Fixture'
+      )
+    `).rejects.toThrow(/new merchant must begin without a policy signer/u)
   })
 
   it('makes an established signer immutable and unique', async () => {
@@ -464,6 +471,32 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         ${hashProtocolPayload(mismatchedMessage)}, ${mismatchedPayload.settlementAddress}
       )
     `).rejects.toThrow(/payload does not match normalized policy columns/u)
+
+    const preverifiedPayload: PolicyPayload = {
+      ...policy.payload,
+      nonce: 'oooooooooooooooooooooo',
+      policyId: 'nnnnnnnnnnnnnnnnnnnnnn',
+      version: 2,
+    }
+    const preverifiedMessage = buildPolicyMessage(preverifiedPayload)
+    await expect(client`
+      insert into policy_versions (
+        public_id, product_id, merchant_id, version, product_name, price_luna,
+        return_window_seconds, warranty_window_seconds, warranty_transfer_allowed,
+        protocol_version, challenge_nonce, payload, canonical_message, payload_hash,
+        settlement_address, signer_address, public_key, signature,
+        verification_status, verified_at, verifier_version
+      ) values (
+        ${preverifiedPayload.policyId}, ${productId}, ${merchantId}, ${preverifiedPayload.version},
+        ${preverifiedPayload.productName}, ${preverifiedPayload.priceLuna},
+        ${preverifiedPayload.returnWindowSeconds}, ${preverifiedPayload.warrantyWindowSeconds},
+        ${preverifiedPayload.warrantyTransferAllowed}, ${preverifiedPayload.protocol},
+        ${preverifiedPayload.nonce}, ${client.json(preverifiedPayload)}, ${preverifiedMessage},
+        ${hashProtocolPayload(preverifiedMessage)}, ${preverifiedPayload.settlementAddress},
+        ${VALID_ADDRESS_E}, ${'aa'.repeat(32)}, ${'bb'.repeat(64)},
+        'verified', now(), 'bypass-attempt'
+      )
+    `).rejects.toThrow(/new policy version must begin pending without proof/u)
 
     await expect(insertPolicy({
       merchantId,
@@ -877,5 +910,87 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       { expected_signer_address: signerFixture.address, product_id: productId, version: 1 },
       { expected_signer_address: signerFixture.address, product_id: productId, version: 2 },
     ])
+  })
+
+  it('lets the runtime role publish normally but denies direct evidence mutation', async () => {
+    const merchantPublicId = 'pppppppppppppppppppppp'
+    const productPublicId = 'qqqqqqqqqqqqqqqqqqqqqq'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const signerFixture = createPolicyProof(
+      'a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf',
+      'runtime-role-signer',
+    )
+    await client`
+      update merchants set policy_signer_address = ${signerFixture.address} where id = ${merchantId}
+    `
+    await insertProduct(merchantId, productPublicId)
+    const challenge = await createPolicyChallenge(client, {
+      merchantPublicId,
+      priceLuna: 1_000_000,
+      productPublicId,
+      returnWindowSeconds: 604_800,
+      settlementAddress: VALID_ADDRESS_B,
+      warrantyTransferAllowed: false,
+      warrantyWindowSeconds: 7_776_000,
+    })
+    const proof = createPolicyProof(
+      'a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf',
+      challenge.canonicalMessage,
+    ).proof
+
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 1,
+    })
+    try {
+      await expect(publishVerifiedPolicy(runtime, {
+        challengeNonce: challenge.nonce,
+        proof,
+      })).resolves.toMatchObject({
+        actualSignerAddress: signerFixture.address,
+        policyVersionId: challenge.policyVersionId,
+      })
+
+      await expect(runtime`
+        update policy_versions
+        set verifier_version = 'tampered'
+        where id = ${challenge.policyVersionId}
+      `).rejects.toThrow(/terminal policy version is immutable/u)
+      await expect(runtime`
+        update policy_versions set price_luna = 1 where id = ${challenge.policyVersionId}
+      `).rejects.toThrow(/permission denied/u)
+      await expect(runtime`
+        delete from policy_versions where id = ${challenge.policyVersionId}
+      `).rejects.toThrow(/permission denied/u)
+      await expect(runtime`
+        update protocol_events
+        set event_type = 'policy.tampered'
+        where aggregate_id = ${challenge.policyVersionId}
+      `).rejects.toThrow(/permission denied/u)
+      await expect(runtime`
+        update merchants set policy_signer_address = ${VALID_ADDRESS_F} where id = ${merchantId}
+      `).rejects.toThrow(/cannot be changed or cleared/u)
+      await expect(runtime`
+        insert into merchants (
+          public_id, policy_signer_address, default_settlement_address, display_name
+        ) values (
+          'rrrrrrrrrrrrrrrrrrrrrr', ${VALID_ADDRESS_F}, ${VALID_ADDRESS_B}, 'Bypass'
+        )
+      `).rejects.toThrow(/new merchant must begin without a policy signer/u)
+
+      const auditRows = await runtime<{ event_id: string }[]>`
+        insert into protocol_events (
+          aggregate_type, aggregate_id, event_type, protocol_version, occurred_at,
+          correlation_id, evidence_type, payload
+        ) values (
+          'policy', ${challenge.policyVersionId}, 'policy.runtime-check', 'NR1', now(),
+          gen_random_uuid(), 'backend', ${runtime.json({ check: 'least-privilege' })}
+        )
+        returning event_id
+      `
+      expect(auditRows[0]?.event_id).toMatch(/^[0-9a-f-]{36}$/u)
+    } finally {
+      await runtime.end()
+    }
   })
 })
