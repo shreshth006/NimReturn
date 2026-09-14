@@ -15,6 +15,8 @@
   },
   "include": [
     "tests/**/*.ts",
+    "server/app.ts",
+    "server/config.ts",
     "src/features/diagnostics/**/*.ts",
     "src/lib/crypto/**/*.ts",
     "src/lib/nimiq/**/*.ts",
