@@ -1,5 +1,5 @@
-import type { NimiqProvider, SignatureResult } from '@nimiq/mini-app-sdk'
-import { useMemo, useState } from 'react'
+import type { NimiqProvider } from '@nimiq/mini-app-sdk'
+import { useMemo, useReducer, useState } from 'react'
 
 import { verifyDiagnosticTransaction } from '../../lib/api/diagnostics.js'
 import { normalizeNimiqAddress } from '../../lib/crypto/nimiq-signature.js'
@@ -21,6 +21,11 @@ import {
 } from '../../lib/protocol/transaction-data.js'
 import { buildPhaseZeroEvidence } from './evidence.js'
 import {
+  accountAuthorityReducer,
+  emptyAccountAuthority,
+  hasAccountAuthority,
+} from './account-authority.js'
+import {
   classifyRpcVerification,
   extractRpcObservedEvidence,
   initialRpcVerificationState,
@@ -30,10 +35,7 @@ import {
   rpcRetryLabel,
   type RpcVerificationOutcome,
 } from './rpc-verification.js'
-import {
-  verifyDiagnosticSigner,
-  type DiagnosticSignerVerification,
-} from './signer-identity.js'
+import { verifyDiagnosticSigner } from './signer-identity.js'
 import {
   DEFAULT_DIAGNOSTIC_VALUE_LUNA,
   clearPhaseZeroPaymentRecord,
@@ -125,16 +127,22 @@ export function PhaseZeroDiagnostics() {
   )
   const [provider, setProvider] = useState<NimiqProvider | null>(null)
   const [providerState, setProviderState] = useState<StatusState>(initialStatus)
-  const [accounts, setAccounts] = useState<string[]>([])
-  const [selectedAccount, setSelectedAccount] = useState('')
+  const [accountAuthority, dispatchAccountAuthority] = useReducer(
+    accountAuthorityReducer,
+    undefined,
+    emptyAccountAuthority,
+  )
+  const {
+    accounts,
+    expectedAccount: selectedAccount,
+    signature,
+    signatureVerification,
+  } = accountAuthority
   const [accountState, setAccountState] = useState<StatusState>(initialStatus)
   const [network, setNetwork] = useState<ProviderNetworkSnapshot | null>(null)
   const [networkState, setNetworkState] = useState<StatusState>(initialStatus)
   const [networkCheckedAtUtc, setNetworkCheckedAtUtc] = useState<string | null>(null)
   const [diagnosticNonce, setDiagnosticNonce] = useState(() => generateProtocolToken())
-  const [signature, setSignature] = useState<SignatureResult | null>(null)
-  const [signatureVerification, setSignatureVerification] =
-    useState<DiagnosticSignerVerification | null>(null)
   const [signatureState, setSignatureState] = useState<StatusState>(initialStatus)
   const [recipient, setRecipient] = useState(() => paymentRecord?.recipient ?? '')
   const [valueLuna, setValueLuna] = useState(
@@ -191,6 +199,9 @@ export function PhaseZeroDiagnostics() {
   )
 
   async function initialize() {
+    dispatchAccountAuthority({ type: 'permission-failed' })
+    setAccountState(initialStatus)
+    setSignatureState(initialStatus)
     setProviderState({ status: 'pending', detail: 'Waiting for Nimiq Pay to inject the provider…' })
     setNetwork(null)
     setNetworkState(initialStatus)
@@ -207,16 +218,15 @@ export function PhaseZeroDiagnostics() {
 
   async function connectAccounts() {
     if (!provider) return
+    dispatchAccountAuthority({ type: 'permission-requested' })
+    setSignatureState(initialStatus)
     setAccountState({ status: 'pending', detail: 'Awaiting native account permission…' })
     try {
       const available = await requestAccounts(provider)
-      setAccounts(available)
-      setSelectedAccount(available[0] ?? '')
+      dispatchAccountAuthority({ type: 'permission-granted', accounts: available })
       setAccountState({ status: 'ready', detail: `${available.length} account(s) returned.` })
-      setSignature(null)
-      setSignatureVerification(null)
-      setSignatureState(initialStatus)
     } catch (error) {
+      dispatchAccountAuthority({ type: 'permission-failed' })
       setAccountState(errorState(error))
     }
   }
@@ -248,8 +258,7 @@ export function PhaseZeroDiagnostics() {
         message: signMessage,
         proof,
       })
-      setSignature(proof)
-      setSignatureVerification(verification)
+      dispatchAccountAuthority({ type: 'signature-received', signature: proof, verification })
       const expectedAccountMismatch = verification.valid && !verification.expectedMatchesSigner
       setSignatureState({
         status: expectedAccountMismatch ? 'warning' : verification.valid ? 'verified' : 'failed',
@@ -262,22 +271,19 @@ export function PhaseZeroDiagnostics() {
               : verification.error ?? 'The framed signature did not verify.',
       })
     } catch (error) {
-      setSignature(null)
-      setSignatureVerification(null)
+      dispatchAccountAuthority({ type: 'signature-cleared' })
       setSignatureState(errorState(error))
     }
   }
 
   function changeAccount(value: string) {
-    setSelectedAccount(value)
+    dispatchAccountAuthority({ type: 'expectation-changed', expectedAccount: value })
     setDiagnosticNonce(generateProtocolToken())
-    setSignature(null)
-    setSignatureVerification(null)
     setSignatureState(initialStatus)
   }
 
   async function sendPayment() {
-    if (!provider || accounts.length === 0 || !acknowledged || paymentRecord) return
+    if (!provider || !hasAccountAuthority(accountAuthority) || !acknowledged || paymentRecord) return
     setPaymentState({ status: 'pending', detail: 'Validating the irreversible test request…' })
     setRpcDetails(null)
     setRpcVerification(initialRpcVerificationState)
@@ -557,7 +563,7 @@ export function PhaseZeroDiagnostics() {
               immediately before the native request.
             </p>
           )}
-          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || accounts.length === 0 || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || isDiagnosticPaymentLocked(paymentRecord)}>
+          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || !hasAccountAuthority(accountAuthority) || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || isDiagnosticPaymentLocked(paymentRecord)}>
             Review irreversible test payment
           </button>
           {sentTransaction && (

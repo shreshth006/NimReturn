@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   assertWalletConsensusForPayment,
   readProviderNetwork,
+  requestAccounts,
   sendTransactionWithData,
   WalletOperationError,
 } from '../../src/lib/nimiq/provider.js'
@@ -16,6 +17,17 @@ function providerWithNetwork(consensus: boolean, blockNumber: number): NimiqProv
 }
 
 describe('Nimiq provider network gate', () => {
+  it('normalizes account-permission cancellation and permits a later successful retry', async () => {
+    const listAccounts = vi.fn()
+      .mockRejectedValueOnce(new Error('Permission denied by user'))
+      .mockResolvedValueOnce(['NQ07 TEST'])
+    const provider = { listAccounts } as unknown as NimiqProvider
+
+    await expect(requestAccounts(provider)).rejects.toMatchObject({ kind: 'cancelled' })
+    await expect(requestAccounts(provider)).resolves.toEqual(['NQ07 TEST'])
+    expect(listAccounts).toHaveBeenCalledTimes(2)
+  })
+
   it('retains a valid head while reporting wallet consensus as false', async () => {
     await expect(readProviderNetwork(providerWithNetwork(false, 123_456))).resolves.toEqual({
       blockNumber: 123_456,
