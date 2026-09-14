@@ -1,7 +1,12 @@
+import { Hash, KeyPair, PrivateKey } from '@nimiq/core'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { migrateDatabase } from '../../server/db/migrate.js'
+import {
+  hashMerchantBootstrapCapability,
+  publishVerifiedPolicy,
+} from '../../server/domain/publish-policy.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
 
@@ -12,6 +17,40 @@ const VALID_ADDRESS_C = 'NQ88Q4DE829CAQ8188FP8MGJPP3BA70XCHN6'
 const VALID_ADDRESS_D = 'NQ20NTLCVQK9PVLQJB3GAN7KM9033EC237EK'
 const VALID_ADDRESS_E = 'NQ55JSY8LN1TPUKTSFVQLVA5A2NVRFM10TAE'
 const VALID_ADDRESS_F = 'NQ707XHXFXUTMGTAFND7MAABY7TBHKT5KFBT'
+const PRIVATE_KEY_POLICY_FIRST = '202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f'
+const PRIVATE_KEY_POLICY_ESTABLISHED = '404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f'
+const PRIVATE_KEY_POLICY_CONCURRENT = '606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f'
+const UTF8_ENCODER = new TextEncoder()
+const SIGNED_MESSAGE_PREFIX = '\x16Nimiq Signed Message:\n'
+
+function createPolicyProof(privateKeyHex: string, canonicalMessage: string) {
+  const messageBytes = UTF8_ENCODER.encode(canonicalMessage)
+  const header = UTF8_ENCODER.encode(SIGNED_MESSAGE_PREFIX + messageBytes.byteLength.toString(10))
+  const preimage = new Uint8Array(header.byteLength + messageBytes.byteLength)
+  preimage.set(header)
+  preimage.set(messageBytes, header.byteLength)
+
+  const privateKey = PrivateKey.fromHex(privateKeyHex)
+  const keyPair = KeyPair.derive(privateKey)
+  const signature = keyPair.sign(Hash.computeSha256(preimage))
+  const address = keyPair.toAddress()
+  try {
+    return {
+      address: address.toUserFriendlyAddress().replaceAll(' ', '').toUpperCase(),
+      proof: {
+        canonicalMessage,
+        payloadHash: hashProtocolPayload(canonicalMessage),
+        publicKey: keyPair.publicKey.toHex(),
+        signature: signature.toHex(),
+      },
+    }
+  } finally {
+    address.free()
+    signature.free()
+    keyPair.free()
+    privateKey.free()
+  }
+}
 
 function requireSafeTestDatabaseUrl(): string {
   if (!databaseUrl) throw new Error('TEST_DATABASE_URL is required for database integration tests.')
@@ -27,7 +66,7 @@ function requireSafeTestDatabaseUrl(): string {
 describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation', () => {
   const client = postgres(
     databaseUrl ?? 'postgresql://postgres:postgres@127.0.0.1:5432/nimreturn_test',
-    { max: 1 },
+    { max: 4 },
   )
 
   beforeAll(async () => {
@@ -458,5 +497,251 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     `).rejects.toThrow(/append-only/u)
     await expect(client`delete from protocol_events where id = ${eventId}`)
       .rejects.toThrow(/append-only/u)
+  })
+
+  it('publishes a first policy atomically and rolls back invalid attempts', async () => {
+    const merchantPublicId = '5555555555555555555555'
+    const productPublicId = '6666666666666666666666'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const bootstrapCapability = 'A'.repeat(43)
+    const bootstrapRows = await client<{ id: string }[]>`
+      insert into merchant_bootstrap_sessions (merchant_id, capability_hash, expires_at)
+      values (
+        ${merchantId}, ${hashMerchantBootstrapCapability(bootstrapCapability)},
+        now() + interval '10 minutes'
+      )
+      returning id
+    `
+    const bootstrap = bootstrapRows[0]
+    if (!bootstrap) throw new Error('Bootstrap fixture insert returned no row.')
+
+    const productId = await insertProduct(merchantId, productPublicId)
+    const policy = await insertPolicy({
+      merchantId,
+      merchantPublicId,
+      nonce: '8888888888888888888888',
+      policyPublicId: '7777777777777777777777',
+      productId,
+      productPublicId,
+    })
+    await client`
+      insert into signing_challenges (
+        nonce, action, merchant_id, policy_version_id, bootstrap_session_id,
+        canonical_message, payload_hash, expires_at
+      ) values (
+        ${policy.payload.nonce}, 'POLICY', ${merchantId}, ${policy.policyVersionId},
+        ${bootstrap.id}, ${policy.canonicalMessage}, ${policy.payloadHash},
+        now() + interval '5 minutes'
+      )
+    `
+    const validFixture = createPolicyProof(PRIVATE_KEY_POLICY_FIRST, policy.canonicalMessage)
+    const validProof = validFixture.proof
+
+    await expect(publishVerifiedPolicy(client, {
+      bootstrapCapability: 'B'.repeat(43),
+      challengeNonce: policy.payload.nonce,
+      proof: validProof,
+    })).rejects.toMatchObject({ code: 'BOOTSTRAP_MISMATCH', name: 'PolicyPublishError' })
+
+    const changedByte = validProof.signature.startsWith('00') ? '01' : '00'
+    await expect(publishVerifiedPolicy(client, {
+      bootstrapCapability,
+      challengeNonce: policy.payload.nonce,
+      proof: { ...validProof, signature: changedByte + validProof.signature.slice(2) },
+    })).rejects.toMatchObject({ code: 'INVALID_SIGNATURE', name: 'PolicyPublishError' })
+
+    const beforeSuccess = await client<{
+      bootstrap_consumed_at: Date | null
+      challenge_consumed_at: Date | null
+      policy_signer_address: string | null
+      verification_status: string
+    }[]>`
+      select
+        merchants.policy_signer_address,
+        policy_versions.verification_status,
+        signing_challenges.consumed_at as challenge_consumed_at,
+        merchant_bootstrap_sessions.consumed_at as bootstrap_consumed_at
+      from policy_versions
+      join merchants on merchants.id = policy_versions.merchant_id
+      join signing_challenges on signing_challenges.policy_version_id = policy_versions.id
+      join merchant_bootstrap_sessions
+        on merchant_bootstrap_sessions.id = signing_challenges.bootstrap_session_id
+      where policy_versions.id = ${policy.policyVersionId}
+    `
+    expect(beforeSuccess[0]).toEqual({
+      bootstrap_consumed_at: null,
+      challenge_consumed_at: null,
+      policy_signer_address: null,
+      verification_status: 'pending',
+    })
+
+    const published = await publishVerifiedPolicy(client, {
+      bootstrapCapability,
+      challengeNonce: policy.payload.nonce,
+      proof: validProof,
+    })
+    expect(published).toMatchObject({
+      actualSignerAddress: validFixture.address,
+      firstPolicyForMerchant: true,
+      merchantId,
+      policyVersionId: policy.policyVersionId,
+      productId,
+    })
+    expect(published.protocolEventId).toMatch(/^[0-9a-f-]{36}$/u)
+
+    const afterSuccess = await client<{
+      active_policy_version_id: string
+      bootstrap_consumed_at: Date | null
+      challenge_consumed_at: Date | null
+      policy_signer_address: string | null
+      signer_address: string | null
+      status: string
+      verification_status: string
+    }[]>`
+      select
+        merchants.policy_signer_address,
+        policy_versions.signer_address,
+        policy_versions.verification_status,
+        products.status,
+        products.active_policy_version_id,
+        signing_challenges.consumed_at as challenge_consumed_at,
+        merchant_bootstrap_sessions.consumed_at as bootstrap_consumed_at
+      from policy_versions
+      join merchants on merchants.id = policy_versions.merchant_id
+      join products on products.id = policy_versions.product_id
+      join signing_challenges on signing_challenges.policy_version_id = policy_versions.id
+      join merchant_bootstrap_sessions
+        on merchant_bootstrap_sessions.id = signing_challenges.bootstrap_session_id
+      where policy_versions.id = ${policy.policyVersionId}
+    `
+    expect(afterSuccess[0]).toMatchObject({
+      active_policy_version_id: policy.policyVersionId,
+      policy_signer_address: validFixture.address,
+      signer_address: validFixture.address,
+      status: 'active',
+      verification_status: 'verified',
+    })
+    expect(afterSuccess[0]?.challenge_consumed_at).toBeInstanceOf(Date)
+    expect(afterSuccess[0]?.bootstrap_consumed_at).toBeInstanceOf(Date)
+
+    await expect(publishVerifiedPolicy(client, {
+      bootstrapCapability,
+      challengeNonce: policy.payload.nonce,
+      proof: validProof,
+    })).rejects.toMatchObject({ code: 'CHALLENGE_CONSUMED', name: 'PolicyPublishError' })
+  })
+
+  it('rejects a valid proof from the wrong established policy signer', async () => {
+    const merchantPublicId = '9999999999999999999999'
+    const productPublicId = '0000000000000000000000'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const signerFixture = createPolicyProof(
+      PRIVATE_KEY_POLICY_ESTABLISHED,
+      'signer-address-fixture',
+    )
+    await client`
+      update merchants set policy_signer_address = ${signerFixture.address} where id = ${merchantId}
+    `
+    const productId = await insertProduct(merchantId, productPublicId)
+    const policy = await insertPolicy({
+      merchantId,
+      merchantPublicId,
+      nonce: 'aaaaaaaaaaaaaaaaaaaaaa',
+      policyPublicId: 'bbbbbbbbbbbbbbbbbbbbbb',
+      productId,
+      productPublicId,
+    })
+    await client`
+      insert into signing_challenges (
+        nonce, action, merchant_id, policy_version_id, expected_signer_address,
+        canonical_message, payload_hash, expires_at
+      ) values (
+        ${policy.payload.nonce}, 'POLICY', ${merchantId}, ${policy.policyVersionId},
+        ${signerFixture.address}, ${policy.canonicalMessage}, ${policy.payloadHash},
+        now() + interval '5 minutes'
+      )
+    `
+
+    const wrongProof = createPolicyProof(PRIVATE_KEY_POLICY_FIRST, policy.canonicalMessage).proof
+    await expect(publishVerifiedPolicy(client, {
+      challengeNonce: policy.payload.nonce,
+      proof: wrongProof,
+    })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH', name: 'PolicyPublishError' })
+    const pendingRows = await client<{
+      consumed_at: Date | null
+      verification_status: string
+    }[]>`
+      select signing_challenges.consumed_at, policy_versions.verification_status
+      from signing_challenges
+      join policy_versions on policy_versions.id = signing_challenges.policy_version_id
+      where signing_challenges.nonce = ${policy.payload.nonce}
+    `
+    expect(pendingRows[0]).toEqual({ consumed_at: null, verification_status: 'pending' })
+
+    const validProof = createPolicyProof(
+      PRIVATE_KEY_POLICY_ESTABLISHED,
+      policy.canonicalMessage,
+    ).proof
+    await expect(publishVerifiedPolicy(client, {
+      challengeNonce: policy.payload.nonce,
+      proof: validProof,
+    })).resolves.toMatchObject({
+      actualSignerAddress: signerFixture.address,
+      firstPolicyForMerchant: false,
+    })
+  })
+
+  it('serializes concurrent submissions so exactly one consumes the first-policy proof', async () => {
+    const merchantPublicId = 'cccccccccccccccccccccc'
+    const productPublicId = 'dddddddddddddddddddddd'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const bootstrapCapability = 'C'.repeat(43)
+    const bootstrapRows = await client<{ id: string }[]>`
+      insert into merchant_bootstrap_sessions (merchant_id, capability_hash, expires_at)
+      values (
+        ${merchantId}, ${hashMerchantBootstrapCapability(bootstrapCapability)},
+        now() + interval '10 minutes'
+      )
+      returning id
+    `
+    const bootstrap = bootstrapRows[0]
+    if (!bootstrap) throw new Error('Bootstrap fixture insert returned no row.')
+    const productId = await insertProduct(merchantId, productPublicId)
+    const policy = await insertPolicy({
+      merchantId,
+      merchantPublicId,
+      nonce: 'eeeeeeeeeeeeeeeeeeeeee',
+      policyPublicId: 'ffffffffffffffffffffff',
+      productId,
+      productPublicId,
+    })
+    await client`
+      insert into signing_challenges (
+        nonce, action, merchant_id, policy_version_id, bootstrap_session_id,
+        canonical_message, payload_hash, expires_at
+      ) values (
+        ${policy.payload.nonce}, 'POLICY', ${merchantId}, ${policy.policyVersionId},
+        ${bootstrap.id}, ${policy.canonicalMessage}, ${policy.payloadHash},
+        now() + interval '5 minutes'
+      )
+    `
+    const proof = createPolicyProof(PRIVATE_KEY_POLICY_CONCURRENT, policy.canonicalMessage).proof
+    const submission = {
+      bootstrapCapability,
+      challengeNonce: policy.payload.nonce,
+      proof,
+    }
+
+    const results = await Promise.allSettled([
+      publishVerifiedPolicy(client, submission),
+      publishVerifiedPolicy(client, submission),
+    ])
+    const fulfilled = results.filter((result) => result.status === 'fulfilled')
+    const rejected = results.filter((result) => result.status === 'rejected')
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0]).toMatchObject({
+      reason: { code: 'CHALLENGE_CONSUMED', name: 'PolicyPublishError' },
+    })
   })
 })
