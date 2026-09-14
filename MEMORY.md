@@ -18,7 +18,7 @@ Phase 1 includes canonical NR1 policy schemas; PostgreSQL migrations and restric
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 110 hermetic plus twenty PostgreSQL tests (130 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Browser verification exercised real draft/challenge HTTP calls, truthful provider-unavailable behavior, fail-closed public reads, v1/v2 history, desktop layout, and a 375 CSS-pixel viewport without horizontal overflow or console errors. Deterministic proof and browser checks are not Nimiq Pay evidence.
+Local lint, typecheck, all tests, and production builds pass. GitHub Actions run `34904483526` passed for the Phase 1 documentation head. The configured suite has 110 hermetic plus twenty PostgreSQL tests (130 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Browser verification exercised real draft/challenge HTTP calls, truthful provider-unavailable behavior, fail-closed public reads, v1/v2 history, desktop layout, and a 375 CSS-pixel viewport without horizontal overflow or console errors. Deterministic proof and browser checks are not Nimiq Pay evidence.
 
 # Important implementation details
 

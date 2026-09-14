@@ -29,7 +29,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Production dependency audit reports zero known vulnerabilities; four current moderate advisories are confined to development dependencies.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34904483526` passed the locked install, PostgreSQL 16, lint, typecheck, all-test, and build gate for `b7fa868`. Production dependency audit reports zero known vulnerabilities; four current moderate advisories are confined to development dependencies.
 
 The configured suite has 110 hermetic tests across eighteen files plus twenty PostgreSQL 16 integration tests (130 total with `TEST_DATABASE_URL`). The real-database API journey covers draft, protected bootstrap, canonical v1, wrong-resource rejection, exact proof publication, public reprojection, stale-bootstrap rejection, established session, changed terms, v2, and preserved verified v1. Existing negative, concurrency, immutability, least-privilege, RPC, execution-result, and Albatross-finality coverage remains passing.
 
