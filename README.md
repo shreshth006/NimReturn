@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented; all local gates pass. A live TestAlbatross development RPC is proven through the local API, but only an actual Nimiq Pay device transaction can close the wallet/transaction interoperability exit criteria. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
+The repository is in **Phase 0 — Technical proof**. The internal diagnostics surface, fail-closed RPC endpoint, protocol codecs, and pure verification code are implemented; all local gates pass. A first Android/Nimiq Pay run proved provider injection, two returned accounts, a live wallet head, and public-key/address derivation. It also exposed the now-patched Nimiq signed-message framing mismatch and correctly stopped before payment because wallet consensus was false. A framed-signature retest plus one independently verified, macro-finalized TestAlbatross transaction still gate Phase 1. See [STATUS.md](./STATUS.md) and [MEMORY.md](./MEMORY.md) for the exact handoff.
 
 ## Local development
 

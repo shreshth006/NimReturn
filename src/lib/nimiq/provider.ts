@@ -5,7 +5,12 @@ import {
   type SignatureResult,
 } from '@nimiq/mini-app-sdk'
 
-export type WalletErrorKind = 'cancelled' | 'invalid-response' | 'provider-unavailable' | 'unknown'
+export type WalletErrorKind =
+  | 'cancelled'
+  | 'consensus-unavailable'
+  | 'invalid-response'
+  | 'provider-unavailable'
+  | 'unknown'
 
 export class WalletOperationError extends Error {
   override readonly name = 'WalletOperationError'
@@ -118,8 +123,18 @@ export async function readProviderNetwork(provider: NimiqProvider): Promise<Prov
   }
 }
 
+export function assertWalletConsensusForPayment(snapshot: ProviderNetworkSnapshot): void {
+  if (!snapshot.consensus) {
+    throw new WalletOperationError(
+      'consensus-unavailable',
+      'The wallet provider is reachable and returned a head, but consensus is not established. No payment request was opened; wait and retry the network check.',
+    )
+  }
+}
+
 export async function sendTransactionWithData(
   provider: NimiqProvider,
+  network: ProviderNetworkSnapshot,
   request: {
     data: string
     recipient: string
@@ -127,6 +142,7 @@ export async function sendTransactionWithData(
     value: number
   },
 ): Promise<string> {
+  assertWalletConsensusForPayment(network)
   try {
     const result = unwrap(await provider.sendBasicTransactionWithData(request))
     if (typeof result !== 'string' || !/^[0-9a-f]{64}$/iu.test(result)) {

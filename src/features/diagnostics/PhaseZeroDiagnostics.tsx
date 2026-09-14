@@ -33,6 +33,19 @@ interface StatusState {
 
 const initialStatus: StatusState = { status: 'idle', detail: 'Not run yet.' }
 
+function providerNetworkState(snapshot: ProviderNetworkSnapshot): StatusState {
+  return {
+    status: snapshot.consensus ? 'ready' : 'failed',
+    detail: snapshot.consensus
+      ? 'Provider reachable, head available at block '
+        + snapshot.blockNumber.toLocaleString()
+        + ', and consensus established.'
+      : 'Provider reachable and head available at block '
+        + snapshot.blockNumber.toLocaleString()
+        + ', but consensus is not established. Payment remains locked; wait and retry.',
+  }
+}
+
 function short(value: string, visible = 10): string {
   if (value.length <= visible * 2 + 1) return value
   return `${value.slice(0, visible)}…${value.slice(-visible)}`
@@ -120,6 +133,8 @@ export function PhaseZeroDiagnostics() {
 
   async function initialize() {
     setProviderState({ status: 'pending', detail: 'Waiting for Nimiq Pay to inject the provider…' })
+    setNetwork(null)
+    setNetworkState(initialStatus)
     try {
       const initialized = await initializeNimiqProvider()
       setProvider(initialized)
@@ -148,17 +163,14 @@ export function PhaseZeroDiagnostics() {
 
   async function readNetwork() {
     if (!provider) return
+    setNetwork(null)
     setNetworkState({ status: 'pending', detail: 'Reading wallet consensus and head height…' })
     try {
       const snapshot = await readProviderNetwork(provider)
       setNetwork(snapshot)
-      setNetworkState({
-        status: snapshot.consensus ? 'ready' : 'failed',
-        detail: snapshot.consensus
-          ? `Consensus established at block ${snapshot.blockNumber.toLocaleString()}.`
-          : `No consensus at block ${snapshot.blockNumber.toLocaleString()}. Do not send yet.`,
-      })
+      setNetworkState(providerNetworkState(snapshot))
     } catch (error) {
+      setNetwork(null)
       setNetworkState(errorState(error))
     }
   }
@@ -211,14 +223,17 @@ export function PhaseZeroDiagnostics() {
         throw new Error('Amount must be a positive safe integer number of Luna.')
       }
 
-      const snapshot = await readProviderNetwork(provider)
+      setNetwork(null)
+      setNetworkState({ status: 'pending', detail: 'Rechecking wallet consensus and head height…' })
+      const snapshot = await readProviderNetwork(provider).catch((error: unknown) => {
+        setNetworkState(errorState(error))
+        throw error
+      })
       setNetwork(snapshot)
-      if (!snapshot.consensus) {
-        throw new Error('Nimiq consensus is not established. No payment request was opened.')
-      }
+      setNetworkState(providerNetworkState(snapshot))
 
       setPaymentState({ status: 'pending', detail: 'Awaiting native payment approval…' })
-      const hash = await sendTransactionWithData(provider, {
+      const hash = await sendTransactionWithData(provider, snapshot, {
         recipient: canonicalRecipient,
         value: amount,
         data: transactionData,
@@ -343,9 +358,19 @@ export function PhaseZeroDiagnostics() {
             <StatusBadge state={networkState.status} />
           </div>
           <p>{networkState.detail}</p>
-          {network && <Evidence label="Latest provider result" value={`consensus=${String(network.consensus)}, block=${network.blockNumber}`} />}
+          {network && (
+            <div className="evidence-grid">
+              <Evidence label="Provider reachable" value="true" />
+              <Evidence label="Head available" value={'block ' + network.blockNumber.toString()} />
+              <Evidence label="Consensus established" value={String(network.consensus)} />
+              <Evidence
+                label="Payment gate"
+                value={network.consensus ? 'unlocked; click rechecks' : 'locked; retry required'}
+              />
+            </div>
+          )}
           <button type="button" onClick={() => void readNetwork()} disabled={!provider || networkState.status === 'pending'}>
-            Read network state
+            {network ? 'Retry network state' : 'Read network state'}
           </button>
         </li>
 
@@ -400,7 +425,13 @@ export function PhaseZeroDiagnostics() {
             <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
             <span>I confirmed the active Nimiq Pay network and control this test recipient.</span>
           </label>
-          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || !selectedAccount || !recipient || !acknowledged || paymentState.status === 'pending' || Boolean(sentTransaction)}>
+          {network?.consensus !== true && (
+            <p className="hint" role="status">
+              Payment is locked until Step 3 returns consensus=true. A fresh check also runs
+              immediately before the native request.
+            </p>
+          )}
+          <button type="button" className="button-caution" onClick={() => void sendPayment()} disabled={!provider || !selectedAccount || !recipient || !acknowledged || network?.consensus !== true || paymentState.status === 'pending' || Boolean(sentTransaction)}>
             Review irreversible test payment
           </button>
           {sentTransaction && (

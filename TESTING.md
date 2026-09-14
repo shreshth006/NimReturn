@@ -42,6 +42,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-002 Account permission rejected:** normalized cancelled state; no merchant/buyer session or challenge consumed.
 - **T-003 No accounts/returned SDK error value:** actionable state, no unsafe array assumption.
 - **T-004 Multiple accounts:** selected address shown and later signature is bound to it.
+- **T-005 Wallet head without consensus:** provider/head remain visibly reachable, consensus is false, retry is offered, and the native payment request stays locked.
 
 ### Policy signing
 
