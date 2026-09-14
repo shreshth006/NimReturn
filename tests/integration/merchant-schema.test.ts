@@ -3,6 +3,7 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { migrateDatabase } from '../../server/db/migrate.js'
+import { createMerchantDraft } from '../../server/domain/create-merchant-draft.js'
 import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
@@ -992,5 +993,90 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     } finally {
       await runtime.end()
     }
+  })
+
+  it('creates a normalized merchant/product draft while persisting only the bootstrap hash', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 1,
+    })
+    try {
+      const formattedSettlementAddress = VALID_ADDRESS_B.match(/.{1,4}/gu)?.join(' ')
+      if (!formattedSettlementAddress) throw new Error('Address fixture formatting failed.')
+      const created = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: formattedSettlementAddress,
+        description: '  Compact protection plan  ',
+        displayName: '  Cafe\u0301 Store  ',
+        productName: '  Travel Mouse  ',
+      })
+
+      expect(created).toMatchObject({
+        displayName: 'Café Store',
+        productName: 'Travel Mouse',
+      })
+      expect(created.merchantPublicId).toMatch(/^[A-Za-z0-9_-]{22}$/u)
+      expect(created.productPublicId).toMatch(/^[A-Za-z0-9_-]{22}$/u)
+      expect(created.bootstrapCapability).toMatch(/^[A-Za-z0-9_-]{43}$/u)
+
+      const storedRows = await runtime<{
+        capability_hash: string
+        default_settlement_address: string
+        description: string
+        display_name: string
+        expires_at: Date
+        name: string
+        policy_signer_address: string | null
+      }[]>`
+        select
+          merchants.default_settlement_address,
+          merchants.display_name,
+          merchants.policy_signer_address,
+          products.name,
+          products.description,
+          merchant_bootstrap_sessions.capability_hash,
+          merchant_bootstrap_sessions.expires_at
+        from merchants
+        join products on products.merchant_id = merchants.id
+        join merchant_bootstrap_sessions
+          on merchant_bootstrap_sessions.merchant_id = merchants.id
+        where merchants.public_id = ${created.merchantPublicId}
+          and products.public_id = ${created.productPublicId}
+      `
+      expect(storedRows[0]).toMatchObject({
+        capability_hash: hashMerchantBootstrapCapability(created.bootstrapCapability),
+        default_settlement_address: VALID_ADDRESS_B,
+        description: 'Compact protection plan',
+        display_name: 'Café Store',
+        name: 'Travel Mouse',
+        policy_signer_address: null,
+      })
+      expect(storedRows[0]?.capability_hash).not.toBe(created.bootstrapCapability)
+      expect(storedRows[0]?.expires_at).toEqual(created.bootstrapExpiresAt)
+
+      const leakedRows = await runtime<{ count: number }[]>`
+        select count(*)::integer as count
+        from protocol_events
+        where payload::text like ${`%${created.bootstrapCapability}%`}
+      `
+      expect(leakedRows[0]?.count).toBe(0)
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('rejects malformed merchant drafts before opening a persistence path', async () => {
+    const merchantCountBefore = await client<{ count: number }[]>`
+      select count(*)::integer as count from merchants
+    `
+    await expect(createMerchantDraft(client, {
+      defaultSettlementAddress: VALID_ADDRESS_B,
+      displayName: 'Unsafe\nStore',
+      productName: 'Travel Mouse',
+      surprise: true,
+    })).rejects.toMatchObject({ code: 'INVALID_REQUEST', name: 'MerchantDraftCreationError' })
+    const merchantCountAfter = await client<{ count: number }[]>`
+      select count(*)::integer as count from merchants
+    `
+    expect(merchantCountAfter[0]?.count).toBe(merchantCountBefore[0]?.count)
   })
 })
