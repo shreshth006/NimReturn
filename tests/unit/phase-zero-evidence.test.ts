@@ -21,6 +21,7 @@ describe('Phase 0 evidence export', () => {
         addressMatches: true,
         derivedAddress: 'NQ00 TEST',
         payloadHash: 'ef'.repeat(32),
+        signedMessageDigest: '12'.repeat(32),
         signatureValid: true,
         valid: true,
       },

@@ -367,7 +367,8 @@ export function PhaseZeroDiagnostics() {
               <Evidence label="Public key" value={short(signature.publicKey)} />
               <Evidence label="Signature" value={short(signature.signature)} />
               <Evidence label="Derived address" value={signatureVerification.derivedAddress ?? 'unavailable'} />
-              <Evidence label="BLAKE2b-256" value={short(signatureVerification.payloadHash ?? 'unavailable')} />
+              <Evidence label="Nimiq signing SHA-256" value={short(signatureVerification.signedMessageDigest ?? 'unavailable')} />
+              <Evidence label="NR1 payload BLAKE2b-256" value={short(signatureVerification.payloadHash ?? 'unavailable')} />
               <Evidence label="Signature valid" value={String(signatureVerification.signatureValid)} />
               <Evidence label="Address matches" value={String(signatureVerification.addressMatches)} />
             </div>

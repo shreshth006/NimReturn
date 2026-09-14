@@ -52,7 +52,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-014 Known-good core vector:** exact message verifies and derives correct address.
 - **T-015 Tampered message/signature/public key:** each independently fails.
 - **T-016 Canonicalization:** key order/input formatting yields same challenge; Unicode normalization and forbidden controls follow spec.
-- **T-017 Nimiq Pay interoperability:** device `sign()` artifact verifies with exact production adapter and address; no alternate prefix fallback.
+- **T-017 Nimiq Pay interoperability:** device `sign()` artifact verifies with exact Nimiq signed-message framing (`\x16Nimiq Signed Message:\n`, decimal UTF-8 byte length, SHA-256) and address binding; no raw-message fallback.
 - **T-018 Hub non-equivalence guard:** any Hub fixture tagged as another scheme is not accepted as Mini App NR1 without explicit support.
 
 ### Payment and transaction verification
@@ -128,7 +128,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 ## Phase 0 automated acceptance
 
 - Provider adapter typechecks against the installed 0.1.0 SDK and treats error unions safely.
-- Official-core known-good signature verifies; tampered message/signature and wrong address fail.
+- Official-core framed known-good signature verifies; wrong message, single-byte mutation, wrong key/address, malformed key/signature, and raw-message signature fail; Unicode uses UTF-8 byte length and the NR1 BLAKE2b payload hash stays stable.
 - Canonical message and transaction tags have stable fixtures.
 - Diagnostic screen can test provider ready, accounts, sign, local verification/address binding, consensus/head, direct payment-with-data, and server transaction lookup.
 - Diagnostic screen exports one local JSON evidence record with the exact signing message/UTF-8 hex, public key/signature, derived address result, transaction expectation, and independent RPC result; no secret key material is collected.

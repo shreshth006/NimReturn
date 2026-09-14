@@ -121,3 +121,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** `executionResult` prevents a failed state transition from becoming commerce evidence. The protocol-native macro boundary is deterministic and matches Albatross finality rather than approximating it with confirmations or wall-clock time.
 
 **Consequences:** Normalized evidence records inclusion, finalizing macro, and observed head heights. Pre-macro transactions remain pending even with confirmations. Missing/malformed execution or finality fields fail closed. Phase 2 must add persistence and independent-source reconciliation without weakening this rule.
+
+## D-011 — 2026-09-14 — Nimiq signed-message framing is the sole NR1 signature scheme
+
+**Decision:** Verify Nimiq Pay `sign()` results only by UTF-8 encoding the exact NR1 message, prepending `\x16Nimiq Signed Message:\n` plus its base-10 UTF-8 byte length, hashing that frame with SHA-256, and verifying the Ed25519 signature over the digest. Continue to compute `payload_hash` separately as BLAKE2b-256 over the unframed NR1 message.
+
+**Context:** The first physical Android/TestAlbatross diagnostic run returned a public key and signature whose derived address matched the selected wallet account, but raw-message verification failed. Nimiq's wallet and Keyguard implementations specify the framed SHA-256 convention.
+
+**Alternatives:** Verify raw UTF-8; try framed then raw; replace the NR1 payload hash with the signing digest.
+
+**Rationale:** One exact upstream-compatible transformation removes ambiguity. A fallback would expand the accepted signature language and hide integration mistakes; the NR1 BLAKE2b hash remains an integrity/index handle with a distinct role.
+
+**Consequences:** The production adapter exposes both hashes with explicit labels. Regression tests cover wrong messages/keys/addresses, byte mutation, malformed values, Unicode byte length, raw-message rejection, and stable BLAKE2b output. The same device must be rerun to close T-017; no raw device key, signature, or address is committed.

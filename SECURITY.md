@@ -76,7 +76,7 @@ Explicitly outside the system. No cryptographic result proves delivery, defect, 
 
 Threat: accept a signature over different bytes, try multiple message variants, mishandle hex, or conflate Mini App and Hub schemes.
 
-Controls: exact stored canonical challenge; domain prefix; UTF-8 byte equality; strict key/signature lengths; official core verification; one permitted transformation only; known-good/tampered tests; actual Nimiq Pay fixture before activation; verifier version stored. No prefix fallback.
+Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; actual Nimiq Pay device proof before activation; verifier version stored. No framed/unframed fallback.
 
 ### Public-key/address mismatch
 

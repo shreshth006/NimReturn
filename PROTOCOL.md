@@ -27,7 +27,7 @@ Every payload includes `protocol: "NR1"` and a fixed `type`. The bytes presented
 NIMRETURN/1/<TYPE>\n<CANONICAL_JSON>
 ```
 
-`<TYPE>` is exactly `POLICY`, `CLAIM`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The signature is over UTF-8 bytes of the complete string. The exact same string is displayed for approval and stored as `canonical_message`.
+`<TYPE>` is exactly `POLICY`, `CLAIM`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The exact same string is passed to Nimiq Pay `sign()`, displayed for approval, and stored as `canonical_message`. Nimiq Pay's cryptographic signed-message convention UTF-8 encodes that string, prefixes it with `\x16Nimiq Signed Message:\n` plus the base-10 UTF-8 byte length, hashes the resulting bytes with SHA-256, and signs that 32-byte digest with Ed25519. The length is the message byte length, not its JavaScript character count.
 
 NR2 or a later version uses a new prefix and tag namespace. Readers retain NR1 verification indefinitely for historical passports. Writers produce only the current explicitly enabled version.
 
@@ -149,12 +149,14 @@ For every proof:
 2. Normalize and length-check hex; reject parsing errors.
 3. `publicKey = PublicKey.fromHex(publicKeyHex)`.
 4. `signature = Signature.fromHex(signatureHex)`.
-5. `publicKey.verify(signature, utf8(canonicalMessage))` must be true.
-6. Parse claimed address with `Address.fromString`; `publicKey.toAddress().equals(claimedAddress)` must be true.
-7. Recompute BLAKE2b-256 and compare to stored hash.
-8. Consume nonce and create/transition the target resource atomically.
+5. UTF-8 encode `canonicalMessage` as `messageBytes`.
+6. Construct exactly `utf8("\x16Nimiq Signed Message:\n" + decimal(messageBytes.length)) || messageBytes`.
+7. SHA-256 that framed preimage, then require `publicKey.verify(signature, digest)` to be true.
+8. Parse claimed address with `Address.fromString`; `publicKey.toAddress().equals(claimedAddress)` must be true.
+9. Recompute BLAKE2b-256 over the unframed `messageBytes` and compare to stored `payload_hash`.
+10. Consume nonce and create/transition the target resource atomically.
 
-No fallback tries prefixed and unprefixed messages. If actual Nimiq Pay uses preprocessing, NR1 must specify exactly one proven transformation before production activation. Mini App `sign()` and Hub `signMessage()` artifacts are never mixed without an explicit scheme/version.
+No fallback tries framed and unframed messages. The SHA-256 signing digest and the NR1 BLAKE2b-256 payload hash have separate purposes and must never be substituted for one another.
 
 ## Purchase transaction verification
 
