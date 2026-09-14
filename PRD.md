@@ -18,7 +18,7 @@ A small merchant, service provider, event seller, or campus store already willin
 
 - publish simple, credible commercial terms without operating a key-management system;
 - receive direct payment without an escrow fee or custody risk;
-- identify authentic claims from the original buyer wallet;
+- accept claims only after a reviewed authorization binds the claim signer to the verified purchase sender;
 - approve, reject, and refund with an auditable history;
 - demonstrate factual fulfillment behavior to future customers.
 
@@ -37,23 +37,23 @@ A Nimiq Pay user making a small real-world purchase. They want to:
 
 ### Policy Lock
 
-An immutable, versioned, canonical policy payload signed by the merchant wallet. A changed policy creates a new version and never alters existing passports.
+An immutable, versioned, canonical policy payload signed by the merchant policy signer. It includes the separate settlement address that receives purchases. A changed policy creates a new version and never alters existing passports.
 
 ### Verified Purchase
 
-A pending server order becomes purchased only after independent chain verification of the direct buyer-to-merchant NIM transaction.
+A pending server order becomes purchased only after independent chain verification of the direct buyer-to-signed-settlement NIM transaction.
 
 ### Purchase Passport
 
-The durable view joining merchant, product snapshot, signed policy version, original buyer wallet, purchase transaction, deadlines, claims, decisions, and refunds.
+The durable view joining merchant, product snapshot, signed policy version, verified purchase sender, purchase transaction, deadlines, claims, decisions, and refunds.
 
 ### Claim Protocol
 
-The original purchasing wallet signs a versioned RETURN or WARRANTY claim. NimReturn validates signer and replay resistance and evaluates objective policy eligibility at a recorded evaluation time.
+A wallet signs a versioned RETURN or WARRANTY claim. Before claims are enabled, Phase 3 must establish how that proof-derived signer is authorized for the independently verified purchase sender; signer equality is not assumed. NimReturn then validates authorization and replay resistance and evaluates objective policy eligibility at a recorded evaluation time.
 
 ### Merchant Resolution
 
-The merchant wallet signs APPROVED or REJECTED plus a reason. Approval can create an expected refund; approval is not the same as a verified payment.
+The established merchant policy signer signs APPROVED or REJECTED plus a reason. Approval can create an expected refund; approval is not the same as a verified payment.
 
 ### Promise Ledger
 
@@ -64,20 +64,22 @@ Public factual aggregates derived from verified events. It contains no user-ente
 ### Merchant setup and policy
 
 1. Merchant opens NimReturn inside Nimiq Pay and grants account access.
-2. Merchant selects one returned Nimiq address.
+2. Merchant chooses a canonical settlement address for the policy. Disclosed accounts may help data entry but do not select the signing key.
 3. Merchant creates a product/service with name and exact price in Luna (UI may accept a precisely parsed decimal NIM string).
 4. Merchant defines non-negative return/warranty windows and transferability metadata.
 5. Server allocates IDs, nonce, version, and timestamp, then returns the exact canonical policy message.
 6. Merchant reviews readable terms and approves native signing.
-7. Server verifies message equality, signature, public key, address binding, nonce, and uniqueness before marking the version signed.
+7. Server verifies message equality, signature, public key, derived signer, nonce, and uniqueness. The first valid proof atomically establishes the merchant policy signer; later proofs must match it.
 8. Product page exposes only a verified active policy version.
+
+The policy signer and settlement address may be equal or different. The signed payload—not wallet account ordering—binds the settlement recipient.
 
 ### Purchase
 
 1. Buyer opens product and sees merchant, integer-derived NIM price, return/warranty terms, and no guarantee language.
 2. Buyer grants wallet account access.
 3. Server creates a pending order bound to product, policy version, merchant, price, network, and an expiring nonce. The Mini App does not invent a buyer address before the chain reveals the payment sender.
-4. Client requests `sendBasicTransactionWithData()` directly to the merchant with the server-issued compact tag.
+4. Client requests `sendBasicTransactionWithData()` directly to the signed policy settlement address with the server-issued compact tag.
 5. Cancellation returns to an actionable cancelled state; no passport is created.
 6. A returned hash moves the order to verifying and is sent to the server.
 7. Server independently queries chain/mempool evidence, derives the buyer from the observed sender, and checks every expected field and hash uniqueness.
@@ -86,11 +88,11 @@ Public factual aggregates derived from verified events. It contains no user-ente
 
 ### Claim
 
-1. Original buyer opens a purchased passport and chooses RETURN or WARRANTY.
+1. A claimant opens a purchased passport and chooses RETURN or WARRANTY.
 2. UI shows the relevant deadline and whether it appears open, without declaring final eligibility before verification.
 3. Server creates claim ID and nonce, and returns the canonical payload.
-4. Buyer signs it in Nimiq Pay.
-5. Server checks payload, signature, address binding, signer equals original buyer, order/passport state, nonce, uniqueness, and eligibility.
+4. Claimant signs it in Nimiq Pay.
+5. Server derives the claim signer, verifies the Phase 3 authorization binding it to the purchase sender, then checks payload, order/passport state, nonce, uniqueness, and eligibility.
 6. Eligibility is stored as a reproducible result with rule outputs and evaluation time.
 7. Merchant queue receives the claim; reloads do not duplicate it.
 
@@ -98,11 +100,11 @@ Public factual aggregates derived from verified events. It contains no user-ente
 
 1. Merchant sees claim facts and computed eligibility.
 2. Merchant selects APPROVE or REJECT and a reason; server provides a canonical resolution payload.
-3. Merchant signs. Server verifies merchant binding and ensures the claim has no prior final resolution.
+3. Merchant signs. Server requires the proof-derived signer to match the merchant's established policy signer and ensures the claim has no prior final resolution.
 4. Approval records an expected refund amount but remains distinct from payment.
-5. Merchant initiates a direct NIM transaction to the original buyer using a compact refund tag.
+5. Merchant initiates a direct NIM transaction from the purchase-bound settlement address to the original buyer using a compact refund tag.
 6. Server independently verifies transaction sender, recipient, exact Luna value, data, network, state, and unique hash.
-7. Only valid included/confirmed evidence changes the lifecycle to refunded.
+7. Only successfully executed, macro-final matching evidence changes the lifecycle to refunded.
 
 ## Functional requirements
 
@@ -112,17 +114,17 @@ Requirement IDs are stable. Tests should refer to them where useful.
 
 - **FR-001:** The app shall initialize the injected Nimiq provider with a visible unavailable/timeout state.
 - **FR-002:** Account access rejection shall be shown as a normal cancelled outcome and shall not create identity state.
-- **FR-003:** A merchant shall create a product/service with a non-empty bounded name, exact positive Luna price, and signed policy.
+- **FR-003:** A merchant shall create a product/service with a non-empty bounded name, exact positive Luna price, canonical settlement address, and signed policy.
 - **FR-004:** The server shall assign monotonic policy versions per product and reject client-selected versions.
-- **FR-005:** The server shall store exact canonical message, hash, public key, signature, merchant address, and verification result.
+- **FR-005:** The server shall store the exact canonical message, hash, public key, signature, proof-derived policy signer, signed settlement address, and verification result as distinct fields.
 - **FR-006:** A policy version shall be immutable after signing; a database update attempting to change signed content shall fail.
-- **FR-007:** Verification shall reject an altered message, invalid signature, malformed public key, or public key not deriving to the claimed merchant address.
+- **FR-007:** Verification shall reject an altered message, invalid signature, malformed public key, or proof-derived signer that conflicts with an established merchant policy signer. First-policy establishment shall be atomic and shall never use a client-selected expected account.
 - **FR-008:** An unsigned or invalid policy shall never be offered as purchasable.
 
 ### Purchase and passport
 
 - **FR-010:** The server shall create one pending order with unpredictable ID/nonce, bound expected values, and expiration.
-- **FR-011:** The client shall request a direct NIM transaction to the bound merchant using exact integer Luna and versioned data.
+- **FR-011:** The client shall request a direct NIM transaction to the purchase-bound signed settlement address using exact integer Luna and versioned data.
 - **FR-012:** Wallet cancellation, pending, verifying, inconclusive, invalid, and verified shall remain visually distinct.
 - **FR-013:** A returned transaction hash shall be treated as untrusted input.
 - **FR-014:** The server shall independently validate network, existence/state, sender, recipient, value, data, order ID, and global hash uniqueness.
@@ -135,15 +137,15 @@ Requirement IDs are stable. Tests should refer to them where useful.
 
 - **FR-020:** Only RETURN and WARRANTY are accepted MVP claim types.
 - **FR-021:** Claim reason shall be a bounded code; note is optional, normalized, and length-limited.
-- **FR-022:** A claim shall include a server-issued unique nonce and be signed by the original buyer address.
-- **FR-023:** Claim verification shall reject wrong signer, altered payload, replayed nonce, duplicate active claim when prohibited, or invalid order.
+- **FR-022:** A candidate claim shall include a server-issued unique nonce and the server-copied purchase sender, and its proof signer shall be derived from the returned public key.
+- **FR-023:** Before claim writes are enabled, Phase 3 shall specify and implement a signed, replay-resistant authorization binding the derived claim signer to the purchase sender. Verification shall reject missing/invalid authorization, altered payload, replayed nonce, prohibited duplicate active claim, or invalid order; direct signer/sender equality is not assumed.
 - **FR-024:** Eligibility shall be deterministic from verified purchase time, signed window, claim timestamp/evaluation policy, and claim type.
 - **FR-025:** Boundary behavior is inclusive: a claim at its exact deadline is eligible; one millisecond later is not.
 - **FR-026:** The UI shall label the result “policy eligible” or “policy ineligible” and explain it is not a guaranteed remedy.
-- **FR-027:** A merchant resolution shall require a valid merchant-bound signature and shall be final for MVP.
+- **FR-027:** A merchant resolution shall require a valid signature from the established policy signer and shall be final for MVP.
 - **FR-028:** Repeated resolution requests shall be idempotent; conflicting second decisions shall fail.
 - **FR-029:** Refund approval and refund payment shall be separate states.
-- **FR-030:** A refund shall be verified independently for network, state, merchant sender, original buyer recipient, exact amount, correct tag, and unique hash.
+- **FR-030:** A refund shall be verified independently for network, state, purchase-bound settlement sender, original buyer recipient, exact amount, correct tag, and unique hash.
 - **FR-031:** A rejected or unresolved claim shall remain historically visible.
 
 ### Promise Ledger and instrumentation
@@ -175,7 +177,7 @@ Eligibility describes a result attached to a submitted claim, not merchant appro
 
 ## Eligibility rules
 
-- Purchasing wallet matches the verified order sender.
+- Phase 3 claimant authorization is valid for the verified order sender.
 - Policy signature/version remains valid.
 - Purchase is verified and not refunded for an equivalent completed claim.
 - Claim type maps to a policy window greater than zero.
@@ -186,7 +188,7 @@ Eligibility describes a result attached to a submitted claim, not merchant appro
 ## Edge cases
 
 - Provider missing or injected after app load; init timeout and retry.
-- Multiple wallet accounts; the actual signer is derived from each returned public key, while an expected-account choice remains diagnostic unless the SDK action explicitly accepts an account selector. The actual purchase sender comes only from verified chain evidence.
+- Multiple wallet accounts; the actual signer is derived from the public key returned by each signing action, while an expected-account choice remains diagnostic unless the SDK action explicitly accepts an account selector. The actual purchase sender comes only from verified chain evidence.
 - Wallet returns an SDK `ErrorResponse` as a value instead of throwing; normalize both paths.
 - Browser insecure context lacks `crypto.randomUUID`; IDs are server-generated, with no client security dependence.
 - User double taps or reloads during approval.
@@ -196,7 +198,7 @@ Eligibility describes a result attached to a submitted claim, not merchant appro
 - Daylight-saving/timezone display; protocol stores UTC milliseconds and windows as durations.
 - Policy changes while product is open; order creation binds the current version and checkout displays it again.
 - Claim at exact expiry; inclusive comparison is covered by tests.
-- Merchant changes wallet; historical versions remain bound to the original address and refunds must use that policy merchant unless an explicit future migration protocol exists.
+- Merchant changes signing wallet or settlement address; historical versions retain both original roles. Signing-wallet migration needs a future authorization protocol, while a settlement change creates a new policy version and does not alter existing purchase/refund expectations.
 - Partial refund, over-refund, or multiple refunds; not accepted as completion in MVP.
 - API/RPC outage; return inconclusive, retry with backoff, never downgrade verification.
 
@@ -206,7 +208,7 @@ Eligibility describes a result attached to a submitted claim, not merchant appro
 - **NFR-002 Performance:** First contentful product/passport view target under 2.5 seconds on a mid-range mobile connection; local input feedback under 100 ms.
 - **NFR-003 Accessibility:** WCAG 2.2 AA target; keyboard/focus support, 44px touch targets, semantic status announcements, contrast, reduced motion.
 - **NFR-004 Security:** Follow `SECURITY.md`; no secrets or keys in client/logs/repository.
-- **NFR-005 Privacy:** Wallet address is the identity; no mandatory PII. Retention and public visibility are disclosed.
+- **NFR-005 Privacy:** Policy signer, settlement, and transaction addresses are separate pseudonymous protocol identifiers; no mandatory PII. Retention and public visibility are disclosed.
 - **NFR-006 Compatibility:** Current Nimiq Pay iOS and Android WebViews are actual-device tested on TestAlbatross before mainnet pilot.
 - **NFR-007 Observability:** Correlated structured events for state transitions, verifier latency/errors, and invariant violations without secret leakage.
 - **NFR-008 Recovery:** A user can reload any pending workflow and see/resume its authoritative state.

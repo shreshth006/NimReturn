@@ -1,10 +1,10 @@
 # Operational status
 
-Last updated: 2026-09-14 (IST)
+Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 0 — Technical proof: in progress.** The critical Android cryptographic/chain proof is complete, the stale account-authority cancellation bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly deferring iOS. Only actual-device provider recovery, account-permission cancellation/recovery, and clean native payment cancellation/retry evidence remain. Phase 1 has not started.
+**Phase 0 — Technical proof: in progress.** The critical Android cryptographic/chain proof is complete, the stale account-authority cancellation bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly deferring iOS. D-017 now separates proof-derived policy signing authority from the signed settlement address; D-018 makes claim-signer authorization a future Phase 3 gate. Only actual-device provider recovery, account-permission cancellation/recovery, and clean native payment cancellation/retry evidence remain. Phase 1 has not started.
 
 ## Completion by phase
 
@@ -21,11 +21,11 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build status
 
-Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions runs the same locked-install gate on pushes to `main` and pull requests; Phase 0 hardening run `34843529727` passed. Frontend output includes official Nimiq core WASM (~1.11 MB raw/~471 KB gzip); track mobile performance.
+Passing on Node 24.13.1/npm 11.8.0: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions runs the same locked-install gate on pushes to `main` and pull requests; cancellation-fix run `34884517479` and Android-exception run `34884852652` passed. Frontend output includes official Nimiq core WASM (~1.11 MB raw/~471 KB gzip); track mobile performance.
 
 ## Test status
 
-68/68 unit tests pass across eleven files, adding atomic account-authority reset/retry coverage to the existing canonicalization, cryptography, evidence, persistence, consensus, transaction, and RPC suites. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Database integration/E2E remain pending by phase.
+69/69 unit tests pass across eleven files, including atomic account-authority reset/retry coverage and a policy fixture proving that a settlement address can differ from the proof signer while remaining signature-bound. API health plus invalid-request (400), unconfigured-RPC fail-closed (503), and configured live TestAlbatross readiness behavior were manually checked. The Android v2 artifact supplies actual-device T-017 and T-035 proof. Database integration/E2E remain pending by phase.
 
 ## Deployment status
 
@@ -43,13 +43,14 @@ Physical Android 16/Nimiq Pay 2.19.1 testing initialized the provider, returned 
 
 - External/runtime: record actual-device T-001 provider-timeout/recovery, T-002 account-permission cancellation/recovery, and T-020 clean native payment cancellation/safe retry behavior. D-016 has closed the Cycle II cross-platform criterion by explicit Android-only exception.
 - External for production transaction lookup: operated primary and independent/failover Nimiq RPC sources; the configured public development endpoint has no guarantee.
+- Phase 3 design gate (not a Phase 0/1 blocker): specify and security-review signed authorization between a proof-derived claim signer and the independently verified purchase sender. Direct equality is not an accepted shortcut.
 - Later external: deployment/database credentials, pilot merchant/users, and promotion accounts. The public GitHub remote is configured.
 
 These do not block local scaffold, pure crypto/protocol tests, or fail-closed RPC integration.
 
 ## Critical path
 
-Close the three actual-device cancellation/recovery results → freeze NR1 → Phase 1 immutable policy → Phase 2 verified purchase/passport → Phase 3 claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
+Close the three actual-device cancellation/recovery results → freeze the corrected NR1 policy writer → Phase 1 distinct policy-signer/settlement model → Phase 2 verified purchase/passport → Phase 3 claimant-authorization gate and claims/resolution → Phase 4 refund → polish/deploy/pilot/submission.
 
 ## Next milestone
 

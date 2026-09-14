@@ -61,7 +61,7 @@ Transfer, replacement, catalog discovery, policy templates, arbitrary public pro
 
 ## Key components
 
-- **Trust header:** concise merchant name/address and “merchant-signed terms” state.
+- **Trust header:** concise merchant name, policy signer, separate settlement address, and “merchant-signed terms” state; never imply those addresses must match.
 - **Money:** exact NIM display derived from integer Luna; never float-rounded.
 - **Policy summary:** return/warranty durations and transfer policy with version.
 - **Evidence drawer:** status, source, timestamp, shortened identifiers, copy actions, and exact payload.
@@ -135,7 +135,7 @@ Use “verified” only when verification completed against its stated source. L
 
 ## Copy rules
 
-Prefer “verified on-chain,” “merchant-signed terms,” “payment verified,” “policy at purchase,” “original purchasing wallet,” and “refund verified.” Avoid “trustless,” “guaranteed refund,” “chargeback,” “decentralized arbitration,” and “immutable consumer rights.” Never imply policy eligibility is legal entitlement or that rejection proves wrongdoing.
+Prefer “verified on-chain,” “merchant-signed terms,” “payment verified,” “policy at purchase,” “verified purchase sender,” “authorized claim signer” (only after D-018 is implemented), and “refund verified.” Avoid “trustless,” “guaranteed refund,” “chargeback,” “decentralized arbitration,” and “immutable consumer rights.” Never imply policy eligibility is legal entitlement or that rejection proves wrongdoing.
 
 Buttons describe the wallet action: “Review and sign terms,” “Pay 5 NIM in Nimiq Pay,” “Sign return request,” “Review refund in Nimiq Pay.” Destructive/final decisions repeat consequences before native confirmation.
 
@@ -147,8 +147,8 @@ Buttons describe the wallet action: “Review and sign terms,” “Pay 5 NIM in
 
 25–35s: Passport shows policy version, deadlines, merchant identity, and verified payment in one view.
 
-35–48s: buyer signs a RETURN; the objective checklist yields “POLICY ELIGIBLE” with honest disclaimer.
+35–48s: an authorized claimant signs a RETURN; the objective checklist yields “POLICY ELIGIBLE” with honest disclaimer. This scene is unavailable until the Phase 3 authorization gate closes.
 
-48–57s: merchant approves and pays original wallet; lifecycle distinguishes approval from verified refund.
+48–57s: the policy signer approves and the purchase-bound settlement address pays the original buyer; lifecycle distinguishes approval from verified refund.
 
 57–60s: Promise Ledger summarizes factual verified behavior. The story should work without a blockchain explanation.

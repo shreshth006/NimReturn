@@ -50,9 +50,10 @@ function createFixture(privateKeyHex: string, message: string, raw = false) {
 }
 
 describe('Nimiq signature verification', () => {
+  const settlementFixture = createFixture(PRIVATE_KEY_B, 'settlement-address-fixture')
   const payload: CanonicalJsonObject = {
     createdAt: 1_789_335_000_000,
-    merchantAddress: 'NQTESTFIXTURE',
+    merchantId: 'DDDDDDDDDDDDDDDDDDDDDD',
     nonce: 'AAAAAAAAAAAAAAAAAAAAAA',
     policyId: 'BBBBBBBBBBBBBBBBBBBBBB',
     priceLuna: 500_000,
@@ -60,6 +61,7 @@ describe('Nimiq signature verification', () => {
     productName: 'Wireless Mouse',
     protocol: 'NR1',
     returnWindowSeconds: 604_800,
+    settlementAddress: settlementFixture.address,
     type: 'POLICY',
     version: 1,
     warrantyTransferAllowed: false,
@@ -74,6 +76,17 @@ describe('Nimiq signature verification', () => {
     expect(result.payloadHash).toBe(hashProtocolPayload(message))
     expect(result.signedMessageDigest).toHaveLength(64)
     expect(normalizeNimiqAddress(fixture.address)).toMatch(/^NQ[A-Z0-9]{34}$/u)
+  })
+
+  it('binds a settlement address that can differ from the policy signer', () => {
+    expect(fixture.address).not.toBe(settlementFixture.address)
+    expect(verifyNimiqSignature({ ...fixture, message }).valid).toBe(true)
+
+    const changedSettlement = buildProtocolMessage('POLICY', {
+      ...payload,
+      settlementAddress: fixture.address,
+    })
+    expect(verifyNimiqSignature({ ...fixture, message: changedSettlement }).valid).toBe(false)
   })
 
   it('rejects a different message', () => {

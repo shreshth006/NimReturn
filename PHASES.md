@@ -37,12 +37,12 @@ If sign preprocessing differs from the NR1 candidate, change it once with captur
 
 ### Build
 
-Database migrations/constraints; merchant wallet identity; minimal product editor; server-issued policy challenge; canonicalization; signing/verification; append-only versions; active verified policy product page; role authorization and audit events.
+Database migrations/constraints; first-proof-derived merchant policy signer; separately signed settlement address; minimal product editor; server-issued policy challenge; canonicalization; signing/verification; append-only versions; active verified policy product page; role authorization and audit events. No merchant screen implementation begins until Phase 0 exits.
 
 ### Exit criteria
 
 - [ ] Merchant can create and sign a policy on device and publish product in under 60 seconds.
-- [ ] Invalid/altered/wrong-address/expired/replayed proofs fail.
+- [ ] First proof atomically establishes the policy signer; later wrong-signer/invalid/altered/expired/replayed proofs fail; a distinct signed settlement address succeeds.
 - [ ] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
 - [ ] Product cannot activate without verified policy.
 - [ ] API/database integration tests, mobile accessibility, and full gate pass.
@@ -65,11 +65,11 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 
 ### Build
 
-RETURN/WARRANTY claim challenge; reason/note validation; buyer signature; original-buyer binding; deterministic eligibility evaluator/version; inclusive time boundaries; merchant queue; signed approve/reject resolution; historical display.
+First close the D-018 claimant-authorization design gate: define how a proof-derived claim signer is authorized for the independently verified purchase sender without assuming signer equality or wallet account selection. Then build RETURN/WARRANTY claim challenge; reason/note validation; deterministic eligibility evaluator/version; inclusive time boundaries; merchant queue; policy-signer approve/reject resolution; historical display.
 
 ### Exit criteria
 
-- [ ] Wrong-wallet/invalid/altered/replayed/duplicate claims fail.
+- [ ] Authorized equal/distinct signer cases pass according to the reviewed protocol; unrelated/invalid/altered/replayed/duplicate claims fail.
 - [ ] Eligibility unit matrix and exact boundary tests pass.
 - [ ] Policy eligible copy never promises outcome.
 - [ ] Only policy merchant can resolve; one final resolution under concurrency.
@@ -79,7 +79,7 @@ RETURN/WARRANTY claim challenge; reason/note validation; buyer signature; origin
 
 ### Build
 
-Approved refund expectation; direct merchant→original buyer NIM transaction/tag; cancellation/pending/retry UI; independent verification; global hash uniqueness; complete lifecycle and reconciliation.
+Approved refund expectation; direct purchase-bound settlement address→original buyer NIM transaction/tag; cancellation/pending/retry UI; independent verification; global hash uniqueness; complete lifecycle and reconciliation.
 
 ### Exit criteria
 

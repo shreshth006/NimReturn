@@ -193,3 +193,27 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The documented exception is narrower and more truthful than an untested compatibility claim. Deadline risk now outweighs the incremental Phase 0 value of a second host, while Android proof covers the current competition demonstration target.
 
 **Consequences:** The Phase 0 Android/iOS-or-exception criterion is satisfied by exception, not by iOS evidence. Documentation and submission claims must say Android-validated rather than cross-platform validated. iOS testing remains required before a mainnet pilot and after the competition submission unless reprioritized by a later decision.
+
+## D-017 — 2026-09-15 — Policy signing authority and settlement address are distinct
+
+**Decision:** NR1 treats the merchant policy signer and the settlement address as separate roles. The server derives the policy signer from the proof public key. A new merchant's first valid policy proof atomically establishes its immutable MVP `policy_signer_address`; later merchant proofs must derive to that address. The canonical policy payload separately binds the `settlementAddress` used for purchase receipt and refund-source verification. The two addresses may be equal or different, and NimReturn never infers equality from `listAccounts()` order or a client selection.
+
+**Context:** Mini App SDK 0.1.0 exposes no signer selector for `sign()` and no sender selector for `sendBasicTransactionWithData()`. Physical Phase 0 evidence also showed that a valid signer, an expected diagnostic account, and an observed transaction sender can differ. A single ambiguous merchant wallet address would therefore create an authority claim the wallet API cannot guarantee.
+
+**Alternatives:** Require policy signer and settlement address to match; trust an account dropdown to select the signing/payment account; accept an unbound settlement recipient after policy signing; let every policy establish a new signer.
+
+**Rationale:** Cryptographic derivation is authoritative for signatures, signed policy bytes are authoritative for the commercial recipient, and chain evidence is authoritative for transaction senders. Separating those facts matches the actual wallet contract while keeping first-policy bootstrap and subsequent merchant authorization deterministic.
+
+**Consequences:** Phase 1 schema and APIs use explicit `policy_signer_address`, `settlement_address`, and derived `signer_address` names. The first proof establishes policy authority under a server-held, expiring bootstrap challenge; concurrent establishment is compare-and-set. A settlement change requires a new signed policy version. Wallet migration is deferred and cannot be improvised by changing a row. Purchases pay, and NR1 refunds originate from, the purchase-bound settlement address.
+
+## D-018 — 2026-09-15 — Claim-signer authorization is a Phase 3 design gate
+
+**Decision:** A verified purchase sender and a claim-message signer are distinct evidence until Phase 3 defines, threat-models, and tests an explicit authorization/binding protocol. The purchase buyer remains the independently observed chain sender; the claim signer is derived from the proof public key. NimReturn must not enable claim writes or require `claim_signer_address == purchase_sender_address` merely because the current wallet API lacks signer selection.
+
+**Context:** The earlier draft said the original purchasing wallet signs and required signer equality. Phase 0 proved only that Nimiq Pay returns a valid signing key without a caller-selected signer. Direct equality could reject the legitimate payer or encourage the UI/server to treat a disclosed/selected account as cryptographic control.
+
+**Alternatives:** Keep direct address equality; accept any claim signer; infer signer routing from one device; solve claim authorization during Phase 1.
+
+**Rationale:** Both direct equality and unrestricted signing are unsafe without a defensible account-control relationship. Phase 3 is the first phase that needs this protocol and can evaluate recovery, multiple accounts, authorization replay, privacy, and device behavior together.
+
+**Consequences:** Claim payload/schema text is explicitly candidate, stores purchase-sender and derived-signer facts separately, and has no enabled production write path before the Phase 3 gate closes. PRD, security controls, tests, and UI copy may describe the intended claim outcome but cannot claim original-buyer authorization until that protocol exists. This decision does not expand Phase 0 or start claim implementation.

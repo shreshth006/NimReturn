@@ -8,7 +8,7 @@
 2. Never create a successful purchase/refund from client or database assertion alone.
 3. Prevent one signature, nonce, transaction, order, or resolution from being replayed in another context.
 4. Preserve the exact signed historical policy and its relationship to a purchase.
-5. Attribute claims to the original buyer and resolutions/refunds to the correct merchant.
+5. Attribute policy/resolution signatures to the established policy signer, purchases/refunds to the signed settlement address, and claims only through a reviewed authorization to the verified purchase sender.
 6. Fail visibly and recoverably when wallet, network, API, RPC, or database state is uncertain.
 7. Minimize user data and avoid turning public blockchain data into unnecessary profiles.
 
@@ -67,7 +67,7 @@ Explicitly outside the system. No cryptographic result proves delivery, defect, 
 - All sensitive wallet actions use Nimiq Pay native confirmation.
 - A Nimiq address is pseudonymous account identity, not verified civil identity.
 - Every signer is derived from the returned public key. A `listAccounts()` entry or client-side dropdown is never treated as proof that Nimiq Pay used that key.
-- Historical merchant address remains bound to the signed policy. Wallet migration is not improvised in MVP.
+- Historical policy signer and settlement address remain distinct and bound to the signed policy/version. They may differ; wallet migration is not improvised in MVP.
 - Server has no signing key capable of moving user money; ordinary TLS/session keys do not become wallet keys.
 
 ## Threats and controls
@@ -78,53 +78,59 @@ Threat: accept a signature over different bytes, try multiple message variants, 
 
 Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; actual Nimiq Pay device proof before activation; verifier version stored. No framed/unframed fallback.
 
-### Public-key/address mismatch
+### Public-key/role mismatch
 
-Threat: valid attacker signature submitted while claiming merchant/buyer address.
+Threat: a valid attacker signature is submitted for another role, or a settlement/purchase address is mistaken for signer authority.
 
-Controls: derive the actual signer from the parsed public key using `PublicKey.toAddress()`. For diagnostics, separately report whether it is in the wallet-returned account list and whether it matches the non-authoritative expected-account choice. For protocol actions, byte-compare the derived signer to the server-bound role address; never substitute dropdown state.
+Controls: derive the actual signer from the parsed public key using `PublicKey.toAddress()`. For diagnostics, separately report whether it is in the wallet-returned account list and whether it matches the non-authoritative expected-account choice. A first-policy bootstrap atomically establishes the merchant policy signer from that derived address; later policy/resolution actions byte-compare against it. The separately signed settlement address is never treated as signer proof, and dropdown state never substitutes for either fact.
+
+### First-policy identity takeover
+
+Threat: an attacker who learns a draft merchant/product public ID races the legitimate merchant and becomes the first bound policy signer.
+
+Controls: public IDs do not authorize bootstrap. Draft creation issues an unpredictable, expiring bootstrap capability held in a secure `HttpOnly`, `Secure`, `SameSite` session and stored server-side only as a hash bound to the merchant and challenge. Challenge submission requires that capability; the valid proof, nonce consumption, and `policy_signer_address IS NULL` compare-and-set commit atomically. A lost bootstrap abandons or explicitly recovers the unverified draft—it never resets an established signer.
 
 ### Signature replay
 
 Threat: reuse a policy/claim/resolution signature for another resource or later action.
 
-Controls: protocol/type/resource/signer/domain fields; 128-bit one-time nonce; expiry; nonce unique constraint; atomic challenge consumption; no generic “sign in” message reused as commerce evidence.
+Controls: protocol/type/resource/domain fields plus the server-bound signer whenever already established; 128-bit one-time nonce; expiry; nonce unique constraint; atomic challenge consumption and first-policy signer establishment; no generic “sign in” message reused as commerce evidence.
 
 ### Policy tampering
 
 Threat: modify price/window/product after signature or point a passport at a newer policy.
 
-Controls: stored canonical bytes/hash/proof; signed snapshot fields; append-only verified rows; unique monotonic version; order binds policy ID before wallet payment; passport immutable relation; periodic hash/signature reconciliation; restricted DB updates.
+Controls: stored canonical bytes/hash/proof; signed snapshot fields including settlement address; proof-derived policy signer; append-only verified rows; unique monotonic version; order binds policy ID before wallet payment; passport immutable relation; periodic hash/signature reconciliation; restricted DB updates.
 
 ### Order/transaction substitution
 
 Threat: attach an unrelated valid transaction, another customer's payment, or duplicate hash.
 
-Controls: 128-bit order tag; check network, observed sender validity/account semantics, merchant recipient, exact Luna, exact data, state, and type; derive original buyer from independently verified sender evidence instead of client selection; shared transaction-hash registry; one transaction/order/passport constraints; idempotent compare-and-set transition.
+Controls: 128-bit order tag; check network, observed sender validity/account semantics, signed settlement recipient, exact Luna, exact data, state, and type; derive original buyer from independently verified sender evidence instead of client selection; shared transaction-hash registry; one transaction/order/passport constraints; idempotent compare-and-set transition.
 
 ### Wrong recipient or amount
 
 Threat: compromised UI requests payment/refund to attacker or wrong value; server later accepts it.
 
-Controls: API returns expected wallet request from immutable order/resolution; pre-approval UI repeats it; server independently compares parsed addresses and safe-integer Luna. Never infer acceptance from approximate decimal display.
+Controls: API returns the expected wallet request from immutable order/resolution evidence; purchase recipient and NR1 refund sender come from the purchase-bound signed settlement address. Pre-approval UI repeats the request; server independently compares parsed addresses and safe-integer Luna. Never infer acceptance from approximate decimal display or assume the signer and settlement address are equal.
 
 ### Forged/non-buyer claim
 
-Threat: another wallet files against a known passport.
+Threat: an unrelated signer files against a known passport, or the system rejects a legitimate payer by assuming Nimiq Pay signed with a client-selected account.
 
-Controls: private/unpredictable IDs reduce discovery but do not authorize; server challenge binds original chain sender; signature and address binding; access controls; one-time nonce; claim history constraints.
+Controls: private/unpredictable IDs reduce discovery but do not authorize. D-018 blocks claim writes until Phase 3 defines a signed, replay-resistant authorization from the proof-derived claim signer to the independently verified purchase sender, including recovery and multiple-account behavior. Direct signer/sender equality and unrestricted signer acceptance are both prohibited shortcuts; one-time nonce, access controls, and claim-history constraints remain required.
 
 ### Forged/duplicate merchant resolution
 
 Threat: buyer or attacker records approval; merchant changes decision after outcome.
 
-Controls: resolution challenge binds policy merchant; signature/address verification; unique `claim_id`; exact duplicate idempotency; conflicting second resolution is `409` and append-only audit event.
+Controls: resolution challenge binds the established policy signer; proof-derived signature/address verification; unique `claim_id`; exact duplicate idempotency; conflicting second resolution is `409` and append-only audit event.
 
 ### Refund fraud
 
 Threat: merchant claims a refund, pays another wallet/wrong amount, reuses purchase/refund hash, or attaches a different claim tag.
 
-Controls: approval separate from payment; independent chain check; merchant sender; original buyer recipient; exact full Luna amount; refund claim tag; final state/confirmation; global unique hash; no partial-credit aggregation in NR1.
+Controls: approval separate from payment; independent chain check; sender equals the purchase-bound signed settlement address; recipient equals the original verified purchase sender; exact full Luna amount; refund claim tag; successful execution and macro finality; global unique hash; no partial-credit aggregation in NR1.
 
 ### Database/operator manipulation
 

@@ -49,7 +49,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - **T-010 Policy signature cancelled:** policy remains pending/draft and retry issues or safely reuses challenge per expiry rules.
 - **T-011 Signature invalid:** rejected; policy cannot become active.
 - **T-012 Policy altered after signing:** byte/hash mismatch rejected; stored verified row update denied.
-- **T-013 Public key does not match merchant address:** valid signature from another key rejected.
+- **T-013 Policy signer binding:** first valid proof derives and atomically establishes the merchant policy signer; a later valid proof from another key is rejected. A different signed settlement address is allowed and never treated as signer authority.
 - **T-014 Known-good core vector:** exact message verifies and derives correct address.
 - **T-015 Tampered message/signature/public key:** each independently fails.
 - **T-016 Canonicalization:** key order/input formatting yields same challenge; Unicode normalization and forbidden controls follow spec.
@@ -77,7 +77,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Claims and eligibility
 
-- **T-040 Claim from wrong wallet:** valid attacker signature rejected.
+- **T-040 Claim authorization:** Phase 3 defines fixtures for authorized distinct/equal signer and purchase-sender cases, plus unrelated signer rejection. No test may treat a client-selected account as proof or assume equality before D-018 closes.
 - **T-041 Claim signature invalid/altered:** rejected and nonce handling follows retry policy.
 - **T-042 Claim outside policy window:** ineligible with exact rule reason.
 - **T-043 Boundary-time claim:** exact deadline eligible; deadline +1 ms ineligible.
@@ -90,7 +90,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Merchant resolution
 
-- **T-050 Resolution signature invalid or wrong merchant address:** rejected.
+- **T-050 Resolution signature invalid or wrong policy signer:** rejected even if the proof signer equals the settlement address.
 - **T-051 Resolution payload altered:** rejected.
 - **T-052 Duplicate exact resolution:** idempotent; no duplicate event.
 - **T-053 Conflicting second resolution:** conflict; first remains unchanged.
@@ -101,7 +101,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 - **T-060 Refund cancelled:** remains approved/refund pending; not refunded.
 - **T-061 Refund pending:** visible, retry verification without new payment prompt.
-- **T-062 Wrong sender:** rejected.
+- **T-062 Wrong sender:** any sender other than the purchase-bound signed settlement address is rejected.
 - **T-063 Wrong recipient:** any address except original chain buyer rejected.
 - **T-064 Wrong amount:** one-Luna difference, partial, or over-refund rejected.
 - **T-065 Wrong data/claim tag:** rejected.
@@ -156,7 +156,7 @@ On each deploy: `/health`; frontend load; provider-unavailable fallback in norma
 - [ ] Clean install reproduces lint/typecheck/test/build.
 - [ ] Dependency/license/secret scans pass.
 - [ ] All required scenario IDs are passing or explicitly evidenced manually.
-- [ ] Actual Nimiq Pay iOS/Android purchase→claim→refund run captured on current release.
+- [ ] Actual Nimiq Pay Android purchase→claim→refund run captured on the current release; iOS remains a separate pre-mainnet requirement under D-016.
 - [ ] Cancellation, background/resume, reload, network loss, RPC loss tested on device.
 - [ ] Mainnet pilot uses intentionally low amounts and correct network/addresses.
 - [ ] No mock/test provider in production build.

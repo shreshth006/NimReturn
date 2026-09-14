@@ -18,12 +18,13 @@ Source classifications:
 
 - `id uuid primary key` — BACKEND, immutable.
 - `public_id char(22) unique not null` — BACKEND, immutable.
-- `wallet_address varchar(36) unique not null` — SIGNATURE-bound after first verified policy; immutable in MVP.
+- `policy_signer_address varchar(36) null` — DERIVED from the first verified policy proof public key; unique when present and immutable in MVP.
+- `default_settlement_address varchar(36) not null` — USER-selected canonical address used only as the default for a new policy challenge; mutable and never signer authority.
 - `display_name varchar(80) not null` — USER, mutable, NFC/control-character validated.
 - `status merchant_status not null` (`active`, `disabled`) — BACKEND, mutable operational control.
 - `created_at timestamptz not null`, `updated_at timestamptz not null` — BACKEND.
 
-Indexes: unique address/public ID; status/created for operations. A display name is not verified legal identity; UI must say wallet identity unless a future verification system exists.
+Indexes: unique partial policy signer/public ID; status/created for operations. The first valid policy proof under an expiring server-held bootstrap challenge atomically sets `policy_signer_address`; a concurrent different signer loses the compare-and-set. A display name is not verified legal identity, and a settlement address is not signing authority.
 
 ## products
 
@@ -45,7 +46,8 @@ Indexes: `(merchant_id, status)`, unique `(merchant_id, normalized_name)` only i
 - `product_name varchar(100)`, `price_luna bigint check (> 0)` — SIGNATURE, immutable snapshot.
 - `return_window_seconds bigint check (>= 0)`, `warranty_window_seconds bigint check (>= 0)`, `warranty_transfer_allowed boolean` — SIGNATURE, immutable.
 - `protocol_version varchar(8)`, `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message text`, `payload_hash char(64)` — SIGNATURE/BACKEND, immutable.
-- `merchant_address varchar(36)`, `public_key char(64)`, `signature char(128)` — SIGNATURE, immutable after verification.
+- `settlement_address varchar(36)` — SIGNATURE from the canonical policy payload; immutable and authoritative for purchase recipient and NR1 refund-source expectations tied to this version.
+- `signer_address varchar(36)`, `public_key char(64)`, `signature char(128)` — signer address DERIVED from the proof public key; proof immutable after verification. `signer_address` must equal the merchant's established `policy_signer_address`, except that the first valid proof establishes it atomically.
 - `verification_status` (`pending`, `verified`, `invalid`, `expired`), `verified_at timestamptz`, `verifier_version varchar(40)` — BACKEND result; one-way transitions.
 - `created_at timestamptz` — BACKEND.
 
@@ -56,7 +58,7 @@ Indexes: `(product_id, version desc)`, `(merchant_id, verification_status)`, uni
 - `id uuid primary key`, `public_id char(22) unique` — BACKEND, immutable token used in purchase tag.
 - `product_id`, `policy_version_id`, `merchant_id` foreign keys — BACKEND, immutable bindings.
 - `buyer_address varchar(36) null` — unset at order creation; populated immutably from the macro-final verified CHAIN sender in the purchase transaction.
-- `network varchar(24) not null`, `expected_recipient varchar(36)`, `expected_value_luna bigint`, `expected_data varchar(64)` — BACKEND copied from verified policy; immutable.
+- `network varchar(24) not null`, `expected_recipient varchar(36)`, `expected_value_luna bigint`, `expected_data varchar(64)` — BACKEND copied from the verified policy settlement address/price and generated order tag; immutable.
 - `payment_state` (`payment_requested`, `payment_cancelled`, `payment_pending`, `payment_verifying`, `purchased`, `payment_failed`) — BACKEND, constrained transition.
 - `failure_code varchar(50) null`, `expires_at timestamptz`, timestamps/version — BACKEND, mutable.
 
@@ -97,13 +99,15 @@ Indexes: buyer chronology, merchant chronology, active deadlines. Product/policy
 
 - `id uuid primary key`, `public_id char(22) unique` — BACKEND; public ID used in refund tag.
 - `passport_id`, `order_id`, `policy_version_id` foreign keys — BACKEND immutable.
-- `buyer_address`, `claim_type`, `reason_code`, `note`, `claim_time` — SIGNATURE immutable.
+- `purchase_sender_address` — CHAIN/DERIVED from the purchase passport and included in the candidate signed payload; it is not inferred from the claim proof.
+- `claim_signer_address` — DERIVED from the claim proof public key; never copied from a wallet account selection.
+- `claim_type`, `reason_code`, `note`, `claim_time` — SIGNATURE immutable.
 - `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message`, `payload_hash`, `public_key`, `signature`, `verifier_version` — SIGNATURE immutable.
 - `signature_status` (`pending`, `verified`, `invalid`, `expired`) — BACKEND one-way.
 - `workflow_state` (`submitted`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`, `refund_pending`, `refunded`, `refund_verification_failed`) — BACKEND/DERIVED constrained.
 - timestamps — BACKEND.
 
-Indexes: merchant queue via join or denormalized immutable `merchant_id`, buyer/passport history, workflow/retry. Exact active-claim uniqueness rule is finalized in Phase 3; database must prevent accidental duplicate same type/passport while an existing claim is unresolved.
+Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. D-018 blocks this production schema and claim writes until Phase 3 specifies the normalized authorization evidence/relations that connect a derived claim signer to the independently verified purchase sender; direct address equality and unrestricted signing are both prohibited shortcuts. Exact active-claim uniqueness is also finalized there.
 
 ## claim_eligibility_evaluations
 
@@ -112,16 +116,16 @@ Indexes: merchant queue via join or denormalized immutable `merchant_id`, buyer/
 - `inputs jsonb`, `rule_results jsonb`, `eligible boolean` — DERIVED, immutable.
 - `supersedes_id uuid null references same table`, `reason varchar(100) null` — BACKEND correction audit.
 
-Unique partial index allows one current evaluation per claim. Inputs include verified purchase time, signed duration, claim time, signer/order validity flags—not physical assertions.
+Unique partial index allows one current evaluation per claim. Inputs include verified purchase time, signed duration, claim time, completed claimant-authorization result, and order validity flags—not physical assertions.
 
 ## claim_resolutions
 
 - `id uuid primary key`, `public_id char(22) unique`, `claim_id uuid unique` — BACKEND/one final MVP decision.
-- `merchant_address`, `decision`, `reason_code`, `note`, `approved_refund_luna`, `resolution_time` — SIGNATURE immutable.
+- `policy_signer_address`, `decision`, `reason_code`, `note`, `approved_refund_luna`, `resolution_time` — SIGNATURE immutable; signer address is copied from the merchant identity and checked against the proof-derived signer.
 - `challenge_nonce`, `payload`, `canonical_message`, `payload_hash`, `public_key`, `signature`, `verifier_version` — SIGNATURE immutable and nonce unique.
 - `verification_status`, `verified_at`, `created_at` — BACKEND one-way.
 
-Constraints enforce rejected amount `0`, approved amount equals order price at domain layer plus transaction/trigger, and signer equals policy merchant.
+Constraints enforce rejected amount `0`, approved amount equals order price at domain layer plus transaction/trigger, and signer equals the policy signer. Refund transaction verification separately requires its sender to equal the purchase-bound policy settlement address; no signer/settlement equality is required.
 
 ## refund_transactions
 
@@ -147,7 +151,9 @@ Supporting tables are required although they are not product entities.
 
 `idempotency_keys`: wallet/action/key unique, request hash, response status/body reference, created/expiry. A key reused with a different request hash returns conflict.
 
-`signing_challenges`: nonce unique, action, resource, expected address, canonical message/hash, expires/consumed timestamps. Consumption and evidence insert occur in one transaction.
+`signing_challenges`: nonce unique, action, resource, nullable `expected_signer_address`, canonical message/hash, expires/consumed timestamps. The expected signer is null only for a new merchant's first policy bootstrap; successful proof derivation and merchant binding occur in the same transaction as challenge consumption. Claim authorization fields remain undefined until the Phase 3 gate closes.
+
+`merchant_bootstrap_sessions`: hash of a 128-bit-or-stronger opaque capability, merchant ID, expiry, consumed timestamp, and creation metadata. The raw capability exists only in a short-lived `HttpOnly`, `Secure`, `SameSite` session. It authorizes first-policy challenge creation/submission but is not wallet identity; consumption, proof verification, and signer establishment are atomic. Established signer rows have no reset through this table.
 
 ## Relationships
 

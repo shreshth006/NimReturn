@@ -12,6 +12,7 @@ These rules override convenience, novelty, and schedule pressure. A change that 
 6. **No overstated protection.** “Policy eligible” is an objective protocol result, not a guaranteed refund, legal conclusion, or proof of merchant misconduct.
 7. **No opaque trust score.** Promise Ledger figures are reproducible counts or durations from verified events with published definitions.
 8. **Wallet identity, minimal PII.** Do not require email, phone, password, or legal name. Collect nothing not needed for the protocol.
+9. **Keep evidence roles distinct.** A proof-derived signer, a signed settlement address, and a chain-observed transaction sender are separate facts. Equality is allowed only when observed, never assumed from wallet account discovery or client selection.
 
 ## Security and engineering
 

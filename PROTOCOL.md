@@ -4,7 +4,7 @@
 
 Protocol family: `NR1`.
 
-This specification defines the MVP wire evidence. Transaction tags and canonical payload shapes are fixed for implementation once Phase 0's actual-device signing fixture confirms that Nimiq Pay signs the exact UTF-8 message described here. Until that fixture exists, the signature transport is **P0 candidate**, and no production policy signatures may be accepted. Any post-implementation change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
+This specification defines the MVP wire evidence. Phase 0 has confirmed the exact Nimiq Pay signed-message transport, but the NR1 writer remains disabled until all Phase 0 exits close and the D-017 policy identity shape is frozen. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any change after a writer is enabled requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
 
 ## Goals and exclusions
 
@@ -18,6 +18,13 @@ NR1 binds signed commercial assertions to direct NIM transactions and prevents s
 - **Duration:** non-negative safe integer seconds.
 - **Luna:** non-negative safe integer; 100,000 Luna = 1 NIM. Prices/refunds must be positive where required.
 - **Hex:** lower-case hexadecimal in stored canonical evidence. Public key is 32 bytes/64 hex characters; signature is 64 bytes/128 hex characters.
+
+## Merchant identity roles
+
+- **Policy signer:** the address cryptographically derived from the proof public key. A new merchant's first valid policy proof atomically establishes this immutable MVP identity; later policy and resolution proofs must derive to it.
+- **Settlement address:** the canonical recipient embedded in every policy payload. Purchases for that policy pay this address, and NR1 refunds for those purchases are verified as originating from it.
+
+These roles may use the same address or different addresses. `listAccounts()` and client-selected expectations establish neither role. A changed settlement address requires a new signed policy version; changing the policy signer requires a future explicit wallet-migration protocol. Public merchant/product IDs cannot initiate first-signer establishment by themselves: policy bootstrap also requires an unpredictable, expiring, server-bound session capability, consumed atomically with the challenge and signer compare-and-set.
 
 ## Versioning and domain separation
 
@@ -52,7 +59,7 @@ The API creates the canonical challenge. On response it retrieves that exact sto
 ```json
 {
   "createdAt": 1789335000000,
-  "merchantAddress": "NQ...",
+  "merchantId": "mL7n2psWQfTx9Vj3aBcDeA",
   "nonce": "q83Jqsl5-8Y4LtxjYOLmVA",
   "policyId": "YF4gIYhmXuGXNNDv2wO8nQ",
   "priceLuna": 500000,
@@ -60,6 +67,7 @@ The API creates the canonical challenge. On response it retrieves that exact sto
   "productName": "Wireless Mouse",
   "protocol": "NR1",
   "returnWindowSeconds": 604800,
+  "settlementAddress": "NQ...",
   "type": "POLICY",
   "version": 1,
   "warrantyTransferAllowed": false,
@@ -67,13 +75,12 @@ The API creates the canonical challenge. On response it retrieves that exact sto
 }
 ```
 
-Constraints: product name 1–100 Unicode code points and 1–256 UTF-8 bytes; `priceLuna` is positive and within configured commerce maximum; version starts at 1 and is server-assigned monotonically per product; windows are 0 through five years; merchant and IDs are pre-bound by the server; nonce is one-time and expires. `createdAt` is server-issued and not purchase time.
+Constraints: product name 1–100 Unicode code points and 1–256 UTF-8 bytes; `priceLuna` is positive and within configured commerce maximum; version starts at 1 and is server-assigned monotonically per product; windows are 0 through five years; merchant, settlement address, and IDs are pre-bound by the server; nonce is one-time and expires. `createdAt` is server-issued and not purchase time. The settlement address is signed commercial content, not a claim about which key will sign.
 
 Policy proof envelope:
 
 ```json
 {
-  "address": "NQ...",
   "canonicalMessage": "NIMRETURN/1/POLICY\n{...}",
   "payloadHash": "<64 lower-case hex>",
   "publicKey": "<64 lower-case hex>",
@@ -81,11 +88,10 @@ Policy proof envelope:
 }
 ```
 
-## Claim payload
+## Candidate claim payload
 
 ```json
 {
-  "buyerAddress": "NQ...",
   "claimId": "bC2v2Ws4EkuJNV0ydOduaw",
   "claimType": "RETURN",
   "createdAt": 1789336000000,
@@ -93,12 +99,15 @@ Policy proof envelope:
   "note": "Scroll wheel is intermittent",
   "orderId": "Nv2eFQ1dKby8j1h4PV4-4g",
   "protocol": "NR1",
+  "purchaseSenderAddress": "NQ...",
   "reasonCode": "DEFECTIVE",
   "type": "CLAIM"
 }
 ```
 
-`claimType` is `RETURN` or `WARRANTY`. `reasonCode` is an allow-listed ASCII enum versioned in application code; it describes user selection and is not itself proof. `note` is 0–280 code points and at most 1,024 UTF-8 bytes. The original order buyer, not a client argument, determines `buyerAddress`. One-time nonce and server time bind the request.
+`claimType` is `RETURN` or `WARRANTY`. `reasonCode` is an allow-listed ASCII enum versioned in application code; it describes user selection and is not itself proof. `note` is 0–280 code points and at most 1,024 UTF-8 bytes. The server copies `purchaseSenderAddress` from independently verified purchase evidence; it is not a signer claim or client argument. The claim signer is separately derived from the proof public key.
+
+D-018 is a mandatory Phase 3 gate: a reviewed signed authorization/binding protocol must connect the derived claim signer to the purchase sender before claims can be accepted. Direct equality is not assumed, and accepting any signer is forbidden. The exact claimant-authorization fields, recovery behavior, replay rules, and resulting claim payload fixture are intentionally not frozen in Phase 1.
 
 Claim eligibility is not signed into this payload. The server stores a separate deterministic evaluation record with evaluator version, evaluation time, inputs, per-rule outputs, and final eligible/ineligible result. Re-evaluation may identify software error but cannot silently overwrite the original result; it appends a superseding protocol event.
 
@@ -110,16 +119,16 @@ Claim eligibility is not signed into this payload. The server stores a separate 
   "claimId": "bC2v2Ws4EkuJNV0ydOduaw",
   "createdAt": 1789337000000,
   "decision": "APPROVED",
-  "merchantAddress": "NQ...",
   "nonce": "08EM9S-s91GdvhSUTkRr6w",
   "note": "Approved under return policy",
+  "policySignerAddress": "NQ...",
   "protocol": "NR1",
   "reasonCode": "POLICY_ACCEPTED",
   "type": "RESOLUTION"
 }
 ```
 
-`decision` is `APPROVED` or `REJECTED`. `approvedRefundLuna` must equal the full original order price for APPROVED in MVP and `0` for REJECTED. Partial/multiple refunds are out of scope. The signer must derive to the policy's merchant address. A claim has at most one final resolution; exact retry is idempotent and a conflicting resolution is rejected.
+`decision` is `APPROVED` or `REJECTED`. `approvedRefundLuna` must equal the full original order price for APPROVED in MVP and `0` for REJECTED. Partial/multiple refunds are out of scope. The signer must derive to the merchant's established policy signer address. A claim has at most one final resolution; exact retry is idempotent and a conflicting resolution is rejected.
 
 ## Transaction data tags
 
@@ -145,16 +154,16 @@ Tokens are generated server-side using a cryptographically secure random source.
 
 For every proof:
 
-1. Load the unconsumed server challenge and verify expiry, expected type/resource/address, and exact canonical message.
+1. Load the unconsumed server challenge and verify expiry, expected type/resource, any already-established role signer, and exact canonical message.
 2. Normalize and length-check hex; reject parsing errors.
 3. `publicKey = PublicKey.fromHex(publicKeyHex)`.
 4. `signature = Signature.fromHex(signatureHex)`.
 5. UTF-8 encode `canonicalMessage` as `messageBytes`.
 6. Construct exactly `utf8("\x16Nimiq Signed Message:\n" + decimal(messageBytes.length)) || messageBytes`.
 7. SHA-256 that framed preimage, then require `publicKey.verify(signature, digest)` to be true.
-8. Parse claimed address with `Address.fromString`; `publicKey.toAddress().equals(claimedAddress)` must be true.
+8. Derive the actual signer with `publicKey.toAddress()`. Compare its parsed address bytes to the server-bound signer when one is established. For a first-policy bootstrap only, atomically establish that derived address as the merchant policy signer; never use a client-selected account as the expected signer.
 9. Recompute BLAKE2b-256 over the unframed `messageBytes` and compare to stored `payload_hash`.
-10. Consume nonce and create/transition the target resource atomically.
+10. Enforce the action-specific authority rule, then consume the nonce and create/transition the target resource atomically. Claim authority cannot pass until the D-018 Phase 3 binding protocol exists.
 
 No fallback tries framed and unframed messages. The SHA-256 signing digest and the NR1 BLAKE2b-256 payload hash have separate purposes and must never be substituted for one another.
 
@@ -167,7 +176,7 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 - transaction found with `executionResult: true`;
 - transaction inclusion block is followed by its Albatross finalizing macro block, and the independently observed chain head is at or beyond that macro block;
 - sender is a valid ordinary Nimiq account and becomes the authoritative order buyer from verified chain evidence; a client-side expected account is not a sender claim;
-- recipient equals policy merchant;
+- recipient equals the purchase-bound signed policy `settlementAddress`;
 - value equals policy snapshot `priceLuna` exactly;
 - recipient data bytes decode to exact `NR1:P:<order-token>`;
 - transaction is an ordinary direct value transfer compatible with expected account types;
@@ -180,7 +189,7 @@ A wallet-returned hash alone only moves the state to verifying. An absent/mempoo
 An accepted refund requires all purchase checks adapted as follows:
 
 - claim has one valid APPROVED merchant resolution;
-- sender equals the policy merchant;
+- sender equals the purchase-bound signed policy `settlementAddress`;
 - recipient equals the original verified purchase sender, even if another wallet is currently viewing;
 - value equals `approvedRefundLuna` and, for NR1 MVP, the full original price;
 - data equals `NR1:R:<claim-token>`;
@@ -191,7 +200,7 @@ Approval and transaction submission are not refund completion.
 ## Replay and mutation protection
 
 - 128-bit tokens and nonces are server-generated and globally unique.
-- Challenges are resource-, action-, signer-, and expiry-bound.
+- Challenges are resource-, action-, and expiry-bound, plus signer-bound whenever that role is already established. First-policy bootstrap is the sole null-expected-signer case and establishes the derived signer atomically.
 - Nonces have a unique constraint and single atomic consumption.
 - Transaction hashes are normalized and globally unique across purchase and refund evidence, preferably through a shared `chain_transactions` registry.
 - Signed policy fields cannot be updated. New terms require a new version and new signature.

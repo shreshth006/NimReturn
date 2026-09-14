@@ -18,18 +18,18 @@ NimReturn makes promises and behavior inspectable. It does **not** force a merch
 
 ## The core journey
 
-1. A merchant connects a Nimiq wallet, creates a product, and signs a versioned policy.
-2. A buyer opens the product in Nimiq Pay and pays the merchant directly in NIM.
+1. A merchant creates a product and signs a versioned policy whose settlement address is explicit. The proof-derived policy signer and settlement address may differ.
+2. A buyer opens the product in Nimiq Pay and pays that signed settlement address directly in NIM.
 3. The backend independently checks network, sender, recipient, integer Luna amount, transaction data, state, and hash uniqueness.
 4. NimReturn creates a Purchase Passport showing the payment, exact policy version, deadlines, and proofs.
-5. The original purchasing wallet can sign a RETURN or WARRANTY claim.
+5. A RETURN or WARRANTY claim is accepted only after its proof-derived signer is authorized for the verified purchase sender; that binding is an explicit Phase 3 gate and is not implemented yet.
 6. NimReturn deterministically reports whether the claim meets the merchant-signed policy. Eligibility is not a guaranteed remedy.
-7. The merchant signs a decision. An approved refund goes directly from merchant to original buyer and is independently verified.
+7. The policy signer signs a decision. An approved refund goes directly from the purchase-bound settlement address to the original buyer and is independently verified.
 8. The Promise Ledger derives factual merchant activity from these verified events; it is not a review score.
 
 ## Why Nimiq is essential
 
-Nimiq Pay is the identity, signing, and payment surface—not an ornamental payment button. NimReturn uses the Nimiq Pay Mini App provider for account permission, signed attestations, consensus awareness, and direct transactions with compact order data. Nimiq blockchain evidence is the source of truth for purchases and refunds. Wallet signatures bind policies, claims, and resolutions to their Nimiq addresses. Private keys never enter NimReturn.
+Nimiq Pay is the identity, signing, and payment surface—not an ornamental payment button. NimReturn uses the Nimiq Pay Mini App provider for account permission, signed attestations, consensus awareness, and direct transactions with compact order data. Nimiq blockchain evidence is the source of truth for purchases and refunds. Proof public keys determine signers; signed policy bytes determine settlement; chain evidence determines transaction senders. Private keys never enter NimReturn.
 
 ## Trust model
 
@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-The repository is in **Phase 0 — Technical proof**. A checksum-bound private v2 artifact proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly leaving iOS untested. Three short actual-device cancellation/recovery results still gate Phase 0 completion and Phase 1 implementation. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+The repository is in **Phase 0 — Technical proof**. A checksum-bound private v2 artifact proves on Android/Nimiq Pay that exact framed signing works and a real 1000-Luna NR1-tagged TestAlbatross transaction reached successful execution, macro finality, and independent RPC `verified`. The stale account-permission authority bug is fixed, and D-016 accepts Android-only Cycle II validation while explicitly leaving iOS untested. D-017 separates proof-derived policy authority from signed settlement, while D-018 keeps claimant authorization closed until its Phase 3 design gate. Three short actual-device cancellation/recovery results still gate Phase 0 completion and Phase 1 implementation. See the [sanitized device summary](./docs/evidence/phase0-device-verification-2026-09-14.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 

@@ -90,6 +90,10 @@ Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebVi
 
 Confirmed contract facts are kept separate from device observations. The installed 0.1.0 declarations, bundled provider implementation, and current official provider reference expose no NIM account parameter for `sign()` or `sendBasicTransactionWithData()`. One Android/TestAlbatross run observed that changing NimReturn's expected-account dropdown did not necessarily change which wallet key signed or paid; the implementation therefore never generalizes a fixed wallet account-order rule.
 
+Merchant identity is consequently split into two explicit roles. The policy signer is always derived from the returned public key; a new merchant's first valid policy proof establishes that signer with an atomic compare-and-set, and later policy/resolution proofs must match it. The settlement address is separate signed policy content used as the purchase recipient and NR1 refund sender. These addresses may differ. Account discovery may assist display/data entry but supplies authority for neither role.
+
+Claim identity remains deliberately unresolved until Phase 3. A purchase sender comes only from verified chain evidence, while a claim signer comes only from its proof public key. No claim write path may be enabled until a reviewed authorization protocol connects those facts without assuming that the wallet API selected a particular account.
+
 ## Nimiq chain reads
 
 The production API uses a configured, monitored Nimiq RPC/node endpoint to call `getTransactionByHash`, `getTransactionFromMempool` where supported, `getNetworkId`, and head/consensus methods. The first response is parsed into a provider-neutral `ObservedTransaction` and then checked by a pure verifier.
@@ -133,12 +137,12 @@ sequenceDiagram
     M->>W: Enter product and policy
     W->>A: Request policy challenge
     A->>D: Allocate version, nonce, exact payload
-    A-->>W: Canonical message + summary
+    A-->>W: Canonical message + settlement summary
     W->>P: sign(exact message)
     P-->>W: publicKey + signature or cancellation
     W->>A: Submit exact challenge + proof
-    A->>A: Verify signature and address binding
-    A->>D: Atomically mark immutable version verified
+    A->>A: Verify signature and derive actual signer
+    A->>D: Establish/check policy signer; mark version verified
     A-->>W: Policy verified
 ```
 
@@ -155,8 +159,8 @@ sequenceDiagram
     participant R as Nimiq RPC
     participant D as PostgreSQL
     B->>W: Buy verified product
-    W->>A: Create pending order for buyer wallet
-    A->>D: Bind merchant, policy, value, network, token
+    W->>A: Create pending order
+    A->>D: Bind policy settlement, value, network, token
     A-->>W: Expected transaction request
     W->>P: sendBasicTransactionWithData()
     P-->>W: hash or cancellation
@@ -173,7 +177,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor B as Original buyer
+    actor B as Claimant
     participant W as Mini App
     participant A as API
     participant P as Nimiq Pay
@@ -185,7 +189,7 @@ sequenceDiagram
     W->>P: sign(exact claim)
     P-->>W: publicKey + signature
     W->>A: Submit proof
-    A->>A: Verify buyer binding and eligibility
+    A->>A: Verify proof + Phase 3 authorization + eligibility
     A->>D: Store claim + rule results atomically
     A-->>W: Eligible/ineligible with reasons
 ```
@@ -203,11 +207,11 @@ sequenceDiagram
     M->>W: Approve claim
     W->>A: Request and submit signed resolution
     A->>D: Store one final resolution; refund pending
-    W->>P: Pay exact buyer/value/refund tag
+    W->>P: Pay from policy settlement to exact buyer/value/tag
     P-->>W: hash or cancellation
     W->>A: Attach untrusted hash
     A->>R: Fetch transaction independently
-    A->>A: Verify network, state, sender, recipient, value, data
+    A->>A: Verify network, state, settlement sender, recipient, value, data
     A->>D: Store unique refund and lifecycle event
     A-->>W: Refund verified
 ```
