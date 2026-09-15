@@ -64,7 +64,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The final-head GitHub Actions run is pending after the documentation commit. The production-only audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. GitHub Actions run `35010536455` passed locked install, PostgreSQL 16, lint, typecheck, all 191 tests, and build for Phase 5 closeout `9f3b84c`. The production-only audit reports zero known vulnerabilities.
 
 The configured suite has 165 hermetic tests plus 26 PostgreSQL 16 integration tests (191 total with `TEST_DATABASE_URL`). Phase 5 adds strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage.
 

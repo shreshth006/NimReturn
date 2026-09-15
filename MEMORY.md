@@ -26,7 +26,7 @@ Phase 5 includes PostgreSQL security-barrier views and a strict public API that 
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 165 hermetic plus 26 PostgreSQL tests (191 total with `TEST_DATABASE_URL`). The Phase 5 local gate passed on 2026-09-16; final-head CI verification remains required after the documentation commit. The production dependency audit reports zero known vulnerabilities. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 165 hermetic plus 26 PostgreSQL tests (191 total with `TEST_DATABASE_URL`). GitHub Actions run `35010536455` passed locked install, PostgreSQL 16, all 191 tests, and build for Phase 5 closeout `9f3b84c`. The production dependency audit reports zero known vulnerabilities. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
