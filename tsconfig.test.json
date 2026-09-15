@@ -22,6 +22,7 @@
     "src/features/claims/**/*.ts",
     "src/features/merchant/**/*.ts",
     "src/features/purchase/**/*.ts",
+    "src/features/refunds/**/*.ts",
     "src/lib/api/**/*.ts",
     "src/lib/crypto/**/*.ts",
     "src/lib/nimiq/**/*.ts",

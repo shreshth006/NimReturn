@@ -14,6 +14,7 @@ import {
 import { hashProtocolPayload, normalizeNimiqAddress, verifyNimiqMessageSignature } from '../../lib/crypto/nimiq-signature.js'
 import { initializeNimiqProvider, normalizeWalletError, requestSignature } from '../../lib/nimiq/provider.js'
 import type { PurchasePassport } from '../../lib/api/purchase.js'
+import { getRefund, RefundApiError, type Refund } from '../../lib/api/refunds.js'
 import { clearClaimSession, loadClaimSession, saveClaimSession } from './claim-session.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
@@ -51,6 +52,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
   const [busy, setBusy] = useState<Busy>(initialClaimSession ? 'restore' : null)
   const [claim, setClaim] = useState<Claim | null>(null)
   const [resolution, setResolution] = useState<ClaimResolution | null>(null)
+  const [refund, setRefund] = useState<Refund | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [provider, setProvider] = useState<NimiqProvider | null>(null)
   const [claimType, setClaimType] = useState<'RETURN' | 'WARRANTY'>(
@@ -64,7 +66,15 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       setResolution(null)
       return
     }
-    try { setResolution(await getResolution(nextClaim.publicId)) } catch (error) {
+    try {
+      const nextResolution = await getResolution(nextClaim.publicId)
+      setResolution(nextResolution)
+      if (nextResolution.decision === 'APPROVED') {
+        try { setRefund(await getRefund(nextClaim.publicId)) } catch (error) {
+          if (!(error instanceof RefundApiError && error.status === 404)) throw error
+        }
+      } else setRefund(null)
+    } catch (error) {
       if (!(error instanceof ClaimApiError && error.status === 404)) throw error
     }
   }
@@ -176,6 +186,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
     clearClaimSession()
     setClaim(null)
     setResolution(null)
+    setRefund(null)
     setNotice(null)
   }
 
@@ -233,6 +244,15 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
         <div className={resolution.decision === 'APPROVED' ? 'resolution-card resolution-card--approved' : 'resolution-card'}>
           <p className="eyebrow">Merchant-signed decision</p><h3>{resolution.decision === 'APPROVED' ? 'Approved · refund not yet paid' : 'Rejected'}</h3><p>{resolution.note || resolution.reasonCode.replaceAll('_', ' ')}</p>
           <dl><div><dt>Signer</dt><dd><code>{resolution.policySignerAddress}</code></dd></div><div><dt>Proof</dt><dd>{resolution.status}</dd></div><div><dt>Expected refund</dt><dd>{resolution.approvedRefundLuna.toLocaleString()} Luna</dd></div><div><dt>Payload hash</dt><dd><code>{short(resolution.payloadHash)}</code></dd></div></dl>
+        </div>
+      )}
+
+      {resolution?.decision === 'APPROVED' && refund && (
+        <div className={refund.refund ? 'buyer-refund buyer-refund--verified' : 'buyer-refund'}>
+          <p className="eyebrow">Phase 4 · independent payment evidence</p>
+          <h3>{refund.refund ? 'Refund paid and verified' : 'Approved · refund still pending'}</h3>
+          <p>{refund.refund ? 'NimReturn independently matched the purchase-bound settlement sender, original buyer, exact amount and data, execution, and macro finality.' : 'A signed approval is not a payment. This changes only after matching finalized chain evidence exists.'}</p>
+          {refund.attempt && <dl><div><dt>Required sender</dt><dd><code>{refund.attempt.expectedPayment.sender}</code></dd></div><div><dt>Recipient</dt><dd><code>{refund.attempt.expectedPayment.recipient}</code></dd></div><div><dt>Amount</dt><dd>{refund.attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div><div><dt>State</dt><dd>{refund.attempt.state.replaceAll('_', ' ')}</dd></div>{refund.attempt.transaction && <><div><dt>Transaction</dt><dd><code>{short(refund.attempt.transaction.hash)}</code></dd></div><div><dt>Finalizing macro</dt><dd>{refund.attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></>}</dl>}
         </div>
       )}
 

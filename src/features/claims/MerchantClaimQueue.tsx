@@ -20,6 +20,7 @@ import {
   normalizeWalletError,
   requestSignature,
 } from '../../lib/nimiq/provider.js'
+import { MerchantRefundJourney } from '../refunds/MerchantRefundJourney.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
 type Decision = 'APPROVED' | 'REJECTED'
@@ -189,7 +190,7 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
 
       <div className="claim-queue">
         {claims.map((item) => (
-          <article className="claim-queue-item" key={item.claim.publicId}>
+          <article className={`claim-queue-item${item.resolution?.decision === 'APPROVED' ? ' claim-queue-item--refund' : ''}`} key={item.claim.publicId}>
             <div className="claim-queue-item__top">
               <div><span>{item.claim.claimType}</span><h3>{item.productName}</h3></div>
               <strong className={`eligibility-pill eligibility-pill--${item.claim.eligibility}`}>Policy {item.claim.eligibility}</strong>
@@ -202,7 +203,10 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
               <div><dt>Workflow</dt><dd>{item.claim.workflowState.replaceAll('_', ' ')}</dd></div>
             </dl>
             {item.resolution?.status === 'verified'
-              ? <div className="queue-resolution">Signed {item.resolution.decision.toLowerCase()} decision published.</div>
+              ? <>
+                  <div className="queue-resolution">Signed {item.resolution.decision.toLowerCase()} decision published.</div>
+                  {item.resolution.decision === 'APPROVED' && <MerchantRefundJourney claimPublicId={item.claim.publicId} merchantPublicId={merchantPublicId} />}
+                </>
               : <button className="button-secondary" type="button" disabled={busy !== null} onClick={() => void choose(item)}>{item.resolution?.status === 'pending' ? 'Resume pending decision' : 'Review and sign decision'}</button>}
           </article>
         ))}
