@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, and D-029 explicitly permits Phase 4 after correcting D-027's false attribution of blanket authority. Physical checks remain batched for a later session. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, D-029 explicitly permits Phase 4 after correcting D-027's false attribution of blanket authority, and D-030 records the project lead's explicit Phase 5 instruction. Physical checks remain batched for a later session. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -100,21 +100,23 @@ Approved refund expectation; direct purchase-bound settlement address→original
 - [x] Reload-safe identifiers, RPC outage, cancellation/unknown recovery, double-submit, and concurrent verifier tests pass; actual WebView reload remains open.
 - [ ] Full purchase→claim→decision→refund story completes reliably on target devices.
 
-Phase 4 implementation is code-complete but cannot formally exit until the consolidated low-value exact-sender refund, independent finality, recovery/reload, and mobile checks pass. D-029 authorizes Phase 4 only and grants no automatic authority to begin Phase 5.
+Phase 4 implementation is code-complete but cannot formally exit until the consolidated low-value exact-sender refund, independent finality, recovery/reload, and mobile checks pass. The project lead subsequently authorized the narrowly scoped Phase 5 work recorded in D-030; that later instruction does not close Phase 4.
 
 ## Phase 5 — Promise Ledger + polish
 
 ### Build
 
-Derived metrics/views and definitions; truthful pilot instrumentation; final states/empty states; accessibility/performance/security hardening; privacy copy; public merchant surface; observability/reconciliation dashboards limited to operational need.
+Derived metrics/views and definitions; final/loading/failure/empty states; accessibility/performance/security hardening; privacy copy; public merchant surface; and reconciliation visibility limited to operational need. The verified Promise Ledger intentionally excludes unsigned wallet-open telemetry. Consent-aware pilot instrumentation remains a Phase 6 operational decision and cannot contaminate evidence-derived public metrics.
 
 ### Exit criteria
 
-- [ ] Mixed integration fixture proves all metric categories and no mutation API/grant exists.
-- [ ] Metrics reconcile to source evidence and show `as_of`/sample definitions.
+- [x] Mixed integration fixture proves all metric categories and no mutation API/grant exists.
+- [x] Metrics reconcile to source evidence and show `as_of`/sample definitions.
 - [ ] WCAG 2.2 AA target review, device matrix, performance budgets, and security checklist pass.
 - [ ] Five unbriefed testers understand/reach the core in under 60 seconds; critical findings fixed.
 - [ ] Production deployment, backups/restore, RPC failover, alerts, and incident runbook tested.
+
+Phase 5 is experimental/code-complete at 90%: its read-only evidence projection, public judge surface, state copy, responsive/accessibility implementation, bundle splitting, security controls, and automated reconciliation suite are complete. It cannot formally exit until the manual accessibility/device/first-minute work and production operations criteria above pass. Phase 6 is not authorized or started.
 
 ## Phase 6 — Real pilot
 

@@ -150,6 +150,8 @@ The Phase 3 automated suite passes the implementation portions of T-040 through 
 
 The Phase 4 automated suite covers immutable server-derived refund expectations; strict merchant ownership; cancellation, unknown-outcome, recovered-hash, pending, failure, and finalized states; exact sender/recipient/value/data/network/execution/finality checks; global hash replay rejection; idempotent and concurrent verification; the atomic Passport-refunded transition; immutable transaction evidence; append-only reconciliation; and strict frontend/session response parsing. Actual-device settlement-account routing, native cancellation, real-chain finality, WebView recovery, and mobile behavior remain open.
 
+The Phase 5 automated suite passes T-071 and T-072 and the automated portions of T-073/T-074. A mixed PostgreSQL fixture reconciles 3 verified purchases; 4 filed claims split into 3 eligible/1 ineligible; 2 approved/1 rejected/1 unresolved; 1 refund pending/1 verified refund; and a three-resolution timing sample. Runtime-role `INSERT`/`UPDATE`/`DELETE` fail, no mutation route exists, and a latest reconciliation exception appears then clears after a newer confirmed recheck without rewriting history. Strict route/client schemas, reconciliation invariants, empty/error/retry states, cache/rate limits, and production bundle splitting are also covered or inspected. T-080 through T-084 retain manual/device portions; automated UI code and bundle output do not close them.
+
 ## Test data rules
 
 - Keys are generated at test runtime or labeled deterministic fixtures with no funds/use outside tests.

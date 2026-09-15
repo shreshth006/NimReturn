@@ -219,15 +219,15 @@ Pin lockfile; use official Nimiq packages; review new install scripts, licenses,
 - [ ] Mini App SDK/core versions pinned and current behavior re-reviewed.
 - [ ] Actual-device sign fixture validates exact NR1 bytes and address binding on target Nimiq Pay versions. Phase 0 diagnostic proof passed; the current Phase 1 physical policy flow remains pending.
 - [x] Known-good/tampered/wrong-address signature tests pass.
-- [ ] Purchase/refund wrong network/sender/recipient/value/data/state/hash tests pass.
-- [ ] Global hash/nonces and one-to-one constraints verified under concurrency.
+- [x] Purchase/refund wrong network/sender/recipient/value/data/state/hash automated tests pass; actual-device exact-sender evidence remains open.
+- [x] Global hash/nonces and one-to-one constraints verified under PostgreSQL concurrency tests.
 - [x] Historical policy update/delete denied at database level.
-- [ ] RPC failure/reorg/timeout is inconclusive, never success.
-- [ ] Authz prevents buyer/merchant cross-resource actions and ID enumeration.
+- [x] RPC failure/reorg/timeout is inconclusive, never success, in automated tests; production failover remains open.
+- [x] Authz prevents buyer/merchant cross-resource mutation in automated tests; public evidence uses high-entropy identifiers rather than authentication.
 - [ ] Rate/body limits, TLS, CORS, CSP, security headers, and error redaction reviewed.
 - [ ] Database roles, encryption, backups, restore test, and PITR configured.
 - [ ] Secrets scan, dependency audit, SBOM/license review, and production build pass.
 - [ ] Privacy notice, retention, public visibility, and optional-note copy reviewed.
-- [ ] Promise Ledger reproduced from source records; no metric mutation endpoint.
+- [x] Promise Ledger reproduced from mixed verified source records; runtime writes fail and no metric mutation endpoint exists.
 - [ ] Nimiq Pay mobile cancellation/resume/double-tap/reload tested on actual devices.
 - [ ] Incident contact, rollback, RPC failover, and verifier-disable runbook exists.

@@ -1,10 +1,10 @@
 # Operational status
 
-Last updated: 2026-09-15 (IST)
+Last updated: 2026-09-16 (IST)
 
 ## Current phase
 
-**Phase 4 — Refund: experimental/code-complete at the consolidated device boundary.** D-029 corrects D-027's false attribution of earlier blanket phase authority and explicitly authorizes this Phase 4 implementation. Phases 0–3 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, claim/resolution, and refund validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
+**Phase 5 — Promise Ledger + polish: experimental/code-complete at the manual and deployment boundary.** D-030 records the project lead's explicit Phase 5 instruction. Its verified-evidence projection, judge-facing lifecycle, reconciliation visibility, responsive/accessibility implementation, frontend splitting, and automated security controls are complete. Phases 0–4 remain open at their recorded physical boundaries. No physical, accessibility, first-minute, or deployment result is inferred from code, automation, or prior prompts. Phase 6 has not started.
 
 ## Completion by phase
 
@@ -13,7 +13,7 @@ Last updated: 2026-09-15 (IST)
 - Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical purchase/Passport, reload, mobile/accessibility, and first-minute validation pending).
 - Phase 3 — Claims: **90% experimental/code-complete** (protocol, implementation, UI, and automated gates complete; signer-routing usability, actual-device claim/resolution, reload, and mobile validation pending).
 - Phase 4 — Refund: **90% experimental/code-complete** (protocol, persistence, API, UI, and automated gates complete; required-sender routing, actual-device payment/finality, reload, and mobile validation pending).
-- Phase 5 — Promise Ledger + polish: **0%**.
+- Phase 5 — Promise Ledger + polish: **90% experimental/code-complete** (derived ledger, judge surface, polish, and automated gates complete; manual accessibility/device/first-minute testing and production operations pending).
 - Phase 6 — Real pilot: **0%**.
 - Phase 7 — Competition submission: **5%** (strategy/checklist drafted; no assets or submission).
 
@@ -52,11 +52,21 @@ Percentages are planning estimates, not earned rubric points.
 - Only finalized matching evidence creates the immutable refund transaction and moves the Purchase Passport from active to refunded. The signed claim resolution remains approved; buyer copy separately reports refund pending, failed, or verified.
 - Post-finality rechecks append confirmed, inconclusive, or exception evidence without rewriting the accepted refund. The public buyer view shows the exact expectation and finalized proof while protected mutation routes remain bound to the owning merchant session.
 
+## Phase 5 implementation
+
+- Security-barrier PostgreSQL views derive the Promise Ledger from verified purchases, accepted and evaluated claims, verified policy-signer resolutions, verified refunds, and the latest append-only reconciliation outcomes. No table accepts merchant-edited counts.
+- The public `GET /api/v1/merchants/:merchantPublicId/promise-ledger` route strictly parses public IDs, enforces reconciliation invariants and safe-integer counts, exposes definitions/sample sizes/`as_of`, is rate-limited, and has a short public cache policy. There is no metric mutation route.
+- The restricted runtime role has `SELECT` only on ledger views. Mixed PostgreSQL fixtures prove all categories, odd/empty timing samples, immutable source reconciliation, exception appearance/recovery, and failed `INSERT`/`UPDATE`/`DELETE` attempts.
+- The public merchant proof surface tells the one-minute policy → payment → Passport → claim → decision → refund → ledger story. It explicitly distinguishes cryptographic attestations from monetary chain evidence and policy signer, settlement address, purchase sender, claim signer, and refund sender.
+- Ratings, reviews, subjective reputation, AI assessments, trust scores, manually editable metrics, and unsigned wallet-open telemetry are absent by design. Privacy and immutable-version explanations accompany the evidence.
+- Loading, failure, retry, and empty states were strengthened across policy, claim, refund, and ledger surfaces. Progress semantics, focus states, 44-pixel action targets, pressed/current-state announcements, reduced-motion behavior, and 320-pixel responsive rules are implemented, but manual WCAG/device evidence remains open.
+- Route-level lazy loading reduced the initial production JavaScript to 215.62 kB raw/67.68 kB gzip; the Promise Ledger route is 13.47 kB raw/4.15 kB gzip. The 1.11 MB WASM payload remains isolated to routes that need Nimiq cryptography.
+
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34982334127` passed locked install, PostgreSQL 16, lint, typecheck, all 185 tests, and build for the Phase 4 closeout baseline `dd5c16e`. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The final-head GitHub Actions run is pending after the documentation commit. The production-only audit reports zero known vulnerabilities.
 
-The configured suite has 159 hermetic tests plus 26 PostgreSQL 16 integration tests (185 total with `TEST_DATABASE_URL`). Phase 4 coverage includes server-derived refund expectations, strict merchant authorization, cancellation and safe retry, hashless-unknown recovery, exact chain-field rejection, global hash uniqueness, execution/finality gating, concurrent idempotency, immutable evidence, Passport transition, append-only reconciliation, strict frontend response validation, and reload-safe public identifiers.
+The configured suite has 165 hermetic tests plus 26 PostgreSQL 16 integration tests (191 total with `TEST_DATABASE_URL`). Phase 5 adds strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage.
 
 ## Manual verification
 
@@ -67,6 +77,7 @@ The configured suite has 159 hermetic tests plus 26 PostgreSQL 16 integration te
 - No Phase 2 physical payment, real-chain Passport, WebView reload/recovery, mobile accessibility, or first-minute result is claimed. These remain in the consolidated project-lead checklist.
 - No Phase 3 physical claim signing, distinct-account authorization, merchant resolution signing, WebView reload/recovery, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
 - No Phase 4 physical refund, required settlement-sender routing, real-chain finality, recovery/reload, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
+- No Phase 5 physical/mobile/accessibility, Promise Ledger pilot reconciliation, unbriefed first-minute, or deployment/operations result is claimed. These remain in the consolidated checklist and Phase 5 exit criteria.
 
 ## Deployment and RPC
 
@@ -79,8 +90,9 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 - **Phase 2 exit:** a real low-value buyer payment, independent chain verification, Passport creation, reload/recovery, and first-minute/mobile checks require explicit project-lead results.
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
 - **Phase 4 exit:** an actual low-value refund from the purchase-bound settlement account, independent chain/finality verification, recovery/reload, and mobile checks require explicit project-lead results. If Nimiq Pay cannot route the required sender, that is a FAIL and must not be bypassed.
-- **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
+- **Phase 5 exit:** the manual WCAG/device matrix, Promise Ledger reconciliation against the real lifecycle, five unbriefed first-minute tests, and production operations criteria remain open.
+- **Deployment:** production database/origin/session/RPC secrets, HTTPS host, managed backup/restore, restrictive CSP/security headers, alerting/incident runbook, and operated RPC redundancy are not configured. The current rate limiter is process-local, so a multi-instance release also needs a shared store.
 
 ## Next milestone
 
-Run the consolidated physical Nimiq Pay session when the project lead is available. Do not begin Phase 5 without a new explicit phase instruction; no earlier deferral grants automatic authority across this boundary.
+Run the consolidated physical Nimiq Pay and Phase 5 judge-surface session when the project lead is available. Fix only observed failures, then complete the HTTPS/database/RPC/backup/security-operations deployment gate. Do not begin the Phase 6 real-user pilot without a new explicit instruction.

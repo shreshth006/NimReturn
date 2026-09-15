@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the policy trust core and merchant studio. Phase 2 implements immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation. Phase 3 implements proof-derived claimant authorization, deterministic eligibility, protected merchant review, and policy-signer resolutions under D-025. All unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
+This document describes the implemented MVP architecture through Phase 5. Phase 0 supplies the wallet/cryptographic/transaction diagnostic slice; Phase 1 the policy trust core and merchant studio; Phase 2 immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation; Phase 3 proof-derived claimant authorization, deterministic eligibility, protected merchant review, and policy-signer resolutions; Phase 4 exact-sender direct refunds; and Phase 5 a read-only verified-evidence Promise Ledger plus judge-facing polish. All unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -51,7 +51,8 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/features/merchant`: Phase 1 draft, terms, canonical review, signing, publication, public proof, and version-history UI;
 - `src/features/purchase`: Phase 2 public product checkout, native-payment recovery, verification progress, and public Passport UI;
 - `src/features/claims`: Phase 3 claim signing, purchase-sender authorization when required, eligibility, merchant queue, and signed resolution UI;
-- `src/features/refunds`: Phase 4 server-derived refund request, native-payment recovery, independent verification, and public evidence UI; `promise-ledger` remains closed;
+- `src/features/refunds`: Phase 4 server-derived refund request, native-payment recovery, independent verification, and public evidence UI;
+- `src/features/ledger`: Phase 5 public merchant proof surface, factual definitions/sample sizes, one-minute lifecycle map, and reconciliation visibility;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -74,7 +75,7 @@ Fastify exposes versioned `/api/v1` routes plus `/health`. Each route:
 
 Phase 1 writer routes are `POST /api/v1/merchants`, `POST /api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges`, and `POST .../policies/publish`. `GET /api/v1/products/:productPublicId` re-verifies the active proof and every verified historical version before returning any public policy. Production writer requests require an exact configured Origin, same-site cookies, bounded bodies, and per-IP limits. The first publish consumes the database-hashed bootstrap and rotates to an eight-hour HMAC-authenticated merchant session. That session authorizes challenge allocation only; the established Nimiq signature remains mandatory for publication.
 
-Phase 2 routes create/read an order, record wallet state, attach one hash, explicitly recheck it, and read a public Passport. The attachment body contains only a hash—never a sender or payment terms. The server loads immutable expectations, reads RPC evidence, and atomically creates the purchase/Passport only on exact successful macro-final verification. Rechecking a purchased order appends reconciliation evidence; it never edits the original finalized record.
+Phase 2 routes create/read an order, record wallet state, attach one hash, explicitly recheck it, and read a public Passport. The attachment body contains only a hash—never a sender or payment terms. The server loads immutable expectations, reads RPC evidence, and atomically creates the purchase/Passport only on exact successful macro-final verification. Rechecking a purchased order appends reconciliation evidence; it never edits the original finalized record. Phase 3 and 4 routes similarly preserve exact signed decisions and independently verified refunds. Phase 5 adds only `GET /api/v1/merchants/:merchantPublicId/promise-ledger`; it has no writer counterpart, strictly reconciles returned counts, and uses bounded public caching plus per-IP read limits.
 
 MVP does not require a separate queue. A verification attempt runs synchronously with a short timeout. Pending or unavailable results are persisted and retried by a bounded scheduled process or explicit idempotent status request. If volume later demands a queue, that is a new decision, not assumed infrastructure.
 
@@ -82,7 +83,7 @@ MVP does not require a separate queue. A verification attempt runs synchronously
 
 PostgreSQL stores products/workflow and immutable evidence. Constraints enforce immutable order expectations, legal wallet/payment transitions, globally unique transaction hashes, one purchase and Passport per order, exact order/policy/chain Passport equality, and legal enum/value ranges. Signed, finalized, Passport, event, and reconciliation evidence is append-only through permissions/triggers plus application policy. See `DATA_MODEL.md`.
 
-The API role receives only the grants it needs. Migrations run with a separate role. Promise Ledger endpoints query derived views/materialized views generated only from source rows; there is no metric write route.
+The API role receives only the grants it needs. Migrations run with a separate role. `promise_ledger_v1` and `promise_ledger_reconciliation_v1` are security-barrier aggregate views over verified immutable source records. The runtime role has `SELECT` only and cannot insert, update, or delete either projection. There is no metric table or metric write route; public responses include an application-generated `as_of` read time, definitions, timing sample, and invariant checks before serialization.
 
 ## Nimiq Pay integration
 

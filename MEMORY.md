@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. Phase 3 and Phase 4 are preserved at 90% experimental/code-complete. D-025's claimant authorization and D-028's exact-sender refund protocol are fail-closed, but their actual Nimiq Pay account-routing usability is unproven. D-029 supersedes D-027's incorrect attribution of prior blanket authority and explicitly authorized this Phase 4 implementation only. Every physical wallet, purchase, Passport, claim, decision, refund, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
+Phase 0 remains 98%, Phase 1 remains 92%, and Phases 2–5 remain 90% experimental/code-complete at their external-validation boundaries. D-030 records the project lead's explicit Phase 5 instruction and the read-only verified-evidence Promise Ledger. D-025 claimant authorization and D-028 exact-sender refunds remain fail-closed, but actual Nimiq Pay account-routing usability is unproven. Every physical wallet, policy, purchase, Passport, claim, decision, refund, reload, mobile/accessibility, and first-minute result remains open/pending until the project lead personally performs the test and explicitly reports it. Phase 6 is not started or authorized.
 
 # What is complete
 
@@ -22,9 +22,11 @@ Phase 3 includes canonical claim and exact-claim authorization messages; proof-d
 
 Phase 4 includes immutable server-derived refund attempts bound to the approved claim, purchase-bound settlement sender, original buyer, full value, network, and compact refund tag; protected wallet-state/hash attachment; independent exact-field/execution/Albatross-finality verification; global hash uniqueness; one atomic Passport-refunded transition; append-only reconciliation; and merchant/buyer UI for cancellation, unknown outcomes, recovered hashes, pending finality, failure, and verified evidence. The API cannot select or certify the wallet sender.
 
+Phase 5 includes PostgreSQL security-barrier views and a strict public API that derive verified purchases; filed/eligible/ineligible claims; approved/rejected/unresolved decisions; refund-pending and verified-refund counts; median resolution time with its sample; and latest reconciliation exceptions. Runtime access is read-only, mixed fixtures reconcile to immutable source evidence, and direct mutation fails. The public merchant page presents the entire policy → payment → Passport → claim → decision → refund → ledger path, keeps every signer/sender role separate, and explains signatures as attestations versus transactions as monetary evidence. Loading, error, empty, retry, focus, mobile, and privacy copy were hardened; route splitting reduced initial web JavaScript to 215.62 kB raw/67.68 kB gzip. Manual accessibility/device/usability and deployment work remain open.
+
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 159 hermetic plus 26 PostgreSQL tests (185 total with `TEST_DATABASE_URL`). GitHub Actions run `34982334127` passed locked install, PostgreSQL 16, all 185 tests, and build for the Phase 4 closeout baseline `dd5c16e`. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3/4 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 165 hermetic plus 26 PostgreSQL tests (191 total with `TEST_DATABASE_URL`). The Phase 5 local gate passed on 2026-09-16; final-head CI verification remains required after the documentation commit. The production dependency audit reports zero known vulnerabilities. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
@@ -36,10 +38,10 @@ A claim signer is derived from its public key. Exact equality with the independe
 
 # Known blockers
 
-Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, an exact-sender refund through finality, reload, and mobile behavior. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
+Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, an exact-sender refund through finality, reload, mobile/accessibility behavior, Promise Ledger reconciliation, and the first-minute story. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, managed PostgreSQL backup/restore, shared multi-instance rate limiting (if applicable), CSP/security headers, alerting/runbooks, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
 
 # Next actions
 
-1. Run the consolidated physical Nimiq Pay checklist when the project lead is available; report an inability to route the purchase-bound settlement account as FAIL rather than weakening sender verification.
-2. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git.
-3. Do not start Phase 5 without a new explicit instruction.
+1. Run the consolidated physical Nimiq Pay and Phase 5 judge-surface checklist when the project lead is available; report an inability to route the purchase-bound settlement account as FAIL rather than weakening sender verification.
+2. Fix only concrete failures, then deploy one HTTPS API/frontend with managed PostgreSQL and operated primary/failover TestAlbatross RPC; validate backups, alerts, CSP, and the release smoke suite.
+3. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git. Do not start Phase 6 until it is explicitly authorized.

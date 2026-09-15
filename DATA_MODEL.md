@@ -208,16 +208,17 @@ erDiagram
 
 ## Promise Ledger derivation
 
-No ledger table accepts manual counts. A view groups by merchant:
+No ledger table accepts manual counts. Security-barrier view `promise_ledger_v1` groups by merchant and requires verified evidence at each join:
 
-- verified purchases: count purchase transactions;
-- eligible/ineligible claims: current eligibility rows joined to verified claims;
-- approved/rejected/unresolved: verified resolutions and claims without resolution;
-- refunds paid: verified refund transactions; approved pending: approved minus paid;
-- warranty resolutions: verified resolution count for WARRANTY claims, split by decision/payment as UI needs;
-- median resolution time: `percentile_cont(0.5)` of verified resolution time minus accepted claim time.
+- verified purchases: finalized purchase transactions with `executionResult=true`, purchased order, immutable Passport, and a verified purchase-bound policy;
+- claims filed: verified claim proof plus consumed verified claimant authorization, current eligibility evaluation, and accepted workflow state;
+- eligible/ineligible: the current evaluation result for those filed claims;
+- approved/rejected/unresolved: verified policy-signer resolutions or the absence of one for a filed claim;
+- refund pending: verified approvals without a verified refund transaction;
+- verified refunds: exact finalized refund transactions with `executionResult=true` and a verified attempt;
+- median resolution time: `percentile_cont(0.5)` from filed-at to verified resolved-at, with the contributing sample count.
 
-Definitions and `as_of` time accompany every public response. Reconciliation compares view counts to append-only events and reports—not patches—differences.
+`promise_ledger_reconciliation_v1` separately counts accepted purchase/refund transactions whose latest append-only independent recheck is exceptional. A later confirmed recheck changes the current exception projection without rewriting the original evidence or its reconciliation history. Definitions, sample sizes, and application read-time `as_of` accompany every public response. Application invariants reject internally inconsistent aggregates before serialization. Runtime receives `SELECT` only; direct writes and a metric mutation API do not exist.
 
 ## Retention, deletion, and privacy
 

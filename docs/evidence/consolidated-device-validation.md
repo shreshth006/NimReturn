@@ -2,7 +2,7 @@
 
 Status: **PENDING — no item in this document is a PASS until the project lead personally performs it and explicitly reports the result.**
 
-This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–4 physical boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
+This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–5 physical/manual boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
 ## Prepare once
 
@@ -90,6 +90,22 @@ This single TestAlbatross session covers the deferred Phase 0/1 gates and the Ph
 3. Confirm a wrong-sender or otherwise mismatched test hash is rejected and does not mark the Passport refunded. Confirm reusing any purchase/refund hash is rejected globally and double-submit/concurrent rechecks do not create a second refund.
 4. At 320–430 CSS pixels and 200% zoom, confirm the merchant expectation, cancellation/recovery actions, pending/failure states, and buyer refund proof remain readable without horizontal clipping.
 
+### O. Phase 5 Promise Ledger reconciliation
+
+1. Open the public merchant Promise Ledger from the completed lifecycle. Confirm it is read-only and shows a visible `as_of` time, a definition and sample size for every metric, and no rating, review, trust score, AI assessment, or metric-edit control.
+2. Reconcile every displayed count against the records created in this run: verified purchases; claims filed; eligible/ineligible; approved/rejected; refund pending; verified refunds; unresolved; and the resolution-time sample. Do not count a pending, invalid, unverified, or merely wallet-returned transaction.
+3. Confirm an approved claim remains refund pending until the exact refund has successful execution and following-macro finality. After verification, refresh and confirm pending decreases and verified refunds increases exactly once.
+4. Confirm the page distinguishes policy signer, signed settlement address, purchase sender, claim signer, and refund sender. Confirm it says signatures are attestations and chain transactions are monetary evidence.
+5. If an append-only reconciliation exception fixture is available, confirm the ledger makes it visible instead of silently changing or hiding the accepted record. Do not induce a real-chain anomaly merely to pass this check.
+
+### P. Phase 5 judge, accessibility, and responsive surface
+
+1. Starting from the public merchant page, ask an unbriefed observer to follow policy → payment → Passport → claim → merchant decision → refund → Promise Ledger and explain the product within 60 seconds. Repeat with five unbriefed people for formal Phase 5 exit.
+2. At 320, 375, and 430 CSS pixels and 200% text zoom, inspect the merchant studio, product, Passport, claim, decision, refund, and ledger. Confirm no evidence or action is clipped and no horizontal scrolling is required.
+3. Navigate the lifecycle with a keyboard or supported switch control. Confirm visible focus, logical order, working retry controls, correct pressed/current semantics, 44-pixel action targets, and no keyboard trap.
+4. With a screen reader, confirm loading, failure, verification, pending finality, resolution, refund, and ledger state changes are announced once and that shortened hashes/addresses have understandable full labels.
+5. Enable reduced motion, simulate slow API/RPC responses and one recoverable failure, and confirm the UI preserves context, prevents unsafe double actions, and offers a clear retry without claiming success.
+
 ## Explicit result format
 
 Send results using these exact independent lines; report `FAIL` with the observed problem for anything that does not pass:
@@ -116,6 +132,9 @@ Phase 4 settlement-sender routing PASS|FAIL
 Phase 4 independent refund verification PASS|FAIL
 Phase 4 refund reload/recovery PASS|FAIL
 Phase 4 mobile/accessibility PASS|FAIL
+Phase 5 Promise Ledger reconciliation PASS|FAIL
+Phase 5 first-minute judge journey PASS|FAIL
+Phase 5 mobile/accessibility PASS|FAIL
 ```
 
 Only the project lead's explicit lines are authoritative. A partial report changes only the named items; every omitted item remains open.
