@@ -26,7 +26,7 @@ Phase 5 includes PostgreSQL security-barrier views and a strict public API that 
 
 # Verification status
 
-Local lint, typecheck, PostgreSQL tests, production builds, and the production dependency audit pass. The suite now has 167 hermetic plus 26 PostgreSQL tests (193 total with `TEST_DATABASE_URL`). GitHub Actions run `35010536455` passed the 191-test Phase 5 baseline; final staging-configuration CI remains to be recorded. Vendor-neutral API/web container builds, Caddy validation/header checks, Compose parsing, and a local containerized API smoke test pass. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, PostgreSQL tests, production builds, and the production dependency audit pass. The suite has 167 hermetic plus 26 PostgreSQL tests (193 total with `TEST_DATABASE_URL`). GitHub Actions runs `35013331246` and `35013486794` passed the staging package and documentation heads. Vendor-neutral API/web container builds, Caddy validation/header checks, Compose parsing, and a local containerized API smoke test pass. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
