@@ -1,6 +1,7 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
 
+import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
   createMerchant,
   getPublicProduct,
@@ -531,6 +532,10 @@ export function MerchantPolicyStudio() {
           canEdit={workspace?.productPublicId === publicProduct.product.publicId && !challenge}
           onNewVersion={startNewVersion}
         />
+      )}
+
+      {workspace && publicProduct && workspace.productPublicId === publicProduct.product.publicId && (
+        <MerchantClaimQueue merchantPublicId={workspace.merchantPublicId} />
       )}
     </>
   )

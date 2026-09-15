@@ -19,7 +19,7 @@ export function App() {
           <a className="utility-link" href={diagnostics || buyerJourney ? '/' : '/?diagnostics=1'}>
             {diagnostics || buyerJourney ? 'Merchant studio' : 'Diagnostics'}
           </a>
-          <span className="phase-badge">{buyerJourney ? 'Phase 2 · Purchase' : diagnostics ? 'Phase 0 · Diagnostics' : 'Phase 1 · Merchant'}</span>
+          <span className="phase-badge">{passportPublicId ? 'Phase 3 · Claims' : buyerJourney ? 'Phase 2 · Purchase' : diagnostics ? 'Phase 0 · Diagnostics' : 'Phase 3 · Merchant'}</span>
         </nav>
       </header>
 

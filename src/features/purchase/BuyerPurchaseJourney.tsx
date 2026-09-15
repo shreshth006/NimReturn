@@ -25,6 +25,7 @@ import {
   loadPurchaseSession,
   savePurchaseSession,
 } from './purchase-session.js'
+import { BuyerClaimJourney } from '../claims/BuyerClaimJourney.js'
 
 type BusyAction = 'loading' | 'paying' | 'verifying' | null
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
@@ -265,6 +266,7 @@ export function BuyerPurchaseJourney({
           onReconcile={() => void reconcilePassport()}
           passport={passport}
         />
+        {passport.status !== 'verification_exception' && <BuyerClaimJourney passport={passport} />}
       </>
     )
   }
