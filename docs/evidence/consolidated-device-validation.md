@@ -2,7 +2,7 @@
 
 Status: **PENDING — no item in this document is a PASS until the project lead personally performs it and explicitly reports the result.**
 
-This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2 purchase boundary. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
+This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–3 physical boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
 ## Prepare once
 
@@ -55,6 +55,26 @@ This single TestAlbatross session covers the deferred Phase 0/1 gates and the Ph
 4. At 320–430 CSS pixels and 200% text zoom, confirm the primary action, policy evidence, progress, and Passport evidence remain readable without horizontal clipping. Check keyboard/focus and screen-reader status announcements where the device supports them.
 5. With an unbriefed observer and a 60-second timer, confirm they can explain “merchant-signed terms + direct payment + independently verified Passport” and reach the payment action or completed Passport without instruction.
 
+### J. Phase 3 self-authorized claim
+
+1. From the verified Passport, create an available RETURN or WARRANTY claim and review its type, reason, claim time, purchase-bound policy version, and payload hash.
+2. Sign the exact canonical claim with the same account that independently sent the purchase. Confirm the proof-derived claim signer exactly matches the chain-derived buyer, no second authorization is requested, and deterministic eligibility is displayed without promising a remedy.
+3. Reload the Passport URL. Confirm the same public claim is recovered without another signature and the eligibility evidence remains identical.
+
+### K. Phase 3 distinct-signer authorization
+
+1. On a separate eligible fixture, sign the claim with an account different from the chain-derived buyer. Confirm it remains authorization pending and is absent from the merchant queue.
+2. Review the exact second authorization: claim ID/hash, derived claim signer, required chain purchaser, nonce, and expiry. Sign it with the original purchase-sender account.
+3. Confirm an unrelated account is rejected, while the exact purchase-sender proof authorizes only this claim and makes it eligible/ineligible once. If the wallet cannot select the necessary account, report FAIL; do not bypass the check.
+
+### L. Phase 3 merchant resolution
+
+1. In the protected merchant queue, confirm the authorized claim shows its true policy eligibility, signer/authorization mode, reason, and note. Confirm no pending unsigned decision is visible from the public claim URL.
+2. Prepare an approval and confirm the canonical result uses the full original purchase value. Cancel once; reload and confirm the exact pending decision can be resumed only in the merchant session.
+3. Sign with the original policy signer. Confirm a settlement-address signer or other account is rejected. Publish once and confirm the buyer sees the immutable signer, decision, reason/note, amount, timestamp, and hash.
+4. For an approval, confirm the UI says **refund not yet paid**. On a second fixture, publish a signed rejection and confirm no refund is implied.
+5. At 320–430 CSS pixels and 200% zoom, confirm claim, authorization, eligibility, queue, canonical evidence, and decision controls remain readable without horizontal clipping.
+
 ## Explicit result format
 
 Send results using these exact independent lines; report `FAIL` with the observed problem for anything that does not pass:
@@ -71,6 +91,11 @@ Phase 2 Purchase Passport creation PASS|FAIL
 Phase 2 reload/recovery PASS|FAIL
 Phase 2 mobile/accessibility PASS|FAIL
 Phase 2 first-minute test PASS|FAIL
+Phase 3 self-authorized claim PASS|FAIL
+Phase 3 distinct-signer authorization PASS|FAIL
+Phase 3 merchant resolution PASS|FAIL
+Phase 3 claim/resolution reload PASS|FAIL
+Phase 3 mobile/accessibility PASS|FAIL
 ```
 
 Only the project lead's explicit lines are authoritative. A partial report changes only the named items; every omitted item remains open.

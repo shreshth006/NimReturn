@@ -313,3 +313,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** A draft has no cryptographic authority and should not be presented or disclosed as merchant speech. The existing merchant session is sufficient to recover it without persisting signature material or decision text in browser storage.
 
 **Consequences:** Buyers see only immutable verified decisions. Merchant reload can resume an exact pending challenge through the protected endpoint. Route tests must prove both the public fail-closed behavior and authenticated draft recovery.
+
+## D-027 — 2026-09-15 — Batch physical testing while continuing later phases
+
+**Decision:** At the project lead's direction, continue from each code-complete phase into the next scoped phase while batching physical Nimiq Pay validation into one final testing period. This scheduling deferral applies only while implementation and automated evidence can safely advance; any device behavior that is required to choose or validate a security protocol remains a blocking test.
+
+**Context:** Phases 0–3 have substantial automated and prior cryptographic evidence, but their named physical-device exits cannot currently be performed. Repeatedly stopping at each identical external boundary would leave the planned MVP unfinished without improving the truth of those open results.
+
+**Alternatives:** stop all development until the device suite is available; mark physical items passed from automated coverage; build across phase boundaries without recording the exception.
+
+**Rationale:** The project lead explicitly requested a final consolidated testing phase and continued building unless testing is essential. Keeping every physical result visibly open preserves evidence integrity while focused protocol design, implementation, and automated verification continue.
+
+**Consequences:** Phase percentages and exits remain unchanged by this deferral. Phase 4 refund work may begin after Phase 3 code completion, but it must preserve the no-custody model and cannot label approved as refunded. The consolidated checklist must expand with each implemented device flow, and only the project lead's explicit personal result may close any physical item.

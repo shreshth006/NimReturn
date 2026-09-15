@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. Phase 2 implements immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation under D-023 while all unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
+This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the policy trust core and merchant studio. Phase 2 implements immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation. Phase 3 implements proof-derived claimant authorization, deterministic eligibility, protected merchant review, and policy-signer resolutions under D-025. All unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 

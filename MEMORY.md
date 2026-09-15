@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 1 implementation is complete under D-020 but remains at 92%; Phase 0 remains 98%. Under D-022, T-001, T-002, T-020, physical signing/publication, and physical v1→v2 validation are explicitly open/pending until the project lead personally performs each test and reports its result. D-023 authorized Phase 2, whose implementation is now code-complete at 90% and waiting at the consolidated physical-device boundary. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
+Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. D-025 closes D-018 with exact-claim purchase-sender authorization and authorizes Phase 3 implementation; Phase 3 is code-complete at 90%. Every physical wallet, purchase, Passport, claim, decision, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
 
 # What is complete
 
@@ -18,9 +18,11 @@ Phase 1 includes canonical NR1 policy schemas; PostgreSQL migrations and restric
 
 Phase 2 includes immutable server-issued orders bound to one exact active verified policy; strict wallet-state transitions; documented sender-free Nimiq payment calls; reload-safe public order/hash storage; global transaction replay protection; independent network/sender/recipient/integer-Luna/data/execution/Albatross-finality verification; one atomic immutable Passport; fail-closed public policy/chain reprojection; and append-only reconciliation whose latest regression becomes a visible verification exception. The buyer UI shows the direct no-custody path and the full purchase/policy proof in one public Passport.
 
+Phase 3 includes canonical claim and exact-claim authorization messages; proof-derived self/delegated claimant authority; immutable challenge/proof/evaluation evidence; inclusive purchase-bound RETURN/WARRANTY eligibility; a protected merchant queue; full-value approve or zero-value reject resolutions signed only by the historical policy signer; private pending drafts; verified-only public decisions; and buyer/merchant UI with public-only reload recovery. Approval is never displayed as paid.
+
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. GitHub Actions run `34949910838` passed Phase 2 boundary commit `036671c`, and every focused Phase 2 checkpoint is green. The configured suite has 121 hermetic plus 23 PostgreSQL tests (144 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Existing browser verification covers Phase 1 only; no Phase 2 device, layout, accessibility, or first-minute result is inferred from the build or automated suite.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 149 hermetic plus 26 PostgreSQL tests (175 total with `TEST_DATABASE_URL`). The latest pre-Phase-3 GitHub Actions baseline is run `34950053523`; verify the final Phase 3 documentation commit before handoff. Production dependency audit is clean. No Phase 2/3 device, layout, accessibility, reload, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
@@ -28,12 +30,14 @@ Local lint, typecheck, all tests, and production builds pass. GitHub Actions run
 
 The browser stores only public merchant workspace/challenge facts and, for a purchase, public product/order IDs plus an optional returned transaction hash. First bootstrap and established session values stay in `HttpOnly` cookies. Production startup requires database URL, exact browser origin, and a server-only session secret. `sendBasicTransactionWithData()` has no sender argument; the purchase writer derives the buyer only from independently verified chain evidence and requires `executionResult=true` plus following-macro finality.
 
+A claim signer is derived from its public key. Exact equality with the independently observed purchase sender self-authorizes; otherwise only a second `CLAIM_AUTHORIZATION` proof derived to the purchase sender can authorize that immutable claim/signer/hash tuple. Resolutions require the purchase-bound policy signer, not the settlement address. Unsigned resolution drafts are merchant-session-private; public reads return verified decisions only.
+
 # Known blockers
 
-Physical Android Nimiq Pay must still prove T-001, T-002, T-020, the current merchant signing/publication journey, and physical v1→v2 preservation. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade. Phase 3 cannot assume claim signer equals purchase sender.
+Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, reload, and mobile behavior. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
 
 # Next actions
 
-1. Have the project lead run `docs/evidence/consolidated-device-validation.md` and report each result explicitly.
-2. Record only those explicit results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git.
-3. Do not mark any open device case passed or begin Phase 3 before the required Phase 0/1/2 exits are satisfied.
+1. Begin the narrowly scoped Phase 4 refund protocol and implementation without claiming earlier phase exit.
+2. Keep `docs/evidence/consolidated-device-validation.md` aligned with every deferred physical flow.
+3. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git.

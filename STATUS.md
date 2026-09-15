@@ -4,14 +4,14 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 2 — Purchase Passport: code-complete at the consolidated device boundary under D-023.** Phase 0 stays 98% and Phase 1 stays 92%. T-001, T-002, T-020, physical policy signing/publication, and physical v1→v2 validation remain open/pending until the project lead personally performs and explicitly reports each result. They are batched with the Phase 2 device suite, not waived.
+**Phase 3 — Claims: code-complete at the consolidated device boundary; Phase 4 is authorized to start under D-027.** Phases 0–2 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, and claim/resolution validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
 
 ## Completion by phase
 
 - Phase 0 — Technical proof: **98%** (prior Android chain/signature proof complete; T-001/T-002/T-020 remain open).
 - Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
 - Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical purchase/Passport, reload, mobile/accessibility, and first-minute validation pending).
-- Phase 3 — Claims: **0%**.
+- Phase 3 — Claims: **90%** (protocol, implementation, UI, and automated gates complete; actual-device claim/resolution, reload, and mobile validation pending).
 - Phase 4 — Refund: **0%**.
 - Phase 5 — Promise Ledger + polish: **0%**.
 - Phase 6 — Real pilot: **0%**.
@@ -36,11 +36,19 @@ Percentages are planning estimates, not earned rubric points.
 - The public Passport re-verifies its purchase-bound historical policy and stored normalized chain evidence before display. It shows chain buyer, recipient, exact Luna/data/hash, purchase timestamp, execution, macro/head finality, policy signer/version/hash/terms/deadlines, and explains that later policies cannot rewrite the purchase.
 - Rechecks append immutable reconciliation records. A prior finalized record that regresses or changes produces a public `verification_exception`; RPC absence/outage is separately inconclusive and never rewrites the original evidence.
 
+## Phase 3 implementation
+
+- D-025 closes the claimant-authority design gate without assuming wallet account selection: a proof-derived signer matching the chain-derived buyer self-authorizes; a different signer requires a second exact-claim authorization signed by the chain-derived buyer.
+- Production claim routes issue immutable RETURN/WARRANTY challenges, verify exact proofs and authority, evaluate the purchase-bound policy at an inclusive deadline, and expose a reload-safe public claim projection. Unrelated, altered, expired, replayed, duplicate, and invalid proofs fail closed.
+- The protected merchant queue includes only authorized/evaluated claims. Resolution challenges bind decision, reason, note, full approved purchase value, claim, timestamp, nonce, and original policy signer. Only that signer can publish one final approve/reject result.
+- Pending merchant decisions remain private and recover only through the authenticated merchant endpoint; buyers read only verified resolutions. Approval is visibly distinguished from a paid refund.
+- The buyer journey supports claim creation, exact Nimiq Pay signing, distinct-signer authorization, eligibility evidence, reload recovery, and verified decision display. The merchant journey supports queue review, exact decision signing, pending recovery, and a judge-visible signer/hash receipt.
+
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34949910838` passed the locked install, PostgreSQL 16, lint, typecheck, all-test, and build gate for Phase 2 boundary commit `036671c`; all focused Phase 2 checkpoints also passed. Production dependency audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. The latest verified GitHub Actions baseline is run `34950053523` for pre-Phase-3 commit `a62e756`; CI verification for the Phase 3 boundary commit is pending after this documentation checkpoint. Production dependency audit reports zero known vulnerabilities.
 
-The configured suite has 121 hermetic tests across twenty files plus 23 PostgreSQL 16 integration tests (144 total with `TEST_DATABASE_URL`). Phase 2 coverage includes exact active-policy capture, preserved v1 after v2, strict integer money, wallet-state recovery, no client sender field, mismatch/execution/finality/RPC failure matrices, global hash replay rejection, chain-derived buyer, concurrent/idempotent one-Passport finalization, immutable Passport evidence, reload pointers, and append-only reconciliation exception/recovery.
+The configured suite has 149 hermetic tests plus 26 PostgreSQL 16 integration tests (175 total with `TEST_DATABASE_URL`). Phase 3 coverage includes exact self/delegated claimant authorization, unrelated/altered/replayed/expired failure, inclusive deadline boundaries, purchase-bound policy selection, protected merchant queue, wrong-signer resolution rejection, exact idempotency, concurrent final decisions, immutable evidence, strict frontend response validation, and public-only reload pointers.
 
 ## Manual verification
 
@@ -49,6 +57,7 @@ The configured suite has 121 hermetic tests across twenty files plus 23 PostgreS
 - Desktop and 375 CSS-pixel mobile layouts were inspected; the mobile document had no horizontal overflow and the tested page emitted no console warning/error. This is not a substitute for Nimiq Pay or full accessibility evidence.
 - No current personal PASS confirmation exists for T-001, T-002, T-020, Phase 1 physical signing/publication, or physical v1→v2 validation. Automated, CI, browser, code-completeness, simulated, and earlier cryptographic results are not substitutes.
 - No Phase 2 physical payment, real-chain Passport, WebView reload/recovery, mobile accessibility, or first-minute result is claimed. These remain in the consolidated project-lead checklist.
+- No Phase 3 physical claim signing, distinct-account authorization, merchant resolution signing, WebView reload/recovery, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
 
 ## Deployment and RPC
 
@@ -59,9 +68,9 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 - **Phase 0 exit:** T-001, T-002, and T-020 require explicit project-lead results after personal physical Nimiq Pay testing.
 - **Phase 1 exit:** physical signing/publication and physical v1→v2 validation require explicit project-lead results after personal testing.
 - **Phase 2 exit:** a real low-value buyer payment, independent chain verification, Passport creation, reload/recovery, and first-minute/mobile checks require explicit project-lead results.
+- **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
 - **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
-- **Phase 3 later:** D-018 claimant authorization must be specified and security-reviewed before any claim writes.
 
 ## Next milestone
 
-Run the consolidated physical-device checklist in `docs/evidence/consolidated-device-validation.md`. Record only the project lead's explicit results and sanitized evidence. Do not begin Phase 3.
+Begin Phase 4 refund protocol/implementation without treating any physical gate as passed. Keep the consolidated physical-device checklist current and record only the project lead's explicit results.

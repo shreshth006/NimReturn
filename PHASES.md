@@ -78,11 +78,13 @@ First close the D-018 claimant-authorization design gate: define how a proof-der
 
 ### Exit criteria
 
-- [ ] Authorized equal/distinct signer cases pass according to the reviewed protocol; unrelated/invalid/altered/replayed/duplicate claims fail.
-- [ ] Eligibility unit matrix and exact boundary tests pass.
-- [ ] Policy eligible copy never promises outcome.
-- [ ] Only policy merchant can resolve; one final resolution under concurrency.
+- [x] Automated authorized equal/distinct signer cases pass according to D-025; unrelated/invalid/altered/replayed/duplicate claims fail. Physical equal/distinct-account validation remains open.
+- [x] Eligibility unit matrix and exact boundary tests pass.
+- [x] Policy eligible copy never promises outcome.
+- [x] Only policy merchant can resolve; one final resolution under concurrency.
 - [ ] Actual-device claim/resolution signing and reload work.
+
+Phase 3 implementation is code-complete but cannot formally exit until the consolidated physical-device claim/resolution, reload, and mobile checks pass. D-027 allows Phase 4 implementation to proceed under the same explicit testing deferral; it does not convert any open item to PASS.
 
 ## Phase 4 — Refund
 
