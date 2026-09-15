@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation while batching those gates into one later physical session. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, and D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, while batching physical checks into one later session. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -68,7 +68,7 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 - [x] Race/idempotency tests pass and append-only chain reconciliation is operational.
 - [ ] Passport clearly shows purchase-bound policy and first-minute test passes through passport creation.
 
-Phase 2 cannot formally exit until its automated/code criteria and the D-023 consolidated physical-device session pass. Phase 3 remains closed.
+Phase 2 cannot formally exit until its automated/code criteria and the consolidated physical-device session pass. D-025 permits Phase 3 implementation without treating that deferral as a Phase 2 exit.
 
 ## Phase 3 — Claims
 

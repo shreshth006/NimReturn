@@ -49,7 +49,8 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/app`: application shell and routing/state orchestration;
 - `src/features/diagnostics`: Phase 0 internal diagnostic UI;
 - `src/features/merchant`: Phase 1 draft, terms, canonical review, signing, publication, public proof, and version-history UI;
-- `src/features/purchase`: Phase 2 public product checkout, native-payment recovery, verification progress, and public Passport UI; later `claims`, `refunds`, and `promise-ledger` features remain closed;
+- `src/features/purchase`: Phase 2 public product checkout, native-payment recovery, verification progress, and public Passport UI;
+- `src/features/claims`: Phase 3 claim signing, purchase-sender authorization when required, eligibility, merchant queue, and signed resolution UI; later `refunds` and `promise-ledger` features remain closed;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -99,7 +100,7 @@ Confirmed contract facts are kept separate from device observations. The install
 
 Merchant identity is consequently split into two explicit roles. The policy signer is always derived from the returned public key; a new merchant's first valid policy proof establishes that signer with an atomic compare-and-set, and later policy/resolution proofs must match it. The settlement address is separate signed policy content used as the purchase recipient and NR1 refund sender. These addresses may differ. Account discovery may assist display/data entry but supplies authority for neither role.
 
-Claim identity remains deliberately unresolved until Phase 3. A purchase sender comes only from verified chain evidence, while a claim signer comes only from its proof public key. No claim write path may be enabled until a reviewed authorization protocol connects those facts without assuming that the wallet API selected a particular account.
+Claim identity follows D-025. A purchase sender comes only from verified chain evidence, while a claim signer comes only from its proof public key. Observed address equality self-authorizes a claim. A distinct signer requires a second exact-claim proof whose derived signer equals the purchase sender and whose signed bytes bind the immutable claim hash plus both addresses. Account discovery and UI selection grant no authority. Physical multiple-account behavior remains pending and cannot be bypassed if Nimiq Pay returns the wrong signing key.
 
 ## Nimiq chain reads
 
@@ -200,8 +201,17 @@ sequenceDiagram
     W->>P: sign(exact claim)
     P-->>W: publicKey + signature
     W->>A: Submit proof
-    A->>A: Verify proof + Phase 3 authorization + eligibility
-    A->>D: Store claim + rule results atomically
+    A->>A: Verify proof and derive claim signer
+    alt signer equals verified purchase sender
+        A->>D: Accept claim + store rule results atomically
+    else signer differs
+        A-->>W: Exact CLAIM_AUTHORIZATION challenge
+        W->>P: purchase sender signs exact authorization
+        P-->>W: publicKey + signature
+        W->>A: Submit authorization proof
+        A->>A: Require proof signer = purchase sender
+        A->>D: Accept claim + store rule results atomically
+    end
     A-->>W: Eligible/ineligible with reasons
 ```
 

@@ -79,7 +79,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Claims and eligibility
 
-- **T-040 Claim authorization:** Phase 3 defines fixtures for authorized distinct/equal signer and purchase-sender cases, plus unrelated signer rejection. No test may treat a client-selected account as proof or assume equality before D-018 closes.
+- **T-040 Claim authorization:** self-authorization requires observed equality between the proof-derived claim signer and chain-derived purchase sender; a distinct signer requires an exact-claim authorization proof derived to the purchase sender. Cover both accepted paths plus missing/unrelated/altered/replayed/expired authorization rejection. No test may treat a client-selected account as proof.
 - **T-041 Claim signature invalid/altered:** rejected and nonce handling follows retry policy.
 - **T-042 Claim outside policy window:** ineligible with exact rule reason.
 - **T-043 Boundary-time claim:** exact deadline eligible; deadline +1 ms ineligible.

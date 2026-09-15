@@ -124,7 +124,7 @@ Controls: API returns the expected wallet request from immutable order/resolutio
 
 Threat: an unrelated signer files against a known passport, or the system rejects a legitimate payer by assuming Nimiq Pay signed with a client-selected account.
 
-Controls: private/unpredictable IDs reduce discovery but do not authorize. D-018 blocks claim writes until Phase 3 defines a signed, replay-resistant authorization from the proof-derived claim signer to the independently verified purchase sender, including recovery and multiple-account behavior. Direct signer/sender equality and unrestricted signer acceptance are both prohibited shortcuts; one-time nonce, access controls, and claim-history constraints remain required.
+Controls: private/unpredictable IDs reduce discovery but do not authorize. D-025 permits self-authorization only when the claim proof's derived signer is observed to byte-equal the independently verified purchase sender. A distinct signer remains unaccepted until an exact `CLAIM_AUTHORIZATION` proof derives to the purchase sender and binds the claim ID, immutable claim hash, both addresses, expiry, and one-time nonce. Unrestricted signing, wallet account disclosure/selection, cookies, and Passport possession grant no claim authority. Invalid authorization leaves no accepted claim or eligibility result; nonce, active-claim uniqueness, transactional acceptance, and rate limits constrain replay and spam.
 
 ### Forged/duplicate merchant resolution
 

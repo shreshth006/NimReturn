@@ -4,7 +4,7 @@
 
 Protocol family: `NR1`.
 
-This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and D-020 enables the NR1 policy writer while its actual-device exit remains open. D-022 restores all unconfirmed device-gated items to open/pending; D-023 now enables only the NR1 purchase/Passport implementation while batching those tests for a later physical session. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
+This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and D-020 enables the NR1 policy writer while its actual-device exit remains open. D-022 restores all unconfirmed device-gated items to open/pending; D-023 batches Phase 0–2 physical checks for a later device session. D-025 closes the D-018 design gate with an exact-claim authorization proof and permits Phase 3 implementation without claiming any physical result. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
 
 ## Goals and exclusions
 
@@ -36,7 +36,7 @@ Every payload includes `protocol: "NR1"` and a fixed `type`. The bytes presented
 NIMRETURN/1/<TYPE>\n<CANONICAL_JSON>
 ```
 
-`<TYPE>` is exactly `POLICY`, `CLAIM`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The exact same string is passed to Nimiq Pay `sign()`, displayed for approval, and stored as `canonical_message`. Nimiq Pay's cryptographic signed-message convention UTF-8 encodes that string, prefixes it with `\x16Nimiq Signed Message:\n` plus the base-10 UTF-8 byte length, hashes the resulting bytes with SHA-256, and signs that 32-byte digest with Ed25519. The length is the message byte length, not its JavaScript character count.
+`<TYPE>` is exactly `POLICY`, `CLAIM`, `CLAIM_AUTHORIZATION`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The exact same string is passed to Nimiq Pay `sign()`, displayed for approval, and stored as `canonical_message`. Nimiq Pay's cryptographic signed-message convention UTF-8 encodes that string, prefixes it with `\x16Nimiq Signed Message:\n` plus the base-10 UTF-8 byte length, hashes the resulting bytes with SHA-256, and signs that 32-byte digest with Ed25519. The length is the message byte length, not its JavaScript character count.
 
 NR2 or a later version uses a new prefix and tag namespace. Readers retain NR1 verification indefinitely for historical passports. Writers produce only the current explicitly enabled version.
 
@@ -90,7 +90,7 @@ Policy proof envelope:
 }
 ```
 
-## Candidate claim payload
+## Claim payload
 
 ```json
 {
@@ -109,7 +109,32 @@ Policy proof envelope:
 
 `claimType` is `RETURN` or `WARRANTY`. `reasonCode` is an allow-listed ASCII enum versioned in application code; it describes user selection and is not itself proof. `note` is 0–280 code points and at most 1,024 UTF-8 bytes. The server copies `purchaseSenderAddress` from independently verified purchase evidence; it is not a signer claim or client argument. The claim signer is separately derived from the proof public key.
 
-D-018 is a mandatory Phase 3 gate: a reviewed signed authorization/binding protocol must connect the derived claim signer to the purchase sender before claims can be accepted. Direct equality is not assumed, and accepting any signer is forbidden. The exact claimant-authorization fields, recovery behavior, replay rules, and resulting claim payload fixture are intentionally not frozen in Phase 1.
+D-025 freezes this claim payload. The proof-derived claim signer is not accepted merely because it produced a valid claim signature. Authorization follows one of the two rules below.
+
+## Claimant authorization
+
+For self-authorization, the verified claim proof's derived address must byte-equal the independently verified purchase sender. This is an observed cryptographic equality, not an assumption based on account disclosure or UI selection. The claim can be accepted and evaluated atomically without a second proof.
+
+When the derived claim signer differs, the claim remains `authorization_pending`. The server issues this exact second challenge:
+
+```json
+{
+  "authorizationId": "3vM8xK7JjqwYsHhd6b2yVQ",
+  "claimId": "bC2v2Ws4EkuJNV0ydOduaw",
+  "claimPayloadHash": "<64 lower-case hex>",
+  "claimSignerAddress": "NQ...",
+  "createdAt": 1789336100000,
+  "expiresAt": 1789336700000,
+  "nonce": "Z2dT3L9Vj9Q3nUeM6u7x4A",
+  "protocol": "NR1",
+  "purchaseSenderAddress": "NQ...",
+  "type": "CLAIM_AUTHORIZATION"
+}
+```
+
+The domain is `NIMRETURN/1/CLAIM_AUTHORIZATION`. The proof-derived authorization signer must byte-equal `purchaseSenderAddress`. The server regenerates the payload from the immutable stored claim proof and purchase evidence, checks exact message/hash/signature/address binding, and consumes the unique authorization nonce in the same transaction that accepts and evaluates the claim. `authorizationId` and `nonce` are independent 128-bit public tokens. `createdAt` and `expiresAt` are server-issued UTC milliseconds; the challenge expires after ten minutes. An authorization proof delegates only the referenced immutable claim payload to the referenced derived claim signer. It cannot be reused for another claim, altered note/reason, Passport, or signer.
+
+An invalid or unrelated authorization proof leaves the claim unaccepted and retryable until challenge expiry. A new challenge receives a new authorization ID and nonce while retaining the exact claim hash and addresses. No `listAccounts()` result, selected account, cookie, bearer session, or public Passport ID substitutes for either signature.
 
 Claim eligibility is not signed into this payload. The server stores a separate deterministic evaluation record with evaluator version, evaluation time, inputs, per-rule outputs, and final eligible/ineligible result. Re-evaluation may identify software error but cannot silently overwrite the original result; it appends a superseding protocol event.
 
@@ -165,7 +190,7 @@ For every proof:
 7. SHA-256 that framed preimage, then require `publicKey.verify(signature, digest)` to be true.
 8. Derive the actual signer with `publicKey.toAddress()`. Compare its parsed address bytes to the server-bound signer when one is established. For a first-policy bootstrap only, atomically establish that derived address as the merchant policy signer; never use a client-selected account as the expected signer.
 9. Recompute BLAKE2b-256 over the unframed `messageBytes` and compare to stored `payload_hash`.
-10. Enforce the action-specific authority rule, then consume the nonce and create/transition the target resource atomically. Claim authority cannot pass until the D-018 Phase 3 binding protocol exists.
+10. Enforce the action-specific authority rule, then consume the nonce and create/transition the target resource atomically. A claim uses observed signer/sender equality or the D-025 exact-claim authorization proof; no other binding is accepted.
 
 No fallback tries framed and unframed messages. The SHA-256 signing digest and the NR1 BLAKE2b-256 payload hash have separate purposes and must never be substituted for one another.
 

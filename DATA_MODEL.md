@@ -115,10 +115,21 @@ Indexes: buyer chronology, merchant chronology, active deadlines. Product/policy
 - `claim_type`, `reason_code`, `note`, `claim_time` — SIGNATURE immutable.
 - `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message`, `payload_hash`, `public_key`, `signature`, `verifier_version` — SIGNATURE immutable.
 - `signature_status` (`pending`, `verified`, `invalid`, `expired`) — BACKEND one-way.
-- `workflow_state` (`submitted`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`, `refund_pending`, `refunded`, `refund_verification_failed`) — BACKEND/DERIVED constrained.
+- `workflow_state` (`authorization_pending`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`, `refund_pending`, `refunded`, `refund_verification_failed`) — BACKEND/DERIVED constrained. A valid claim proof is not accepted as filed while authorization is pending.
 - timestamps — BACKEND.
 
-Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. D-018 blocks this production schema and claim writes until Phase 3 specifies the normalized authorization evidence/relations that connect a derived claim signer to the independently verified purchase sender; direct address equality and unrestricted signing are both prohibited shortcuts. Exact active-claim uniqueness is also finalized there.
+Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. One accepted unresolved claim per Passport/type is enforced by a partial unique index. D-025 allows observed claim-signer/purchase-sender equality or a verified exact-claim authorization; no other relationship is authoritative.
+
+## claim_authorizations
+
+- `id uuid primary key`, `public_id char(22) unique`, `claim_id uuid references claims` — BACKEND immutable identity and exact claim binding.
+- `authorization_mode` (`self`, `delegated`) — DERIVED. `self` records observed claim-signer/purchase-sender equality and carries no second proof. `delegated` requires the complete proof fields below.
+- `purchase_sender_address`, `claim_signer_address`, `claim_payload_hash` — CHAIN/DERIVED/SIGNATURE immutable copies that must equal the referenced claim.
+- `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message`, `payload_hash` — BACKEND/SIGNATURE immutable. Delegated challenges are domain-separated `CLAIM_AUTHORIZATION`; self rows use the claim nonce/hash as their audit binding and no fabricated second message.
+- `public_key`, `signature`, `authorization_signer_address`, `verifier_version`, `verified_at` — SIGNATURE/DERIVED immutable and required only for delegated authorization. The derived authorization signer must equal `purchase_sender_address`.
+- `expires_at`, `consumed_at`, `created_at` — BACKEND. Delegated challenge consumption and claim acceptance/evaluation are atomic.
+
+Unique constraints allow one successful authorization per claim and prevent nonce/public-ID reuse. Runtime triggers make completed authorization evidence append-only.
 
 ## claim_eligibility_evaluations
 
@@ -162,7 +173,7 @@ Supporting tables are required although they are not product entities.
 
 `idempotency_keys`: wallet/action/key unique, request hash, response status/body reference, created/expiry. A key reused with a different request hash returns conflict.
 
-`signing_challenges`: nonce unique, action, resource, nullable `expected_signer_address`, canonical message/hash, expires/consumed timestamps. A bootstrap session can bind to at most one challenge. The expected signer is null only for a new merchant's first policy bootstrap; successful proof derivation and merchant binding occur in the same transaction as challenge consumption. Claim authorization fields remain undefined until the Phase 3 gate closes.
+`signing_challenges`: policy-specific challenge rows retain their existing shape. Claim and resolution challenges use their evidence tables because claim authorization may require a second proof and each resource has stricter relational constraints. A policy expected signer is null only for a new merchant's first bootstrap; claim authorization always copies its expected purchase sender from verified chain evidence.
 
 `merchant_bootstrap_sessions`: hash of a 128-bit-or-stronger opaque capability, merchant ID, expiry, consumed timestamp, and creation metadata. The raw capability exists only in a short-lived `HttpOnly`, `Secure`, `SameSite` session. It authorizes first-policy challenge creation/submission but is not wallet identity; consumption, proof verification, and signer establishment are atomic. Established signer rows have no reset through this table.
 

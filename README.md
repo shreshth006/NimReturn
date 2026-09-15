@@ -22,7 +22,7 @@ NimReturn makes promises and behavior inspectable. It does **not** force a merch
 2. A buyer opens the product in Nimiq Pay and pays that signed settlement address directly in NIM.
 3. The backend independently checks network, sender, recipient, integer Luna amount, transaction data, state, and hash uniqueness.
 4. NimReturn creates a Purchase Passport showing the payment, exact policy version, deadlines, and proofs.
-5. A RETURN or WARRANTY claim is accepted only after its proof-derived signer is authorized for the verified purchase sender; that binding is an explicit Phase 3 gate and is not implemented yet.
+5. A RETURN or WARRANTY claim is accepted only when its proof-derived signer equals the verified purchase sender or that sender signs an exact, one-claim delegation. Wallet account selection is never authority.
 6. NimReturn deterministically reports whether the claim meets the merchant-signed policy. Eligibility is not a guaranteed remedy.
 7. The policy signer signs a decision. An approved refund goes directly from the purchase-bound settlement address to the original buyer and is independently verified.
 8. The Promise Ledger derives factual merchant activity from these verified events; it is not a review score.
