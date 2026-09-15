@@ -30,6 +30,8 @@ Run API against disposable PostgreSQL and a controllable fake RPC transport (not
 
 Phase 1 exercises the production HTTP adapters through real PostgreSQL for draft → challenge → valid proof → publish → verified public read → changed terms → v2, including wrong-resource rejection, stale-bootstrap rejection, session authorization, and preserved v1 evidence. Browser checks cover the real draft/challenge API, reload-safe public challenge state, provider-unavailable honesty, public proof/history rendering, desktop/mobile layout, and runtime errors. A deterministic test key supplies API integration proof only; it does not claim wallet interoperability. Production bundles contain no mock provider switch.
 
+Phase 2 integration exercises immutable active-policy capture, wallet cancellation/ambiguity transitions, hash reservation, absent/RPC-inconclusive/pre-final/invalid/final evidence, chain-derived buyer identity, concurrent and repeated verification, one immutable Passport, public policy/chain reprojection, and append-only reconciliation exception/recovery. Unit coverage proves strict sender-free API bodies and public-only reload storage. None is physical Nimiq Pay evidence.
+
 ### Actual-device Nimiq Pay
 
 Test current supported iOS and Android versions on TestAlbatross over HTTPS (local-network HTTP only for documented development where supported). Capture app/OS/SDK version, UTC time, account address, message hash, public key, signature, transaction hash, network, result, and sanitized screenshot/log. Never record a seed phrase/private key.
@@ -141,6 +143,8 @@ The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026
 D-022 corrects an earlier interpretation of pass-like prompt wording: T-001, T-002, T-020, Phase 1 physical signing/publication, and physical v1→v2 validation remain open/pending. Automated tests, CI, browser checks, code completeness, simulated proofs, and the earlier Android cryptographic evidence do not close them.
 
 D-023 permits Phase 2 implementation and batches the open Phase 0/1 checks with the later Phase 2 physical purchase/Passport suite. This scheduling deferral does not change any scenario outcome; only the project lead's explicit result after personally performing each device test may do so.
+
+The Phase 2 automated suite passes T-021 through T-029 and the implementation portions of T-031 through T-033, including a simulated finalized-evidence regression. T-020 and all actual-device portions remain open. The exact consolidated procedure is `docs/evidence/consolidated-device-validation.md`.
 
 ## Test data rules
 

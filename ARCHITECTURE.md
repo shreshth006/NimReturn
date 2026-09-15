@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. D-023 authorizes Phase 2 Purchase Passport implementation while all unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
+This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. Phase 2 implements immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation under D-023 while all unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -49,7 +49,7 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/app`: application shell and routing/state orchestration;
 - `src/features/diagnostics`: Phase 0 internal diagnostic UI;
 - `src/features/merchant`: Phase 1 draft, terms, canonical review, signing, publication, public proof, and version-history UI;
-- later `purchases`, `passports`, `claims`, `refunds`, and `promise-ledger` features;
+- `src/features/purchase`: Phase 2 public product checkout, native-payment recovery, verification progress, and public Passport UI; later `claims`, `refunds`, and `promise-ledger` features remain closed;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -58,7 +58,7 @@ The SPA is organized by user-visible capability, not framework ceremony:
 
 The UI never calculates authoritative purchase/refund success. It sends a hash or signature with the server-issued challenge and renders the server state. It re-fetches workflow state after WebView resume/reload. Local optimistic state is limited to input and “requesting wallet” feedback.
 
-Phase 1 stores only public merchant/product identifiers and an unexpired public signing challenge in validated browser storage for reload recovery. The raw first-policy bootstrap and established-merchant session remain inaccessible to JavaScript in `HttpOnly` cookies. A public product URL can render without a merchant session.
+Phase 1 stores only public merchant/product identifiers and an unexpired public signing challenge in validated browser storage for reload recovery. Phase 2 session storage adds only the public product/order identifiers and an optional returned transaction hash. That hash is written before API attachment so reload can resume verification without another wallet request; a hashless ambiguous native outcome blocks blind retry. The raw first-policy bootstrap and established-merchant session remain inaccessible to JavaScript in `HttpOnly` cookies. Public product and Passport URLs render without a merchant session.
 
 ## API/backend
 
@@ -72,11 +72,13 @@ Fastify exposes versioned `/api/v1` routes plus `/health`. Each route:
 
 Phase 1 writer routes are `POST /api/v1/merchants`, `POST /api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges`, and `POST .../policies/publish`. `GET /api/v1/products/:productPublicId` re-verifies the active proof and every verified historical version before returning any public policy. Production writer requests require an exact configured Origin, same-site cookies, bounded bodies, and per-IP limits. The first publish consumes the database-hashed bootstrap and rotates to an eight-hour HMAC-authenticated merchant session. That session authorizes challenge allocation only; the established Nimiq signature remains mandatory for publication.
 
+Phase 2 routes create/read an order, record wallet state, attach one hash, explicitly recheck it, and read a public Passport. The attachment body contains only a hash—never a sender or payment terms. The server loads immutable expectations, reads RPC evidence, and atomically creates the purchase/Passport only on exact successful macro-final verification. Rechecking a purchased order appends reconciliation evidence; it never edits the original finalized record.
+
 MVP does not require a separate queue. A verification attempt runs synchronously with a short timeout. Pending or unavailable results are persisted and retried by a bounded scheduled process or explicit idempotent status request. If volume later demands a queue, that is a new decision, not assumed infrastructure.
 
 ## Database
 
-PostgreSQL stores products/workflow and immutable evidence. Constraints enforce unique transaction hashes/nonces, one passport per order, one final resolution per claim, and legal enum/value ranges. Signed payload rows are append-only through permissions/triggers plus application policy. See `DATA_MODEL.md`.
+PostgreSQL stores products/workflow and immutable evidence. Constraints enforce immutable order expectations, legal wallet/payment transitions, globally unique transaction hashes, one purchase and Passport per order, exact order/policy/chain Passport equality, and legal enum/value ranges. Signed, finalized, Passport, event, and reconciliation evidence is append-only through permissions/triggers plus application policy. See `DATA_MODEL.md`.
 
 The API role receives only the grants it needs. Migrations run with a separate role. Promise Ledger endpoints query derived views/materialized views generated only from source rows; there is no metric write route.
 
@@ -239,7 +241,7 @@ For an expected purchase/refund and observed chain record:
 8. persist raw normalized evidence, provider, observed time, block/confirmations, and each check result;
 9. create downstream state only in the same database transaction as successful verification.
 
-NR1 uses Albatross macro-block finality: ordinary confirmation counts are retained as observations but never authorize verification. The verifier exposes `pending-inclusion`, `pending-finality`, `verified`, `invalid`, and `inconclusive` as distinct outcomes. The client separately tracks whether an RPC HTTP request is currently in flight; a chain-pending outcome never disables a later recheck. “Included” and “finalized for NimReturn” are separate states. Phase 2 still adds persistence, retry/reconciliation, and an independent production verifier source; it does not weaken this finality rule.
+NR1 uses Albatross macro-block finality: ordinary confirmation counts are retained as observations but never authorize verification. The verifier exposes `pending-inclusion`, `pending-finality`, `verified`, `invalid`, and `inconclusive` as distinct outcomes. The client separately tracks whether an RPC HTTP request is currently in flight; a chain-pending outcome never disables a later recheck. “Included” and “finalized for NimReturn” are separate states. Phase 2 persists every current outcome. A later recheck of a verified purchase appends `confirmed`, `inconclusive`, or `exception`; changed/regressed finality, block identity, or sender becomes a public `verification_exception` while the original evidence remains immutable.
 
 ## Idempotency and races
 

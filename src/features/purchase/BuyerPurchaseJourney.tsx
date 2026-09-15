@@ -233,11 +233,41 @@ export function BuyerPurchaseJourney({
     }
   }
 
+  async function reconcilePassport() {
+    if (!passport) return
+    setBusy('verifying')
+    setNotice({ kind: 'info', message: 'Re-reading this purchase from the independent Nimiq verifier…' })
+    try {
+      await recheckTransaction(passport.orderPublicId)
+      const refreshed = await getPassport(passport.publicId)
+      setPassport(refreshed)
+      setNotice({
+        kind: refreshed.reconciliation.status === 'exception' ? 'error' : 'success',
+        message: refreshed.reconciliation.reason,
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: errorMessage(error) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (busy === 'loading' && !product && !passport) {
     return <section className="buyer-loading" role="status">Loading independently verified purchase evidence…</section>
   }
 
-  if (passport) return <PassportPanel passport={passport} />
+  if (passport) {
+    return (
+      <>
+        {notice && <div className={`notice notice--${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.message}</div>}
+        <PassportPanel
+          busy={busy === 'verifying'}
+          onReconcile={() => void reconcilePassport()}
+          passport={passport}
+        />
+      </>
+    )
+  }
 
   if (!product) {
     return (
@@ -341,7 +371,15 @@ function OrderEvidence({ order }: { order: PurchaseOrder }) {
   )
 }
 
-function PassportPanel({ passport }: { passport: PurchasePassport }) {
+function PassportPanel({
+  busy,
+  onReconcile,
+  passport,
+}: {
+  busy: boolean
+  onReconcile: () => void
+  passport: PurchasePassport
+}) {
   const { payload } = passport.policy
   const hasVerificationException = passport.status === 'verification_exception'
   return (
@@ -366,7 +404,10 @@ function PassportPanel({ passport }: { passport: PurchasePassport }) {
         <PassportFact label="Finality" value={hasVerificationException ? 'Exception · recheck required' : 'Verified'} detail={`Macro ${passport.payment.finality.finalizingBlockNumber.toLocaleString()} · head ${passport.payment.finality.headBlockNumber.toLocaleString()}`} />
       </dl>
       <div className="passport__evidence">
-        <h2>Independent evidence</h2>
+        <div className="evidence-heading">
+          <div><span>Public chain receipt</span><h2>Independent evidence</h2></div>
+          <button className="text-button" type="button" disabled={busy} onClick={onReconcile}>{busy ? 'Rechecking…' : 'Recheck on Nimiq'}</button>
+        </div>
         <dl>
           <PassportFact label="Transaction" value={passport.payment.transactionHash} mono />
           <PassportFact label="Purchase timestamp" value={formatDate(passport.payment.purchaseTime)} />

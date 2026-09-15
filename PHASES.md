@@ -63,9 +63,9 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 ### Exit criteria
 
 - [ ] End-to-end device purchase creates exactly one passport only after valid evidence.
-- [ ] Wrong network/sender/recipient/value/data/state and duplicate hashes fail.
-- [ ] Cancel, pending, inconclusive, invalid, and verified are distinct and recover on reload.
-- [ ] Race/idempotency tests pass and chain reconciliation is operational.
+- [x] Wrong network/sender/recipient/value/data/state and duplicate hashes fail in automated verification; physical purchase remains separately open.
+- [ ] Cancel, pending, inconclusive, invalid, and verified are distinct and recover on reload. Automated coverage passes; device cancellation/reload remains open.
+- [x] Race/idempotency tests pass and append-only chain reconciliation is operational.
 - [ ] Passport clearly shows purchase-bound policy and first-minute test passes through passport creation.
 
 Phase 2 cannot formally exit until its automated/code criteria and the D-023 consolidated physical-device session pass. Phase 3 remains closed.

@@ -277,3 +277,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Phase 2 can be built and proven hermetically against the already frozen identity, policy, execution, and Albatross-finality rules without claiming native-wallet interoperability. Consolidating related device interactions reduces setup overhead while maintaining one explicit human evidence boundary.
 
 **Consequences:** Phase 2 may implement only pending purchase orders, documented direct Nimiq Pay payment requests, independent chain verification, immutable Purchase Passports, recovery/reconciliation, and their buyer UI. Automated coverage never changes a physical gate. Phase 2 cannot formally exit and Phase 3 cannot begin until the project lead reports the required consolidated device results.
+
+## D-024 — 2026-09-15 — Preserve finalized evidence and append reconciliation outcomes
+
+**Decision:** Treat a finalized `chain_transactions` row and its Purchase Passport as immutable original evidence. Every later explicit purchase recheck appends a `chain_reconciliations` row with `confirmed`, `inconclusive`, or `exception`; it never edits or deletes the original observation. The latest exception derives a public `verification_exception` display, while a later independent confirmation may restore the derived active display without erasing any historical exception.
+
+**Context:** Phase 2 requires operational reconciliation and safe reorg handling. Mutating a previously finalized transaction would destroy the fact that NimReturn once accepted it, while permanently invalidating a Passport on one RPC outage would conflate unavailable evidence with contradictory evidence.
+
+**Alternatives:** mutate the original finalized chain row; silently keep showing verified after conflicting evidence; mark an RPC timeout as a permanent reorg; add a mutable Passport status field.
+
+**Rationale:** An append-only journal preserves auditability and distinguishes temporary inability to recheck from an actual regression in block/sender/finality identity. The public reader can fail visibly without granting the runtime role authority to rewrite historical proof.
+
+**Consequences:** Purchased-order rechecks call the independent reader and append an outcome. RPC error/not-found is inconclusive; changed or regressed verified identity is exceptional. Public Passport projections expose the latest reconciliation state, database triggers prohibit reconciliation update/delete, and regression tests cover exception plus later confirmed recovery. Production still needs an operated primary/failover RPC and scheduled invocation policy before deployment.

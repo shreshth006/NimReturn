@@ -71,12 +71,20 @@ Indexes: partial `(buyer_address, created_at desc) where buyer_address is not nu
 - `id uuid primary key` — BACKEND.
 - `network varchar(24) not null`, `transaction_hash char(64) not null` — CHAIN key; unique `(network, transaction_hash)` across all uses.
 - `purpose` (`purchase`, `refund`) and `resource_id uuid` — BACKEND immutable binding.
-- `observed_state` (`absent`, `mempool`, `included`, `finalized`, `invalid`, `inconclusive`) — CHAIN/BACKEND, monotonic except a future explicit reorg correction path.
+- `observed_state` (`absent`, `mempool`, `included`, `finalized`, `invalid`, `inconclusive`) — CHAIN/BACKEND; finalized/invalid evidence is terminal and immutable. Reorg correction is appended separately.
 - `normalized_evidence jsonb null`, `provider_id varchar(80)`, `observed_at`, `block_number`, `block_timestamp_ms`, `finalizing_block_number`, `head_block_number`, `confirmations` — CHAIN/cache.
 - `execution_result`, `sender`, `recipient`, `value_luna`, `data_text` — CHAIN normalized fields.
 - `verification_checks jsonb`, `verification_reason`, `verifier_version`, timestamps — BACKEND result.
 
 Indexes: retry `(observed_state, updated_at)` and resource `(purpose, resource_id)`. Raw response has a bounded schema/size and is not blindly returned publicly.
+
+## chain_reconciliations
+
+- `id uuid primary key`, `chain_transaction_id uuid references chain_transactions` — BACKEND immutable link.
+- `outcome` (`confirmed`, `inconclusive`, `exception`) — DERIVED from a fresh independent RPC read.
+- `normalized_evidence jsonb null`, `reason`, `verifier_version`, `checked_at` — CHAIN/BACKEND append-only recheck record.
+
+Rows cannot update/delete under either trigger or runtime role. The latest result is a derived public status: an exception makes the Passport `verification_exception`; a later independent confirmation may restore the derived active display without erasing the exception history. RPC outage/not-found is inconclusive, not an invented reorg or permanent invalidation.
 
 ## purchase_transactions
 
@@ -169,6 +177,7 @@ erDiagram
     POLICY_VERSIONS ||--o{ ORDERS : binds
     ORDERS ||--o| PURCHASE_TRANSACTIONS : verified_by
     PURCHASE_TRANSACTIONS ||--|| CHAIN_TRANSACTIONS : observes
+    CHAIN_TRANSACTIONS ||--o{ CHAIN_RECONCILIATIONS : rechecked_by
     ORDERS ||--o| PURCHASE_PASSPORTS : creates
     PURCHASE_PASSPORTS ||--o{ CLAIMS : receives
     CLAIMS ||--o{ CLAIM_ELIGIBILITY_EVALUATIONS : evaluated_by

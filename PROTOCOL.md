@@ -186,6 +186,8 @@ Expected evidence is loaded from the server order. An accepted purchase requires
 
 A wallet-returned hash alone only moves the state to verifying. An absent/mempool transaction is `pending-inclusion`; a successfully executed pre-macro inclusion is `pending-finality`, regardless of ordinary confirmation count. Both remain retryable after each RPC request completes. Failed execution, an invalid observed sender, or another definitive field mismatch is `invalid`. RPC transport or malformed evidence is `inconclusive`. None creates a passport.
 
+After Passport creation, an explicit reconciliation re-fetches the same hash and compares the expected fields plus the original chain-derived sender, inclusion block/timestamp, and finalizing macro. A matching finalized observation appends `confirmed`; RPC outage or absence appends `inconclusive`; changed or regressed evidence appends `exception`. Reconciliation never mutates or deletes the original finalized observation. The latest exception is displayed publicly as `verification_exception`, and a later confirmed recheck can restore the derived active display while retaining the full append-only history.
+
 ## Refund transaction verification
 
 An accepted refund requires all purchase checks adapted as follows:

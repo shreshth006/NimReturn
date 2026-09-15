@@ -278,6 +278,7 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .passport small { display: block; margin-top: 5px; color: var(--muted); font-size: 0.66rem; line-height: 1.4; }
 .passport__evidence { padding: clamp(24px, 5vw, 46px); }
 .passport__evidence h2 { margin: 0 0 18px; font-family: Georgia, "Times New Roman", serif; font-size: 2.1rem; font-weight: 500; }
+.passport__evidence .evidence-heading h2 { margin: 0; }
 .passport__evidence dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; border: 1px solid var(--line); background: var(--line); }
 .passport__boundary { margin: 0; padding: 18px clamp(24px, 5vw, 46px); border-top: 1px solid var(--line); color: var(--muted); background: #f3f1ea; font-size: 0.74rem; line-height: 1.5; }
 
