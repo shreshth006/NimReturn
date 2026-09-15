@@ -50,7 +50,8 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/features/diagnostics`: Phase 0 internal diagnostic UI;
 - `src/features/merchant`: Phase 1 draft, terms, canonical review, signing, publication, public proof, and version-history UI;
 - `src/features/purchase`: Phase 2 public product checkout, native-payment recovery, verification progress, and public Passport UI;
-- `src/features/claims`: Phase 3 claim signing, purchase-sender authorization when required, eligibility, merchant queue, and signed resolution UI; later `refunds` and `promise-ledger` features remain closed;
+- `src/features/claims`: Phase 3 claim signing, purchase-sender authorization when required, eligibility, merchant queue, and signed resolution UI;
+- `src/features/refunds`: Phase 4 server-derived refund request, native-payment recovery, independent verification, and public evidence UI; `promise-ledger` remains closed;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -59,7 +60,7 @@ The SPA is organized by user-visible capability, not framework ceremony:
 
 The UI never calculates authoritative purchase/refund success. It sends a hash or signature with the server-issued challenge and renders the server state. It re-fetches workflow state after WebView resume/reload. Local optimistic state is limited to input and “requesting wallet” feedback.
 
-Phase 1 stores only public merchant/product identifiers and an unexpired public signing challenge in validated browser storage for reload recovery. Phase 2 session storage adds only the public product/order identifiers and an optional returned transaction hash. That hash is written before API attachment so reload can resume verification without another wallet request; a hashless ambiguous native outcome blocks blind retry. The raw first-policy bootstrap and established-merchant session remain inaccessible to JavaScript in `HttpOnly` cookies. Public product and Passport URLs render without a merchant session.
+Phase 1 stores only public merchant/product identifiers and an unexpired public signing challenge in validated browser storage for reload recovery. Phase 2 session storage adds only the public product/order identifiers and an optional returned transaction hash. Phase 3 adds only public Passport/claim identifiers. Phase 4 stores only public claim/refund-attempt identifiers and an optional returned refund hash. A returned hash is written before API attachment so reload can resume verification without another wallet request; a hashless ambiguous native outcome blocks blind retry. The raw first-policy bootstrap and established-merchant session remain inaccessible to JavaScript in `HttpOnly` cookies. Public product, Passport, claim, and verified refund views render without a merchant session.
 
 ## API/backend
 

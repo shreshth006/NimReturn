@@ -325,3 +325,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The project lead explicitly requested a final consolidated testing phase and continued building unless testing is essential. Keeping every physical result visibly open preserves evidence integrity while focused protocol design, implementation, and automated verification continue.
 
 **Consequences:** Phase percentages and exits remain unchanged by this deferral. Phase 4 refund work may begin after Phase 3 code completion, but it must preserve the no-custody model and cannot label approved as refunded. The consolidated checklist must expand with each implemented device flow, and only the project lead's explicit personal result may close any physical item.
+
+## D-028 — 2026-09-15 — Refund attempts are immutable expectations, not payment authority
+
+**Decision:** A verified APPROVED resolution may create one open refund attempt at a time. The server derives and freezes TestAlbatross network, the purchase-bound signed settlement sender, original chain-derived buyer recipient, full approved Luna value, and `NR1:R:<claim-id>` data. The merchant session may allocate and update an attempt, but it is never evidence that the wallet paid from the required sender. Only independent chain evidence with exact fields, successful execution, and following-macro finality creates a refund transaction and atomically marks the claim and Passport refunded.
+
+**Context:** Nimiq Pay's current payment method accepts no caller-selected sender. The policy signer and purchase-bound settlement address may differ, while a refund must originate from the latter. Cancellation, a hashless ambiguous return, pending inclusion/finality, invalid transactions, and RPC outages also require durable distinct states and safe retry behavior.
+
+**Alternatives:** treat merchant session or wallet return as payment proof; require policy signer/settlement equality; keep one mutable hash slot per claim; aggregate partial or multiple transfers.
+
+**Rationale:** An immutable per-invocation expectation lets the UI request the correct transfer without claiming control of its sender. Independent verification remains authoritative. One open attempt prevents double prompts; cancellation permits a new attempt, an unknown outcome blocks blind retry, and a terminal invalid hash remains globally consumed while a new attempt may be created deliberately.
+
+**Consequences:** Refund attempts have public opaque IDs, exact server-derived fields, explicit wallet/verification state, and at most one attached hash. Multiple historical attempts may exist, but only one verified refund may exist per claim/resolution/Passport. Exact retries are idempotent; conflicting hash attachment and concurrent finalization fail. Approval remains visible as refund pending until a finalized transaction is verified. Post-final chain reconciliation appends evidence rather than rewriting the original refund.

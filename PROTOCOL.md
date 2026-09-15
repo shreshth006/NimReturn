@@ -226,6 +226,12 @@ An accepted refund requires all purchase checks adapted as follows:
 
 Approval and transaction submission are not refund completion.
 
+Each native wallet invocation uses one immutable server-issued refund attempt. Its expectation is derived only from the verified resolution, Purchase Passport, purchase-bound policy, and configured network. Attempt states are `payment_requested`, `wallet_request_started`, `payment_cancelled`, `submission_outcome_unknown`, `payment_verifying`, `payment_pending`, `payment_failed`, and `refunded`. A wallet-returned hash is untrusted and moves only to verification. Absent/mempool and pre-macro evidence remain retryable; RPC transport/malformed evidence is inconclusive; a definitive mismatch is terminal for that attempt.
+
+At most one non-terminal attempt may exist per claim. Cancellation permits a fresh attempt. A hashless `submission_outcome_unknown` blocks another native request until the merchant reconciles wallet history; it cannot be cleared into success. Each attempt accepts at most one normalized hash, exact attachment/recheck is idempotent, and a conflicting hash is rejected. A failed attempt may be followed by a new attempt, but every prior hash remains globally reserved. NR1 never aggregates partial, over-, or repeated transfers into a refund.
+
+After a finalized refund, reconciliation re-fetches the same hash and appends `confirmed`, `inconclusive`, or `exception` evidence. It never mutates the original finalized row. A derived exception is shown distinctly and never silently changes the historical fact that NimReturn previously accepted the evidence.
+
 ## Replay and mutation protection
 
 - 128-bit tokens and nonces are server-generated and globally unique.

@@ -149,13 +149,22 @@ Unique partial index allows one current evaluation per claim. Inputs include ver
 
 Constraints enforce rejected amount `0`, approved amount equals order price at domain layer plus transaction/trigger, and signer equals the policy signer. Refund transaction verification separately requires its sender to equal the purchase-bound policy settlement address; no signer/settlement equality is required.
 
+## refund_attempts
+
+- `id uuid primary key`, `public_id char(22) unique`, `claim_id`, `resolution_id`, `passport_id`, `merchant_id` — BACKEND immutable resource binding.
+- `network`, `expected_sender`, `expected_recipient`, `expected_value_luna`, `expected_data` — DERIVED immutable from the purchase-bound verified evidence; never accepted from the client.
+- `wallet_state` (`payment_requested`, `wallet_request_started`, `payment_cancelled`, `submission_outcome_unknown`, `payment_verifying`, `payment_pending`, `payment_failed`, `refunded`) — BACKEND constrained.
+- `transaction_hash char(64) null`, `failure_code`, `row_version`, timestamps — CHAIN/BACKEND. One attempt accepts at most one normalized hash.
+
+A partial unique index permits one open attempt per claim and blocks a second native prompt after a hashless ambiguous outcome. Cancelled or definitively failed attempts remain immutable history and permit a deliberate new attempt. Exact state retries are idempotent; transition constraints and row locks prevent regressions.
+
 ## refund_transactions
 
 - `id uuid primary key`, `claim_id uuid unique`, `resolution_id uuid unique` — immutable one completion per claim.
 - `chain_transaction_id uuid unique references chain_transactions` — CHAIN link.
 - `verified_at`, `confirmation_policy` — BACKEND.
 
-Inserted only after all refund checks pass, atomically moving claim/passport state. Cancelled or failed attempts are protocol events and optionally a separate bounded `refund_attempts` operational table; they are not refund transactions.
+Inserted only after all refund checks pass, atomically moving claim/passport state. It also references the exact `refund_attempt_id`, which is unique. Cancelled, ambiguous, pending, inconclusive, or failed attempts are not refund transactions.
 
 ## protocol_events
 

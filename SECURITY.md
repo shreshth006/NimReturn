@@ -138,6 +138,8 @@ Threat: merchant claims a refund, pays another wallet/wrong amount, reuses purch
 
 Controls: approval separate from payment; independent chain check; sender equals the purchase-bound signed settlement address; recipient equals the original verified purchase sender; exact full Luna amount; refund claim tag; successful execution and macro finality; global unique hash; no partial-credit aggregation in NR1.
 
+The authenticated merchant session may request a server-derived refund attempt and submit the wallet-returned hash, but it cannot assert the sender or a successful payment. Because the SDK has no sender-selection argument, a wallet transaction from any other account safely fails verification. One open attempt prevents duplicate prompts; hashless ambiguous outcomes block blind retry; cancelled or terminal-invalid attempts permit a new immutable attempt while old hashes remain globally reserved. Finalized refund reconciliation is append-only.
+
 ### Database/operator manipulation
 
 Threat: privileged actor flips states or metrics.
