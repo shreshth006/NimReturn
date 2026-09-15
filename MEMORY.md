@@ -26,7 +26,7 @@ Phase 5 includes PostgreSQL security-barrier views and a strict public API that 
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 165 hermetic plus 26 PostgreSQL tests (191 total with `TEST_DATABASE_URL`). GitHub Actions run `35010536455` passed locked install, PostgreSQL 16, all 191 tests, and build for Phase 5 closeout `9f3b84c`. The production dependency audit reports zero known vulnerabilities. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, PostgreSQL tests, production builds, and the production dependency audit pass. The suite now has 167 hermetic plus 26 PostgreSQL tests (193 total with `TEST_DATABASE_URL`). GitHub Actions run `35010536455` passed the 191-test Phase 5 baseline; final staging-configuration CI remains to be recorded. Vendor-neutral API/web container builds, Caddy validation/header checks, Compose parsing, and a local containerized API smoke test pass. No Phase 2–5 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
@@ -38,7 +38,7 @@ A claim signer is derived from its public key. Exact equality with the independe
 
 # Known blockers
 
-Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, an exact-sender refund through finality, reload, mobile/accessibility behavior, Promise Ledger reconciliation, and the first-minute story. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, managed PostgreSQL backup/restore, shared multi-instance rate limiting (if applicable), CSP/security headers, alerting/runbooks, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
+Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, an exact-sender refund through finality, reload, mobile/accessibility behavior, Promise Ledger reconciliation, and the first-minute story. Distinct-claim-signer authorization and settlement-sender routing are the highest-risk checks. iOS is explicitly deferred by D-016, not claimed compatible. Staging configuration exists, but DNS/host/database secrets, managed backup/restore, alerting/runbooks, operated primary/failover RPC, and actual Nimiq Pay CSP compatibility are absent. Multi-instance rate limiting is not supported. The public development RPC is not production-grade.
 
 # Next actions
 

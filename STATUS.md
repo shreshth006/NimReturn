@@ -64,9 +64,9 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. GitHub Actions run `35010536455` passed locked install, PostgreSQL 16, lint, typecheck, all 191 tests, and build for Phase 5 closeout `9f3b84c`. The production-only audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The configured suite now has 167 hermetic plus 26 PostgreSQL tests (193 total with `TEST_DATABASE_URL`). GitHub Actions run `35010536455` passed the 191-test Phase 5 closeout baseline; final staging-configuration CI is pending. The production-only audit reports zero known vulnerabilities.
 
-The configured suite has 165 hermetic tests plus 26 PostgreSQL 16 integration tests (191 total with `TEST_DATABASE_URL`). Phase 5 adds strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage.
+Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage. Production configuration now also fails closed without RPC, and the staging package has validated API/web image builds, Caddy configuration, headers/cache policy, Compose interpolation, and a local containerized API smoke test.
 
 ## Manual verification
 
@@ -81,7 +81,7 @@ The configured suite has 165 hermetic tests plus 26 PostgreSQL 16 integration te
 
 ## Deployment and RPC
 
-Not deployed. Vendor/region/credentials remain owner decisions. The ignored local configuration can reach the public Nimiq Watch TestAlbatross development endpoint, but that source has no SLA and is not an operated production primary/failover verifier.
+Not deployed. A vendor-neutral `Dockerfile`, Caddy HTTPS edge, Compose staging definition, ignored environment template, least-privilege database/RPC/HTTPS preflight, and shortened phone runbook are ready. Both container targets build and the local API/static smoke checks pass. Vendor/region/hostname/database credentials remain owner inputs. The ignored local configuration can reach a public TestAlbatross development endpoint, but that source has no SLA and is not an operated production primary/failover verifier.
 
 ## Current blockers
 
@@ -91,7 +91,7 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
 - **Phase 4 exit:** an actual low-value refund from the purchase-bound settlement account, independent chain/finality verification, recovery/reload, and mobile checks require explicit project-lead results. If Nimiq Pay cannot route the required sender, that is a FAIL and must not be bypassed.
 - **Phase 5 exit:** the manual WCAG/device matrix, Promise Ledger reconciliation against the real lifecycle, five unbriefed first-minute tests, and production operations criteria remain open.
-- **Deployment:** production database/origin/session/RPC secrets, HTTPS host, managed backup/restore, restrictive CSP/security headers, alerting/incident runbook, and operated RPC redundancy are not configured. The current rate limiter is process-local, so a multi-instance release also needs a shared store.
+- **Deployment:** configuration is ready, but the actual DNS/HTTPS host, managed database and its two credentials, session secret, operated RPC, backup/restore, alerts, and incident runbook are not provisioned. CSP/security headers are prepared but remain unproven inside Nimiq Pay. The current rate limiter is process-local, so staging must remain single-instance and any later multi-instance release needs a shared store.
 
 ## Next milestone
 

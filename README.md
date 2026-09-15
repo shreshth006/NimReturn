@@ -77,7 +77,7 @@ GitHub Actions runs the same locked-install, lint, typecheck, test, PostgreSQL 1
 
 ## Deployment
 
-The intended topology is a static frontend plus one Node API and managed PostgreSQL in one region. HTTPS, same-origin API routing, database migrations, production RPC credentials, health checks, and structured logs are required before deployment. No deployment exists yet.
+The intended topology is a static frontend plus one Node API and managed PostgreSQL in one region. A vendor-neutral Docker/Caddy staging package now provides automatic HTTPS, same-origin API routing, migration/runtime database separation, restrictive browser headers, and a sanitized dependency preflight; see [deploy/README.md](./deploy/README.md). A hostname, managed database, production secrets, and operated TestAlbatross RPC are still required. No public deployment exists yet.
 
 ## Competition
 

@@ -152,6 +152,8 @@ The Phase 4 automated suite covers immutable server-derived refund expectations;
 
 The Phase 5 automated suite passes T-071 and T-072 and the automated portions of T-073/T-074. A mixed PostgreSQL fixture reconciles 3 verified purchases; 4 filed claims split into 3 eligible/1 ineligible; 2 approved/1 rejected/1 unresolved; 1 refund pending/1 verified refund; and a three-resolution timing sample. Runtime-role `INSERT`/`UPDATE`/`DELETE` fail, no mutation route exists, and a latest reconciliation exception appears then clears after a newer confirmed recheck without rewriting history. Strict route/client schemas, reconciliation invariants, empty/error/retry states, cache/rate limits, and production bundle splitting are also covered or inspected. T-080 through T-084 retain manual/device portions; automated UI code and bundle output do not close them.
 
+The staging package is separately checked by building both pinned container targets, validating the Caddy configuration, inspecting static cache/security headers, parsing Compose with non-secret placeholders, starting the production API image against local PostgreSQL, and requiring production configuration to include an RPC. After real infrastructure is supplied, `server/deploy/preflight.ts` additionally fails unless the public origin and RPC use HTTPS, the API reports Phase 5, the database login is a non-privileged `nimreturn_runtime` member with no ledger write privilege or public-schema creation, the OG card is available, and the RPC reports TestAlbatross plus a safe head height. These checks prove staging readiness only, not Nimiq Pay interoperability.
+
 ## Test data rules
 
 - Keys are generated at test runtime or labeled deterministic fixtures with no funds/use outside tests.
