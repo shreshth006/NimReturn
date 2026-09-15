@@ -526,6 +526,13 @@ export function MerchantPolicyStudio() {
         </section>
       )}
 
+      {busy === 'public-read' && productToRead && !publicProduct && !publicationSucceeded && (
+        <section className="studio-panel" role="status" aria-live="polite" aria-busy="true">
+          <h2>Verifying the public policy…</h2>
+          <p>NimReturn is checking the signature, signer address, canonical bytes, and immutable version before displaying it.</p>
+        </section>
+      )}
+
       {publicProduct && (
         <VerifiedPolicyPanel
           product={publicProduct}
@@ -543,7 +550,7 @@ export function MerchantPolicyStudio() {
 
 function JourneyStep({ number, label, state }: { label: string; number: string; state: string }) {
   return (
-    <li className={`journey-step journey-step--${state}`}>
+    <li className={`journey-step journey-step--${state}`} aria-current={state === 'active' ? 'step' : undefined}>
       <span>{number}</span>
       <strong>{label}</strong>
       <small>{state === 'complete' ? 'Complete' : state === 'active' ? 'Current' : 'Next'}</small>

@@ -205,9 +205,9 @@ export function PublicPromiseLedger({ merchantPublicId }: { merchantPublicId: st
                   <strong>{formatNim(product.priceLuna)} NIM</strong>
                 </div>
                 <dl>
-                  <div><dt>Policy signer</dt><dd><code title={product.policySignerAddress}>{short(product.policySignerAddress)}</code></dd></div>
-                  <div><dt>Settlement address</dt><dd><code title={product.settlementAddress}>{short(product.settlementAddress)}</code></dd></div>
-                  <div><dt>Payload hash</dt><dd><code title={product.payloadHash}>{short(product.payloadHash)}</code></dd></div>
+                  <div><dt>Policy signer</dt><dd><code aria-label={`Full policy signer address ${product.policySignerAddress}`} title={product.policySignerAddress}>{short(product.policySignerAddress)}</code></dd></div>
+                  <div><dt>Settlement address</dt><dd><code aria-label={`Full settlement address ${product.settlementAddress}`} title={product.settlementAddress}>{short(product.settlementAddress)}</code></dd></div>
+                  <div><dt>Payload hash</dt><dd><code aria-label={`Full policy payload hash ${product.payloadHash}`} title={product.payloadHash}>{short(product.payloadHash)}</code></dd></div>
                 </dl>
                 <a className="ledger-product-link" href={`/?product=${product.publicId}`}>Open verified product <span aria-hidden="true">→</span></a>
               </li>

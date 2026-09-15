@@ -309,11 +309,16 @@ export function BuyerPurchaseJourney({
       </section>
 
       <ol className="purchase-progress" aria-label="Purchase verification progress">
-        {['Order frozen', 'Nimiq Pay', 'Chain verification', 'Passport'].map((label, index) => (
-          <li className={progress > index ? 'complete' : progress === index ? 'active' : ''} key={label}>
-            <span>{progress > index ? '✓' : index + 1}</span><strong>{label}</strong>
-          </li>
-        ))}
+        {['Order frozen', 'Nimiq Pay', 'Chain verification', 'Passport'].map((label, index) => {
+          const complete = progress > index
+          const active = progress === index
+          return (
+            <li className={complete ? 'complete' : active ? 'active' : ''} aria-current={active ? 'step' : undefined} key={label}>
+              <span>{complete ? '✓' : index + 1}</span>
+              <div><strong>{label}</strong><small>{complete ? 'Complete' : active ? 'Current' : 'Next'}</small></div>
+            </li>
+          )
+        })}
       </ol>
 
       {notice && <div className={`notice notice--${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.message}</div>}

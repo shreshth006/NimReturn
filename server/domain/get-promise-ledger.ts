@@ -154,6 +154,7 @@ export async function getPromiseLedger(
       and policies.signer_address = merchants.policy_signer_address
       and policies.verified_at is not null
     order by policies.verified_at desc, products.public_id
+    limit 100
   `
 
   const verifiedPurchases = safeInteger(row.verified_purchases, 'verified purchases')

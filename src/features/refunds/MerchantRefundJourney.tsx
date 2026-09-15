@@ -193,6 +193,7 @@ export function MerchantRefundJourney({
       <div className="merchant-refund__heading"><p className="eyebrow">Phase 4 · direct verified refund</p><h3>{attempt?.state === 'refunded' ? 'Refund verified' : 'Approval is not payment.'}</h3></div>
       <p>NIM moves directly from the merchant wallet to the original chain buyer. NimReturn never holds funds and accepts only the purchase-bound settlement address as sender.</p>
       {notice && <div className={`notice notice--${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.message}</div>}
+      {busy === 'load' && !attempt && <div className="empty-queue" role="status" aria-live="polite" aria-busy="true"><strong>Loading refund evidence…</strong><span>Approval remains separate from verified payment while this read completes.</span></div>}
 
       {attempt && (
         <dl className="refund-expectation">

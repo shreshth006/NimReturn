@@ -184,6 +184,10 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
       <p className="claim-boundary">Eligibility proves only that the signed policy window and purchase evidence match. Review the customer&apos;s reason independently before signing a decision.</p>
       {notice && <div className={`notice notice--${notice.kind}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{notice.message}</div>}
 
+      {busy === 'load' && claims.length === 0 && (
+        <div className="empty-queue" role="status" aria-live="polite" aria-busy="true"><strong>Loading verified claims…</strong><span>Only authorized claims with reproducible eligibility evidence enter this queue.</span></div>
+      )}
+
       {busy !== 'load' && claims.length === 0 && (
         <div className="empty-queue"><strong>No verified claims yet.</strong><span>Accepted customer claims will appear here without exposing wallet secrets.</span></div>
       )}
@@ -216,8 +220,8 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
         <form className="resolution-composer" onSubmit={(event) => void prepare(event)}>
           <div><p className="eyebrow">Merchant decision</p><h3>{selected.productName} · {selected.claim.claimType.toLowerCase()}</h3></div>
           <div className="decision-picker" role="group" aria-label="Resolution decision">
-            <button className={decision === 'APPROVED' ? 'selected' : ''} type="button" onClick={() => { setDecision('APPROVED'); setReasonCode('POLICY_ACCEPTED') }}>Approve full refund</button>
-            <button className={decision === 'REJECTED' ? 'selected' : ''} type="button" onClick={() => { setDecision('REJECTED'); setReasonCode('POLICY_NOT_APPLICABLE') }}>Reject claim</button>
+            <button aria-pressed={decision === 'APPROVED'} className={decision === 'APPROVED' ? 'selected' : ''} type="button" onClick={() => { setDecision('APPROVED'); setReasonCode('POLICY_ACCEPTED') }}>Approve full refund</button>
+            <button aria-pressed={decision === 'REJECTED'} className={decision === 'REJECTED' ? 'selected' : ''} type="button" onClick={() => { setDecision('REJECTED'); setReasonCode('POLICY_NOT_APPLICABLE') }}>Reject claim</button>
           </div>
           <label>Reason<select value={reasonCode} onChange={(event) => setReasonCode(event.target.value as Reason)}><option value="POLICY_ACCEPTED">Policy accepted</option><option value="POLICY_NOT_APPLICABLE">Policy not applicable</option><option value="INSUFFICIENT_INFORMATION">Insufficient information</option><option value="OTHER">Other</option></select></label>
           <label>Public decision note <span className="optional">Optional · avoid personal information</span><textarea maxLength={280} rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>

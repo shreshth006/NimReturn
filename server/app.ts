@@ -867,7 +867,9 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
   })
 
-  app.get('/api/v1/merchants/:merchantPublicId/promise-ledger', async (request, reply) => {
+  app.get('/api/v1/merchants/:merchantPublicId/promise-ledger', {
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const params = merchantParamsSchema.safeParse(request.params)
     if (!params.success) {
       return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant identifier is invalid.' })
@@ -878,6 +880,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     try {
       const ledger = await readPromiseLedger(database, params.data.merchantPublicId)
       if (!ledger) return reply.code(404).send({ code: 'MERCHANT_NOT_FOUND', message: 'No verified merchant was found.' })
+      reply.header('Cache-Control', 'public, max-age=15, stale-while-revalidate=60')
       return reply.send(ledger)
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Promise Ledger read failed')
