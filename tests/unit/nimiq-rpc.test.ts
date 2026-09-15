@@ -20,6 +20,7 @@ describe('Nimiq RPC normalization', () => {
       value: 1,
       recipientData: textToHex(tag),
       blockNumber: 123,
+      timestamp: 1_789_460_000,
       confirmations: 2,
       executionResult: true,
     }, {
@@ -30,6 +31,7 @@ describe('Nimiq RPC normalization', () => {
 
     expect(result).toMatchObject({
       data: tag,
+      blockTimestamp: 1_789_460_000_000,
       executionResult: true,
       state: 'finalized',
       network: 'TestAlbatross',
@@ -46,6 +48,7 @@ describe('Nimiq RPC normalization', () => {
       value: 1,
       recipientData: textToHex(tag),
       blockNumber: 123,
+      timestamp: 1_789_460_000_000,
       confirmations: 56,
       executionResult: true,
     }, {
@@ -71,6 +74,7 @@ describe('Nimiq RPC normalization', () => {
       value: 1,
       recipientData: textToHex(tag),
       blockNumber: 123,
+      timestamp: 1_789_460_000_000,
     }, {
       finalizingBlockNumber: 180,
       headBlockNumber: 180,

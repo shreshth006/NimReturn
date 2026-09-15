@@ -59,6 +59,7 @@ export interface PurchaseOrderView {
     publicId: string
   }
   paymentState: PurchaseOrderState
+  passport: null | { publicId: string }
   policy: {
     payloadHash: string
     publicId: string
@@ -71,13 +72,27 @@ export interface PurchaseOrderView {
   }
   publicId: string
   rowVersion: number
+  transaction: null | {
+    blockNumber: number | null
+    blockTimestamp: number | null
+    executionResult: boolean | null
+    finalizingBlockNumber: number | null
+    hash: string
+    headBlockNumber: number | null
+    observedState: 'absent' | 'finalized' | 'included' | 'inconclusive' | 'invalid' | 'mempool'
+    reason: string
+    sender: string | null
+  }
 }
 
 export type PurchaseOrderErrorCode =
   | 'EVIDENCE_INTEGRITY'
   | 'INVALID_REQUEST'
+  | 'ORDER_EXPIRED'
+  | 'ORDER_NOT_FOUND'
   | 'PERSISTENCE_CONFLICT'
   | 'PRODUCT_NOT_AVAILABLE'
+  | 'STATE_CONFLICT'
 
 export class PurchaseOrderError extends Error {
   readonly code: PurchaseOrderErrorCode
@@ -210,6 +225,7 @@ export async function createPurchaseOrder(
       failureCode: null,
       merchant: publicProduct.merchant,
       paymentState: 'payment_requested',
+      passport: null,
       policy: {
         payloadHash: publicProduct.policy.proof.payloadHash,
         publicId: publicProduct.policy.publicId,
@@ -222,6 +238,7 @@ export async function createPurchaseOrder(
       },
       publicId: orderPublicId,
       rowVersion: 1,
+      transaction: null,
     }
   })
 }

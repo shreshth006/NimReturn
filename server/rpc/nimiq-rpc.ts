@@ -45,6 +45,13 @@ function firstBoolean(record: Record<string, unknown>, keys: string[]): boolean 
   return undefined
 }
 
+function blockTimestampMilliseconds(record: Record<string, unknown>): number | undefined {
+  const value = firstNumber(record, ['timestamp', 'blockTimestamp', 'block_timestamp'])
+  if (value === undefined || value < 0) return undefined
+  const milliseconds = value < 10_000_000_000 ? value * 1_000 : value
+  return Number.isSafeInteger(milliseconds) ? milliseconds : undefined
+}
+
 function hexToText(value: string): string | null {
   const hex = value.startsWith('0x') ? value.slice(2) : value
   if (hex.length % 2 !== 0 || !/^[0-9a-f]+$/iu.test(hex)) return null
@@ -91,6 +98,7 @@ export function normalizeRpcTransaction(
   const valueLuna = firstNumber(record, ['value', 'valueLuna', 'value_luna'])
   const data = readData(record)
   const blockNumber = firstNumber(record, ['blockNumber', 'block_number'])
+  const blockTimestamp = blockTimestampMilliseconds(record)
   const executionResult = firstBoolean(record, ['executionResult', 'execution_result'])
 
   if (
@@ -100,6 +108,7 @@ export function normalizeRpcTransaction(
     valueLuna === undefined ||
     data === undefined ||
     blockNumber === undefined ||
+    blockTimestamp === undefined ||
     executionResult === undefined
   ) {
     throw new NimiqRpcError('RPC transaction omitted a required verification field')
@@ -118,6 +127,7 @@ export function normalizeRpcTransaction(
   const finalityReached = context.headBlockNumber >= context.finalizingBlockNumber
   return {
     blockNumber,
+    blockTimestamp,
     hash,
     sender,
     recipient,

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../../server/app.js'
 import type { ServerConfig } from '../../server/config.js'
+import type { PurchaseOrderView } from '../../server/domain/purchase-order.js'
 
 const config: ServerConfig = {
   HOST: '127.0.0.1',
@@ -18,7 +19,34 @@ const MERCHANT_PUBLIC_ID = 'BBBBBBBBBBBBBBBBBBBBBB'
 const PRODUCT_PUBLIC_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
 const POLICY_NONCE = 'CCCCCCCCCCCCCCCCCCCCCC'
 const POLICY_ID = 'DDDDDDDDDDDDDDDDDDDDDD'
+const ORDER_PUBLIC_ID = 'EEEEEEEEEEEEEEEEEEEEEE'
+const PASSPORT_PUBLIC_ID = 'FFFFFFFFFFFFFFFFFFFFFF'
 const SETTLEMENT_ADDRESS = 'NQ15A4YFKG7PU2KLJ7R0K3HE36PLPCC9ND0F'
+const TRANSACTION_HASH = 'a'.repeat(64)
+
+function purchaseOrder(overrides: Partial<PurchaseOrderView> = {}): PurchaseOrderView {
+  return {
+    buyerAddress: null,
+    createdAt: new Date('2026-09-15T10:30:00.000Z'),
+    expiresAt: new Date('2026-09-15T10:50:00.000Z'),
+    expectedPayment: {
+      data: `NR1:P:${ORDER_PUBLIC_ID}`,
+      network: 'TestAlbatross',
+      recipient: SETTLEMENT_ADDRESS,
+      valueLuna: 1_000,
+    },
+    failureCode: null,
+    merchant: { displayName: 'North Star', publicId: MERCHANT_PUBLIC_ID },
+    passport: null,
+    paymentState: 'payment_requested',
+    policy: { payloadHash: 'b'.repeat(64), publicId: POLICY_ID, version: 1 },
+    product: { description: 'A dependable cup.', name: 'Trail cup', publicId: PRODUCT_PUBLIC_ID },
+    publicId: ORDER_PUBLIC_ID,
+    rowVersion: 1,
+    transaction: null,
+    ...overrides,
+  }
+}
 
 function cookiePair(headers: string | string[] | undefined, name: string): string {
   const values = Array.isArray(headers) ? headers : headers ? [headers] : []
@@ -34,14 +62,14 @@ afterEach(async () => {
 })
 
 describe('server app', () => {
-  it('reports Phase 1 health without claiming database readiness', async () => {
+  it('reports the active implementation phase without claiming database readiness', async () => {
     const app = await buildApp(config)
     apps.push(app)
 
     const response = await app.inject({ method: 'GET', url: '/health' })
 
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ phase: 1, service: 'nimreturn-api', status: 'ok' })
+    expect(response.json()).toEqual({ phase: 2, service: 'nimreturn-api', status: 'ok' })
   })
 
   it('rejects malformed public product identifiers before database access', async () => {
@@ -300,5 +328,93 @@ describe('server app', () => {
     const limited = await app.inject(request)
     expect(limited.statusCode).toBe(429)
     expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' })
+  })
+
+  it('creates a purchase order from only the public product identifier and server network', async () => {
+    const inputs: unknown[] = []
+    const app = await buildApp(config, {
+      createOrder: (_database, input) => {
+        inputs.push(input)
+        return Promise.resolve(purchaseOrder())
+      },
+      database: {} as postgres.Sql,
+    })
+    apps.push(app)
+
+    const response = await app.inject({
+      method: 'POST',
+      payload: {},
+      url: `/api/v1/products/${PRODUCT_PUBLIC_ID}/orders`,
+    })
+
+    expect(response.statusCode).toBe(201)
+    expect(inputs).toEqual([{ network: 'TestAlbatross', productPublicId: PRODUCT_PUBLIC_ID }])
+    expect(response.json()).toMatchObject({
+      expectedPayment: { data: `NR1:P:${ORDER_PUBLIC_ID}`, valueLuna: 1_000 },
+      paymentState: 'payment_requested',
+      publicId: ORDER_PUBLIC_ID,
+    })
+  })
+
+  it('accepts only a transaction hash and never a client-claimed sender', async () => {
+    const inputs: unknown[] = []
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      verifyPurchase: (_database, _reader, input) => {
+        inputs.push(input)
+        return Promise.resolve(purchaseOrder({
+          paymentState: 'payment_pending',
+          transaction: {
+            blockNumber: null,
+            blockTimestamp: null,
+            executionResult: null,
+            finalizingBlockNumber: null,
+            hash: TRANSACTION_HASH,
+            headBlockNumber: null,
+            observedState: 'absent',
+            reason: 'Not observed yet.',
+            sender: null,
+          },
+        }))
+      },
+    })
+    apps.push(app)
+
+    const rejected = await app.inject({
+      method: 'POST',
+      payload: { hash: TRANSACTION_HASH, sender: SETTLEMENT_ADDRESS },
+      url: `/api/v1/orders/${ORDER_PUBLIC_ID}/transactions`,
+    })
+    expect(rejected.statusCode).toBe(400)
+    expect(inputs).toHaveLength(0)
+
+    const accepted = await app.inject({
+      method: 'POST',
+      payload: { hash: TRANSACTION_HASH },
+      url: `/api/v1/orders/${ORDER_PUBLIC_ID}/transactions`,
+    })
+    expect(accepted.statusCode).toBe(202)
+    expect(inputs).toEqual([{ hash: TRANSACTION_HASH, orderPublicId: ORDER_PUBLIC_ID }])
+  })
+
+  it('serves a Passport only through its strict public identifier', async () => {
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      readPassport: (_database, publicId) => Promise.resolve({
+        publicId,
+        status: 'active',
+      } as never),
+    })
+    apps.push(app)
+
+    const invalid = await app.inject({ method: 'GET', url: '/api/v1/passports/not-valid' })
+    expect(invalid.statusCode).toBe(400)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/passports/${PASSPORT_PUBLIC_ID}`,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ publicId: PASSPORT_PUBLIC_ID, status: 'active' })
   })
 })

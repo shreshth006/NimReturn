@@ -18,6 +18,7 @@ export interface ExpectedTransaction {
 
 export interface ObservedTransaction {
   blockNumber: number
+  blockTimestamp: number
   confirmations?: number
   data: string
   executionResult: boolean
@@ -82,6 +83,14 @@ export function verifyObservedTransaction(
       observed.finality.reached &&
       observed.finality.headBlockNumber >= observed.finality.finalizingBlockNumber &&
       observed.finality.finalizingBlockNumber > observed.blockNumber,
+  }
+
+  if (!Number.isSafeInteger(observed.blockTimestamp) || observed.blockTimestamp < 0) {
+    return {
+      checks: { ...checks, finality: false },
+      outcome: 'inconclusive',
+      reason: 'Transaction block timestamp evidence is invalid.',
+    }
   }
 
   const identityChecks = [

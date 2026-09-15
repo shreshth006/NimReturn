@@ -19,8 +19,17 @@ import {
   getPublicVerifiedProduct,
   PublicProductReadError,
 } from './domain/get-public-product.js'
+import { getPurchaseOrder } from './domain/get-purchase-order.js'
+import { getPurchasePassport } from './domain/get-purchase-passport.js'
 import type { ServerConfig } from './config.js'
 import { PolicyPublishError, publishVerifiedPolicy } from './domain/publish-policy.js'
+import { createPurchaseOrder, PurchaseOrderError } from './domain/purchase-order.js'
+import { recordPurchaseWalletState } from './domain/purchase-wallet-state.js'
+import {
+  recheckPurchaseTransaction,
+  verifyPurchaseTransaction,
+  type PurchaseTransactionReader,
+} from './domain/verify-purchase.js'
 import {
   createMerchantSessionToken,
   readMerchantSessionToken,
@@ -57,6 +66,13 @@ const verifyBodySchema = z.object({
   recipient: z.string().min(1).max(64),
   valueLuna: z.number().int().positive().safe(),
 }).strict()
+const productParamsSchema = z.object({ productPublicId: publicToken }).strict()
+const orderParamsSchema = z.object({ orderPublicId: publicToken }).strict()
+const passportParamsSchema = z.object({ passportPublicId: publicToken }).strict()
+const walletStateBodySchema = z.object({
+  event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
+}).strict()
+const attachTransactionBodySchema = z.object({ hash: transactionHash }).strict()
 
 type PublicProductReader = typeof getPublicVerifiedProduct
 const BOOTSTRAP_COOKIE = 'nimreturn_merchant_bootstrap'
@@ -101,13 +117,42 @@ function writerError(error: unknown): WriterError {
   }
 }
 
+function purchaseError(error: unknown): WriterError {
+  const code = error instanceof PurchaseOrderError ? error.code : 'PURCHASE_UNAVAILABLE'
+  if (code === 'INVALID_REQUEST') {
+    return { code, message: 'The purchase request is invalid.', statusCode: 400 }
+  }
+  if (code === 'ORDER_NOT_FOUND' || code === 'PRODUCT_NOT_AVAILABLE') {
+    return { code, message: 'The verified product or purchase was not found.', statusCode: 404 }
+  }
+  if (code === 'ORDER_EXPIRED') {
+    return { code, message: 'The purchase request expired.', statusCode: 410 }
+  }
+  if (code === 'STATE_CONFLICT') {
+    return { code, message: 'The purchase state conflicts with this action.', statusCode: 409 }
+  }
+  if (code === 'EVIDENCE_INTEGRITY') {
+    return { code, message: 'The purchase evidence could not be verified safely.', statusCode: 503 }
+  }
+  return {
+    code: 'PURCHASE_UNAVAILABLE',
+    message: 'The purchase request could not be completed safely.',
+    statusCode: 503,
+  }
+}
+
 export interface AppDependencies {
   createDraft?: typeof createMerchantDraft
+  createOrder?: typeof createPurchaseOrder
   createPolicyChallenge?: typeof createPolicyChallenge
   database?: postgres.Sql | null
   publishPolicy?: typeof publishVerifiedPolicy
+  readOrder?: typeof getPurchaseOrder
+  readPassport?: typeof getPurchasePassport
   readPublicProduct?: PublicProductReader
+  recordWalletState?: typeof recordPurchaseWalletState
   rpc?: NimiqRpcClient | null
+  verifyPurchase?: typeof verifyPurchaseTransaction
 }
 
 export async function buildApp(config: ServerConfig, dependencies: AppDependencies = {}) {
@@ -136,10 +181,18 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
 
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
+  const createOrder = dependencies.createOrder ?? createPurchaseOrder
   const issuePolicyChallenge = dependencies.createPolicyChallenge ?? createPolicyChallenge
   const publishPolicy = dependencies.publishPolicy ?? publishVerifiedPolicy
   const readPublicProduct = dependencies.readPublicProduct ?? getPublicVerifiedProduct
+  const readOrder = dependencies.readOrder ?? getPurchaseOrder
+  const readPassport = dependencies.readPassport ?? getPurchasePassport
+  const updateWalletState = dependencies.recordWalletState ?? recordPurchaseWalletState
+  const verifyPurchase = dependencies.verifyPurchase ?? verifyPurchaseTransaction
   const rpc = dependencies.rpc ?? null
+  const purchaseReader: PurchaseTransactionReader = rpc ?? {
+    getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
+  }
   const cookieOptions = {
     httpOnly: true,
     path: '/',
@@ -168,7 +221,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   }
 
   app.get('/health', () => ({
-    phase: 1,
+    phase: 2,
     service: 'nimreturn-api',
     status: 'ok',
   }))
@@ -302,7 +355,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   )
 
   app.get('/api/v1/products/:productPublicId', async (request, reply) => {
-    const params = z.object({ productPublicId: publicToken }).strict().safeParse(request.params)
+    const params = productParamsSchema.safeParse(request.params)
     if (!params.success) {
       return reply.code(400).send({
         code: 'INVALID_PRODUCT_ID',
@@ -338,6 +391,144 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
           ? 'The product identifier is invalid.'
           : 'The active policy could not be safely verified.',
       })
+    }
+  })
+
+  app.post('/api/v1/products/:productPublicId/orders', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = productParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The product identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchase creation is temporarily unavailable.' })
+    }
+    try {
+      const order = await createOrder(database, {
+        network: config.NIMIQ_NETWORK,
+        productPublicId: params.data.productPublicId,
+      })
+      return reply.code(201).send(order)
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Purchase order creation failed')
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/orders/:orderPublicId', async (request, reply) => {
+    const params = orderParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The purchase identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchase status is temporarily unavailable.' })
+    }
+    try {
+      const order = await readOrder(database, params.data.orderPublicId)
+      if (!order) return reply.code(404).send({ code: 'ORDER_NOT_FOUND', message: 'The purchase was not found.' })
+      return reply.send(order)
+    } catch (error) {
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/orders/:orderPublicId/wallet-state', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = orderParamsSchema.safeParse(request.params)
+    const body = walletStateBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The wallet state is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchase recovery is temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await updateWalletState(database, {
+        event: body.data.event,
+        orderPublicId: params.data.orderPublicId,
+      }))
+    } catch (error) {
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/orders/:orderPublicId/transactions', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = orderParamsSchema.safeParse(request.params)
+    const body = attachTransactionBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The transaction attachment is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Transaction verification is temporarily unavailable.' })
+    }
+    try {
+      const order = await verifyPurchase(database, purchaseReader, {
+        hash: body.data.hash,
+        orderPublicId: params.data.orderPublicId,
+      })
+      return reply.code(order.paymentState === 'payment_pending' ? 202 : 200).send(order)
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Purchase verification failed')
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/orders/:orderPublicId/verify', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = orderParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The purchase identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Transaction verification is temporarily unavailable.' })
+    }
+    try {
+      const order = await recheckPurchaseTransaction(database, purchaseReader, params.data.orderPublicId)
+      return reply.code(order.paymentState === 'payment_pending' ? 202 : 200).send(order)
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Purchase recheck failed')
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/passports/:passportPublicId', async (request, reply) => {
+    const params = passportParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The Passport identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Passport lookup is temporarily unavailable.' })
+    }
+    try {
+      const passport = await readPassport(database, params.data.passportPublicId)
+      if (!passport) return reply.code(404).send({ code: 'PASSPORT_NOT_FOUND', message: 'The Passport was not found.' })
+      return reply.send(passport)
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Passport read failed')
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
   })
 

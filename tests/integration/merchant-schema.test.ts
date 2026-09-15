@@ -9,11 +9,18 @@ import { createMerchantDraft } from '../../server/domain/create-merchant-draft.j
 import { createPolicyChallenge } from '../../server/domain/create-policy-challenge.js'
 import { expireStalePolicyChallenges } from '../../server/domain/expire-policy-challenges.js'
 import { getPublicVerifiedProduct } from '../../server/domain/get-public-product.js'
+import { getPurchasePassport } from '../../server/domain/get-purchase-passport.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { createPurchaseOrder } from '../../server/domain/purchase-order.js'
+import { recordPurchaseWalletState } from '../../server/domain/purchase-wallet-state.js'
+import {
+  recheckPurchaseTransaction,
+  verifyPurchaseTransaction,
+} from '../../server/domain/verify-purchase.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
+import type { ObservedTransaction } from '../../src/lib/protocol/transaction-verification.js'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const VALID_ADDRESS_A = 'NQ46KLJE5TMF4Y1A1255CJHJYG1SH0NUT604'
@@ -27,6 +34,8 @@ const PRIVATE_KEY_POLICY_ESTABLISHED = '404142434445464748494a4b4c4d4e4f50515253
 const PRIVATE_KEY_POLICY_CONCURRENT = '606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f'
 const PRIVATE_KEY_POLICY_API_JOURNEY = '0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
 const PRIVATE_KEY_POLICY_PURCHASE = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+const PRIVATE_KEY_POLICY_PASSPORT = '111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000'
+const PRIVATE_KEY_POLICY_FAILURE_MATRIX = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
 const UTF8_ENCODER = new TextEncoder()
 const SIGNED_MESSAGE_PREFIX = '\x16Nimiq Signed Message:\n'
 
@@ -1584,6 +1593,259 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
           'fixture-rpc', now(), 'Fixture is intentionally inconclusive.', 'nr1-test'
         )
       `).rejects.toThrow(/chain_transactions_purpose_resource_unique/u)
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('independently verifies purchase finality, derives the buyer, and issues one immutable Passport', async () => {
+    const draft = await createMerchantDraft(client, {
+      defaultSettlementAddress: VALID_ADDRESS_E,
+      description: 'Phase 2 verification fixture',
+      displayName: 'Passport Merchant',
+      productName: 'Passport Product',
+    })
+    const challenge = await createPolicyChallenge(client, {
+      bootstrapCapability: draft.bootstrapCapability,
+      merchantPublicId: draft.merchantPublicId,
+      priceLuna: 42_000,
+      productPublicId: draft.productPublicId,
+      returnWindowSeconds: 86_400,
+      settlementAddress: VALID_ADDRESS_E,
+      warrantyTransferAllowed: true,
+      warrantyWindowSeconds: 2_592_000,
+    })
+    await publishVerifiedPolicy(client, {
+      bootstrapCapability: draft.bootstrapCapability,
+      challengeNonce: challenge.nonce,
+      merchantPublicId: draft.merchantPublicId,
+      productPublicId: draft.productPublicId,
+      proof: createPolicyProof(PRIVATE_KEY_POLICY_PASSPORT, challenge.canonicalMessage).proof,
+    })
+
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 4,
+    })
+    const finalizedAt = Date.parse('2026-09-15T11:15:00.000Z')
+    const finalized = (order: Awaited<ReturnType<typeof createPurchaseOrder>>, hash: string): ObservedTransaction => ({
+      blockNumber: 1_234,
+      blockTimestamp: finalizedAt,
+      confirmations: 8,
+      data: order.expectedPayment.data,
+      executionResult: true,
+      finality: {
+        finalizingBlockNumber: 1_240,
+        headBlockNumber: 1_242,
+        reached: true,
+      },
+      hash,
+      network: order.expectedPayment.network,
+      recipient: order.expectedPayment.recipient,
+      sender: VALID_ADDRESS_A,
+      state: 'finalized',
+      valueLuna: order.expectedPayment.valueLuna,
+    })
+    try {
+      const order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: order.publicId,
+      })).resolves.toMatchObject({ paymentState: 'wallet_request_started' })
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'wallet-cancelled',
+        orderPublicId: order.publicId,
+      })).resolves.toMatchObject({ paymentState: 'payment_cancelled' })
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: order.publicId,
+      })).resolves.toMatchObject({ paymentState: 'wallet_request_started' })
+
+      const hash = '10'.repeat(32)
+      const reader = { getTransaction: () => Promise.resolve(finalized(order, hash)) }
+      const purchased = await verifyPurchaseTransaction(runtime, reader, {
+        hash,
+        orderPublicId: order.publicId,
+      })
+      expect(purchased).toMatchObject({
+        buyerAddress: VALID_ADDRESS_A,
+        paymentState: 'purchased',
+        transaction: {
+          blockTimestamp: finalizedAt,
+          executionResult: true,
+          hash,
+          observedState: 'finalized',
+          sender: VALID_ADDRESS_A,
+        },
+      })
+      expect(purchased.passport?.publicId).toMatch(/^[A-Za-z0-9_-]{22}$/u)
+
+      const repeated = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.reject(new Error('idempotent replay must not need RPC')),
+      }, { hash, orderPublicId: order.publicId })
+      expect(repeated).toEqual(purchased)
+      const concurrent = await Promise.all([
+        recheckPurchaseTransaction(runtime, reader, order.publicId),
+        recheckPurchaseTransaction(runtime, reader, order.publicId),
+      ])
+      expect(concurrent).toEqual([purchased, purchased])
+
+      const passportId = purchased.passport?.publicId
+      if (!passportId) throw new Error('Expected a Passport after finalized verification.')
+      const passport = await getPurchasePassport(runtime, passportId)
+      expect(passport).toMatchObject({
+        merchant: { settlementAddress: VALID_ADDRESS_E },
+        orderPublicId: order.publicId,
+        payment: {
+          buyerAddress: VALID_ADDRESS_A,
+          data: order.expectedPayment.data,
+          executionResult: true,
+          finality: { status: 'verified' },
+          transactionHash: hash,
+          valueLuna: 42_000,
+        },
+        policy: { payloadHash: challenge.payloadHash, version: 1 },
+        product: { description: 'Phase 2 verification fixture' },
+        protocol: 'NR1',
+        publicId: passportId,
+        status: 'active',
+      })
+      expect(passport?.payment.purchaseTime.getTime()).toBe(finalizedAt)
+      expect(passport?.deadlines.return?.getTime()).toBe(finalizedAt + 86_400_000)
+      await expect(runtime`
+        update purchase_passports set product_name = 'Tampered' where public_id = ${passportId}
+      `).rejects.toThrow(/permission denied|purchase passport evidence is immutable/u)
+
+      const duplicateOrder = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      await expect(verifyPurchaseTransaction(runtime, reader, {
+        hash,
+        orderPublicId: duplicateOrder.publicId,
+      })).rejects.toMatchObject({ code: 'STATE_CONFLICT', name: 'PurchaseOrderError' })
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('fails closed for ambiguous, non-final, mismatched, and unsuccessful purchase evidence', async () => {
+    const draft = await createMerchantDraft(client, {
+      defaultSettlementAddress: VALID_ADDRESS_D,
+      displayName: 'Failure Matrix Merchant',
+      productName: 'Failure Matrix Product',
+    })
+    const challenge = await createPolicyChallenge(client, {
+      bootstrapCapability: draft.bootstrapCapability,
+      merchantPublicId: draft.merchantPublicId,
+      priceLuna: 77_000,
+      productPublicId: draft.productPublicId,
+      returnWindowSeconds: 0,
+      settlementAddress: VALID_ADDRESS_D,
+      warrantyTransferAllowed: false,
+      warrantyWindowSeconds: 0,
+    })
+    await publishVerifiedPolicy(client, {
+      bootstrapCapability: draft.bootstrapCapability,
+      challengeNonce: challenge.nonce,
+      merchantPublicId: draft.merchantPublicId,
+      productPublicId: draft.productPublicId,
+      proof: createPolicyProof(PRIVATE_KEY_POLICY_FAILURE_MATRIX, challenge.canonicalMessage).proof,
+    })
+
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    const makeOrder = () => createPurchaseOrder(runtime, {
+      network: 'TestAlbatross',
+      productPublicId: draft.productPublicId,
+    })
+    const observed = (
+      order: Awaited<ReturnType<typeof createPurchaseOrder>>,
+      hash: string,
+      overrides: Partial<ObservedTransaction> = {},
+    ): ObservedTransaction => ({
+      blockNumber: 2_000,
+      blockTimestamp: Date.parse('2026-09-15T12:00:00.000Z'),
+      data: order.expectedPayment.data,
+      executionResult: true,
+      finality: { finalizingBlockNumber: 2_010, headBlockNumber: 2_011, reached: true },
+      hash,
+      network: order.expectedPayment.network,
+      recipient: order.expectedPayment.recipient,
+      sender: VALID_ADDRESS_B,
+      state: 'finalized',
+      valueLuna: order.expectedPayment.valueLuna,
+      ...overrides,
+    })
+    try {
+      const ambiguous = await makeOrder()
+      await recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: ambiguous.publicId,
+      })
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'submission-outcome-unknown',
+        orderPublicId: ambiguous.publicId,
+      })).resolves.toMatchObject({ paymentState: 'submission_outcome_unknown' })
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: ambiguous.publicId,
+      })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+
+      const absentHash = '20'.repeat(32)
+      const absent = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve(null),
+      }, { hash: absentHash, orderPublicId: ambiguous.publicId })
+      expect(absent).toMatchObject({
+        paymentState: 'payment_pending',
+        passport: null,
+        transaction: { observedState: 'absent' },
+      })
+      const rpcUnavailable = await recheckPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.reject(new Error('timeout')),
+      }, ambiguous.publicId)
+      expect(rpcUnavailable).toMatchObject({
+        paymentState: 'payment_pending',
+        passport: null,
+        transaction: { observedState: 'inconclusive' },
+      })
+      const included = await recheckPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve(observed(ambiguous, absentHash, {
+          finality: { finalizingBlockNumber: 2_010, headBlockNumber: 2_005, reached: false },
+          state: 'included',
+        })),
+      }, ambiguous.publicId)
+      expect(included).toMatchObject({
+        paymentState: 'payment_pending',
+        passport: null,
+        transaction: { observedState: 'included' },
+      })
+
+      const mismatches: Array<Partial<ObservedTransaction>> = [
+        { network: 'MainAlbatross' },
+        { recipient: VALID_ADDRESS_C },
+        { valueLuna: 77_001 },
+        { data: 'NR1:P:wrong-binding' },
+        { executionResult: false },
+      ]
+      for (const [index, mismatch] of mismatches.entries()) {
+        const order = await makeOrder()
+        const hash = (64 + index).toString(16).padStart(2, '0').repeat(32)
+        const result = await verifyPurchaseTransaction(runtime, {
+          getTransaction: () => Promise.resolve(observed(order, hash, mismatch)),
+        }, { hash, orderPublicId: order.publicId })
+        expect(result).toMatchObject({
+          buyerAddress: null,
+          paymentState: 'payment_failed',
+          passport: null,
+          transaction: { observedState: 'invalid' },
+        })
+      }
     } finally {
       await runtime.end()
     }

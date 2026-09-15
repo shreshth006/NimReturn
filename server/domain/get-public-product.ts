@@ -17,7 +17,7 @@ const PUBLIC_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/u
 const publicProductIdSchema = z.string().regex(PUBLIC_TOKEN_PATTERN)
 const UTF8_ENCODER = new TextEncoder()
 
-interface PublicProductRow {
+export interface PublicProductRow {
   active_policy_version_id: string
   canonical_message: string
   challenge_nonce: string
@@ -113,7 +113,7 @@ function parseSafeIntegerColumn(value: string): number {
   return parsed
 }
 
-function projectVerifiedPolicy(row: PublicProductRow): PublicVerifiedProduct['policy'] {
+export function projectVerifiedPolicy(row: PublicProductRow): PublicVerifiedProduct['policy'] {
   let payload: PolicyPayload
   let canonicalMessage: string
   let signerAddress: string

@@ -35,6 +35,7 @@ const observed: ObservedTransaction = {
   ...expected,
   sender,
   blockNumber: 123,
+  blockTimestamp: 1_789_460_000_000,
   confirmations: 1,
   executionResult: true,
   finality: {
@@ -101,5 +102,13 @@ describe('transaction verification', () => {
     const result = verifyObservedTransaction(expected, { ...observed, sender: 'NQ00 TEST' })
     expect(result.outcome).toBe('invalid')
     expect(result.checks.sender).toBe(false)
+  })
+
+  it('fails closed on an unsafe block timestamp', () => {
+    const result = verifyObservedTransaction(expected, {
+      ...observed,
+      blockTimestamp: Number.MAX_SAFE_INTEGER + 1,
+    })
+    expect(result.outcome).toBe('inconclusive')
   })
 })
