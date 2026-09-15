@@ -20,7 +20,7 @@ Phase 2 includes immutable server-issued orders bound to one exact active verifi
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. Phase 2 API and buyer-flow CI checkpoints passed; the final reconciliation/docs CI must be verified before handoff. The configured suite has 121 hermetic plus 23 PostgreSQL tests (144 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Existing browser verification covers Phase 1 only; no Phase 2 device, layout, accessibility, or first-minute result is inferred from the build or automated suite.
+Local lint, typecheck, all tests, and production builds pass. GitHub Actions run `34949910838` passed Phase 2 boundary commit `036671c`, and every focused Phase 2 checkpoint is green. The configured suite has 121 hermetic plus 23 PostgreSQL tests (144 total with `TEST_DATABASE_URL`). Production dependency audit is clean. Existing browser verification covers Phase 1 only; no Phase 2 device, layout, accessibility, or first-minute result is inferred from the build or automated suite.
 
 # Important implementation details
 

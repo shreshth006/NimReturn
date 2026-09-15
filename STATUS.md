@@ -38,7 +38,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions passed the Phase 2 API checkpoint (`b9ca6c0`) and buyer-flow checkpoint (`6688000`); reconciliation checkpoint `22b5930` was still running at this documentation edit and must pass before handoff. Production dependency audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34949910838` passed the locked install, PostgreSQL 16, lint, typecheck, all-test, and build gate for Phase 2 boundary commit `036671c`; all focused Phase 2 checkpoints also passed. Production dependency audit reports zero known vulnerabilities.
 
 The configured suite has 121 hermetic tests across twenty files plus 23 PostgreSQL 16 integration tests (144 total with `TEST_DATABASE_URL`). Phase 2 coverage includes exact active-policy capture, preserved v1 after v2, strict integer money, wallet-state recovery, no client sender field, mismatch/execution/finality/RPC failure matrices, global hash replay rejection, chain-derived buyer, concurrent/idempotent one-Passport finalization, immutable Passport evidence, reload pointers, and append-only reconciliation exception/recovery.
 
