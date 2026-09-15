@@ -4,14 +4,14 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 3 — Claims: code-complete at the consolidated device boundary; Phase 4 is authorized to start under D-027.** Phases 0–2 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, and claim/resolution validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
+**Phase 3 — Claims: experimental/code-complete at the consolidated device boundary; Phase 4 is explicitly authorized to start under D-029.** D-029 corrects D-027's false attribution of earlier blanket phase authority. Phases 0–2 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, and claim/resolution validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
 
 ## Completion by phase
 
 - Phase 0 — Technical proof: **98%** (prior Android chain/signature proof complete; T-001/T-002/T-020 remain open).
 - Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
 - Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical purchase/Passport, reload, mobile/accessibility, and first-minute validation pending).
-- Phase 3 — Claims: **90%** (protocol, implementation, UI, and automated gates complete; actual-device claim/resolution, reload, and mobile validation pending).
+- Phase 3 — Claims: **90% experimental/code-complete** (protocol, implementation, UI, and automated gates complete; signer-routing usability, actual-device claim/resolution, reload, and mobile validation pending).
 - Phase 4 — Refund: **0%**.
 - Phase 5 — Promise Ledger + polish: **0%**.
 - Phase 6 — Real pilot: **0%**.
@@ -46,7 +46,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. The latest verified GitHub Actions baseline is run `34950053523` for pre-Phase-3 commit `a62e756`; CI verification for the Phase 3 boundary commit is pending after this documentation checkpoint. Production dependency audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34979104531` passed locked install, PostgreSQL 16, lint, typecheck, all tests, and build for pushed baseline `9f8371f`. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
 
 The configured suite has 149 hermetic tests plus 26 PostgreSQL 16 integration tests (175 total with `TEST_DATABASE_URL`). Phase 3 coverage includes exact self/delegated claimant authorization, unrelated/altered/replayed/expired failure, inclusive deadline boundaries, purchase-bound policy selection, protected merchant queue, wrong-signer resolution rejection, exact idempotency, concurrent final decisions, immutable evidence, strict frontend response validation, and public-only reload pointers.
 
@@ -73,4 +73,4 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 
 ## Next milestone
 
-Begin Phase 4 refund protocol/implementation without treating any physical gate as passed. Keep the consolidated physical-device checklist current and record only the project lead's explicit results.
+Implement Phase 4 under D-029 without treating the unproven Nimiq Pay sender routing or any physical gate as passed. Keep the consolidated checklist current and record only the project lead's explicit results.

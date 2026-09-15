@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. D-025 closes D-018 with exact-claim purchase-sender authorization and authorizes Phase 3 implementation; Phase 3 is code-complete at 90%. Every physical wallet, purchase, Passport, claim, decision, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
+Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. Phase 3 is preserved at 90% experimental/code-complete: D-025 is safe/fail-closed, but its actual signer-routing usability is unproven. D-029 supersedes D-027's incorrect attribution of prior blanket authority and records the project lead's current explicit authorization to begin Phase 4. Every physical wallet, purchase, Passport, claim, decision, refund, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
 
 # What is complete
 
@@ -22,7 +22,7 @@ Phase 3 includes canonical claim and exact-claim authorization messages; proof-d
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 149 hermetic plus 26 PostgreSQL tests (175 total with `TEST_DATABASE_URL`). The latest pre-Phase-3 GitHub Actions baseline is run `34950053523`; verify the final Phase 3 documentation commit before handoff. Production dependency audit is clean. No Phase 2/3 device, layout, accessibility, reload, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 149 hermetic plus 26 PostgreSQL tests (175 total with `TEST_DATABASE_URL`). GitHub Actions run `34979104531` passed pushed baseline `9f8371f`. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 

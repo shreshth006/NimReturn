@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-Phase 1 merchant, Phase 2 purchase/Passport, and Phase 3 claim/decision implementations are code-complete at their physical-device boundaries. Phase 3 uses proof-derived signer equality or an exact-claim purchase-sender authorization, deterministic purchase-bound eligibility, a protected merchant queue, and policy-signer-only decisions; the UI never equates approval with a paid refund. Phase 0 remains 98%, Phase 1 92%, and Phases 2–3 90%: every physical policy, payment, Passport, claim, resolution, reload, and mobile check remains open pending the project lead's explicit personal results. D-023/D-025/D-027 batch testing; they do not waive or pass it. See the [consolidated device checklist](./docs/evidence/consolidated-device-validation.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+Phase 1 merchant and Phase 2 purchase/Passport implementations are code-complete at their physical boundaries. Phase 3 is approximately 90% experimental/code-complete: it uses proof-derived signer equality or exact-claim purchase-sender authorization, but actual Nimiq Pay signer routing remains unproven. Phase 0 remains 98%, Phase 1 92%, and Phase 2 90%; every physical policy, payment, Passport, claim, resolution, reload, and mobile check remains open pending the project lead's explicit personal results. D-029 corrects an earlier false attribution of blanket phase authority and explicitly authorizes Phase 4 implementation now; it does not waive or pass testing. See the [consolidated device checklist](./docs/evidence/consolidated-device-validation.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 
