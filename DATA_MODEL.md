@@ -115,7 +115,7 @@ Indexes: buyer chronology, merchant chronology, active deadlines. Product/policy
 - `claim_type`, `reason_code`, `note`, `claim_time` — SIGNATURE immutable.
 - `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message`, `payload_hash`, `public_key`, `signature`, `verifier_version` — SIGNATURE immutable.
 - `signature_status` (`pending`, `verified`, `invalid`, `expired`) — BACKEND one-way.
-- `workflow_state` (`authorization_pending`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`, `refund_pending`, `refunded`, `refund_verification_failed`) — BACKEND/DERIVED constrained. A valid claim proof is not accepted as filed while authorization is pending.
+- `workflow_state` (`authorization_pending`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`) — BACKEND/DERIVED constrained. A valid claim proof is not accepted as filed while authorization is pending. The signed final decision remains immutable; joined refund lifecycle is derived from `refund_attempts`/`refund_transactions` rather than rewriting it.
 - timestamps — BACKEND.
 
 Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. One accepted unresolved claim per Passport/type is enforced by a partial unique index. D-025 allows observed claim-signer/purchase-sender equality or a verified exact-claim authorization; no other relationship is authoritative.

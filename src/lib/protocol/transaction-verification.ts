@@ -13,6 +13,7 @@ export interface ExpectedTransaction {
   hash: string
   network: string
   recipient: string
+  sender?: string
   valueLuna: number
 }
 
@@ -70,7 +71,9 @@ export function verifyObservedTransaction(
   const checks = {
     hash: expected.hash.toLowerCase() === observed.hash.toLowerCase(),
     network: expected.network === observed.network,
-    sender: isValidAddress(observed.sender),
+    sender:
+      isValidAddress(observed.sender)
+      && (expected.sender === undefined || normalizedAddressEquals(expected.sender, observed.sender)),
     recipient: normalizedAddressEquals(expected.recipient, observed.recipient),
     value:
       Number.isSafeInteger(expected.valueLuna) &&

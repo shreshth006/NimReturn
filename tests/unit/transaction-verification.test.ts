@@ -98,6 +98,15 @@ describe('transaction verification', () => {
     expect(observed.sender).toBe(sender)
   })
 
+  it('requires the exact expected sender when verifying a refund', () => {
+    const refundExpectation: ExpectedTransaction = { ...expected, sender }
+    expect(verifyObservedTransaction(refundExpectation, observed).outcome).toBe('verified')
+    expect(verifyObservedTransaction(refundExpectation, { ...observed, sender: recipient })).toMatchObject({
+      checks: { sender: false },
+      outcome: 'invalid',
+    })
+  })
+
   it('rejects a malformed observed sender address', () => {
     const result = verifyObservedTransaction(expected, { ...observed, sender: 'NQ00 TEST' })
     expect(result.outcome).toBe('invalid')

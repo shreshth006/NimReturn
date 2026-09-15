@@ -101,6 +101,16 @@ export const resolutionVerificationStatus = pgEnum('resolution_verification_stat
   'verified',
   'expired',
 ])
+export const refundAttemptState = pgEnum('refund_attempt_state', [
+  'payment_requested',
+  'wallet_request_started',
+  'payment_cancelled',
+  'submission_outcome_unknown',
+  'payment_verifying',
+  'payment_pending',
+  'payment_failed',
+  'refunded',
+])
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -758,6 +768,8 @@ export const claimResolutions = pgTable('claim_resolutions', {
 }, (table) => [
   unique('claim_resolutions_public_id_unique').on(table.publicId),
   unique('claim_resolutions_challenge_nonce_unique').on(table.challengeNonce),
+  unique('claim_resolutions_id_claim_unique').on(table.id, table.claimId),
+  unique('claim_resolutions_id_merchant_unique').on(table.id, table.merchantId),
   foreignKey({
     name: 'claim_resolutions_claim_merchant_fk',
     columns: [table.claimId, table.merchantId],
@@ -802,6 +814,115 @@ export const claimResolutions = pgTable('claim_resolutions', {
   check(
     'claim_resolutions_pending_proof_empty',
     sql`${table.verificationStatus} <> 'pending' or (${table.publicKey} is null and ${table.signature} is null and ${table.signerAddress} is null and ${table.verifierVersion} is null and ${table.verifiedAt} is null)`,
+  ),
+])
+
+export const refundAttempts = pgTable('refund_attempts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  claimId: uuid('claim_id').notNull(),
+  claimPublicId: char('claim_public_id', { length: 22 }).notNull(),
+  resolutionId: uuid('resolution_id').notNull(),
+  passportId: uuid('passport_id').notNull(),
+  merchantId: uuid('merchant_id').notNull(),
+  network: varchar('network', { length: 24 }).notNull(),
+  expectedSender: varchar('expected_sender', { length: 36 }).notNull(),
+  expectedRecipient: varchar('expected_recipient', { length: 36 }).notNull(),
+  expectedValueLuna: bigint('expected_value_luna', { mode: 'number' }).notNull(),
+  expectedData: varchar('expected_data', { length: 64 }).notNull(),
+  walletState: refundAttemptState('wallet_state').default('payment_requested').notNull(),
+  transactionHash: char('transaction_hash', { length: 64 }),
+  failureCode: varchar('failure_code', { length: 50 }),
+  rowVersion: integer('row_version').default(1).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('refund_attempts_public_id_unique').on(table.publicId),
+  unique('refund_attempts_id_claim_unique').on(table.id, table.claimId),
+  unique('refund_attempts_id_resolution_unique').on(table.id, table.resolutionId),
+  unique('refund_attempts_id_passport_unique').on(table.id, table.passportId),
+  foreignKey({
+    name: 'refund_attempts_claim_passport_fk',
+    columns: [table.claimId, table.passportId],
+    foreignColumns: [claims.id, claims.passportId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'refund_attempts_resolution_claim_fk',
+    columns: [table.resolutionId, table.claimId],
+    foreignColumns: [claimResolutions.id, claimResolutions.claimId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'refund_attempts_resolution_merchant_fk',
+    columns: [table.resolutionId, table.merchantId],
+    foreignColumns: [claimResolutions.id, claimResolutions.merchantId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'refund_attempts_passport_merchant_fk',
+    columns: [table.passportId, table.merchantId],
+    foreignColumns: [purchasePassports.id, purchasePassports.merchantId],
+  }).onDelete('restrict'),
+  uniqueIndex('refund_attempts_one_open_per_claim')
+    .on(table.claimId)
+    .where(sql`${table.walletState} in ('payment_requested', 'wallet_request_started', 'submission_outcome_unknown', 'payment_verifying', 'payment_pending')`),
+  index('refund_attempts_claim_created_index').on(table.claimId, table.createdAt),
+  index('refund_attempts_state_updated_index').on(table.walletState, table.updatedAt),
+  check('refund_attempts_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('refund_attempts_claim_public_id_format', sql`${table.claimPublicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('refund_attempts_network_not_blank', sql`btrim(${table.network}) <> ''`),
+  check(
+    'refund_attempts_address_format',
+    sql`${table.expectedSender} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and ${table.expectedRecipient} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'refund_attempts_value_range',
+    sql`${table.expectedValueLuna} > 0 and ${table.expectedValueLuna} <= 9007199254740991`,
+  ),
+  check('refund_attempts_data_binding', sql`${table.expectedData} = 'NR1:R:' || ${table.claimPublicId}`),
+  check(
+    'refund_attempts_hash_state',
+    sql`(${table.transactionHash} is null and ${table.walletState} in ('payment_requested', 'wallet_request_started', 'payment_cancelled', 'submission_outcome_unknown')) or (${table.transactionHash} is not null and ${table.walletState} in ('payment_verifying', 'payment_pending', 'payment_failed', 'refunded'))`,
+  ),
+  check('refund_attempts_hash_format', sql`${table.transactionHash} is null or ${table.transactionHash} ~ '^[0-9a-f]{64}$'`),
+  check(
+    'refund_attempts_failure_state',
+    sql`(${table.walletState} = 'payment_failed' and ${table.failureCode} is not null) or (${table.walletState} <> 'payment_failed' and ${table.failureCode} is null)`,
+  ),
+  check('refund_attempts_row_version_positive', sql`${table.rowVersion} > 0`),
+])
+
+export const refundTransactions = pgTable('refund_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  attemptId: uuid('attempt_id').notNull(),
+  claimId: uuid('claim_id').notNull(),
+  resolutionId: uuid('resolution_id').notNull(),
+  passportId: uuid('passport_id').notNull(),
+  chainTransactionId: uuid('chain_transaction_id').notNull().references(() => chainTransactions.id, { onDelete: 'restrict' }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull(),
+  confirmationPolicy: varchar('confirmation_policy', { length: 40 }).notNull(),
+}, (table) => [
+  unique('refund_transactions_attempt_unique').on(table.attemptId),
+  unique('refund_transactions_claim_unique').on(table.claimId),
+  unique('refund_transactions_resolution_unique').on(table.resolutionId),
+  unique('refund_transactions_passport_unique').on(table.passportId),
+  unique('refund_transactions_chain_unique').on(table.chainTransactionId),
+  foreignKey({
+    name: 'refund_transactions_attempt_claim_fk',
+    columns: [table.attemptId, table.claimId],
+    foreignColumns: [refundAttempts.id, refundAttempts.claimId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'refund_transactions_attempt_resolution_fk',
+    columns: [table.attemptId, table.resolutionId],
+    foreignColumns: [refundAttempts.id, refundAttempts.resolutionId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'refund_transactions_attempt_passport_fk',
+    columns: [table.attemptId, table.passportId],
+    foreignColumns: [refundAttempts.id, refundAttempts.passportId],
+  }).onDelete('restrict'),
+  check(
+    'refund_transactions_confirmation_policy',
+    sql`${table.confirmationPolicy} = 'albatross-next-macro-v1'`,
   ),
 ])
 

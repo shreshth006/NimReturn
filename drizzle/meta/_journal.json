@@ -64,6 +64,13 @@
       "when": 1789478818022,
       "tag": "0008_worthless_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789481136347,
+      "tag": "0009_broad_star_brand",
+      "breakpoints": true
     }
   ]
 }

@@ -50,6 +50,16 @@ import {
 } from './domain/resolution-lifecycle.js'
 import { NimiqRpcError } from './rpc/nimiq-rpc.js'
 import type { NimiqRpcClient } from './rpc/nimiq-rpc.js'
+import {
+  createRefundAttempt,
+  getRefund,
+  recordRefundWalletState,
+  RefundLifecycleError,
+} from './domain/refund-lifecycle.js'
+import {
+  recheckRefundTransaction,
+  verifyRefundTransaction,
+} from './domain/verify-refund.js'
 
 const publicToken = z.string().regex(/^[A-Za-z0-9_-]{22}$/u)
 const resourceParamsSchema = z.object({
@@ -113,6 +123,19 @@ const publishResolutionParamsSchema = z.object({
   merchantPublicId: publicToken,
   resolutionPublicId: publicToken,
 }).strict()
+const refundParamsSchema = z.object({
+  claimPublicId: publicToken,
+  merchantPublicId: publicToken,
+}).strict()
+const refundAttemptParamsSchema = z.object({
+  attemptPublicId: publicToken,
+  claimPublicId: publicToken,
+  merchantPublicId: publicToken,
+}).strict()
+const refundWalletStateBodySchema = z.object({
+  event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
+}).strict()
+const emptyBodySchema = z.object({}).strict()
 const walletStateBodySchema = z.object({
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
 }).strict()
@@ -254,6 +277,15 @@ function resolutionError(error: unknown): WriterError {
   }
 }
 
+function refundError(error: unknown): WriterError {
+  const code = error instanceof RefundLifecycleError ? error.code : 'REFUND_UNAVAILABLE'
+  if (code === 'INVALID_REQUEST') return { code, message: 'The refund request is invalid.', statusCode: 400 }
+  if (code === 'REFUND_NOT_AVAILABLE') return { code, message: 'No verified approved refund was found.', statusCode: 404 }
+  if (code === 'STATE_CONFLICT') return { code, message: 'The refund state conflicts with this action.', statusCode: 409 }
+  if (code === 'EVIDENCE_INTEGRITY') return { code, message: 'The refund evidence could not be verified safely.', statusCode: 503 }
+  return { code: 'REFUND_UNAVAILABLE', message: 'The refund request could not be completed safely.', statusCode: 503 }
+}
+
 export interface AppDependencies {
   createDraft?: typeof createMerchantDraft
   createOrder?: typeof createPurchaseOrder
@@ -274,6 +306,11 @@ export interface AppDependencies {
   publishResolution?: typeof publishResolution
   readResolution?: typeof getClaimResolution
   readMerchantClaims?: typeof listMerchantClaims
+  createRefund?: typeof createRefundAttempt
+  readRefund?: typeof getRefund
+  recordRefundState?: typeof recordRefundWalletState
+  verifyRefund?: typeof verifyRefundTransaction
+  recheckRefund?: typeof recheckRefundTransaction
 }
 
 export async function buildApp(config: ServerConfig, dependencies: AppDependencies = {}) {
@@ -318,6 +355,11 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const publishClaimResolution = dependencies.publishResolution ?? publishResolution
   const readResolution = dependencies.readResolution ?? getClaimResolution
   const readMerchantClaims = dependencies.readMerchantClaims ?? listMerchantClaims
+  const createRefund = dependencies.createRefund ?? createRefundAttempt
+  const readRefund = dependencies.readRefund ?? getRefund
+  const updateRefundState = dependencies.recordRefundState ?? recordRefundWalletState
+  const verifyRefund = dependencies.verifyRefund ?? verifyRefundTransaction
+  const recheckRefund = dependencies.recheckRefund ?? recheckRefundTransaction
   const rpc = dependencies.rpc ?? null
   const purchaseReader: PurchaseTransactionReader = rpc ?? {
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
@@ -875,6 +917,102 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Resolution publication failed')
       const response = resolutionError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/claims/:claimPublicId/refund', async (request, reply) => {
+    const params = claimParamsSchema.safeParse(request.params)
+    if (!params.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim identifier is invalid.' })
+    if (!database) return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund lookup is temporarily unavailable.' })
+    try {
+      const refund = await readRefund(database, params.data.claimPublicId)
+      if (!refund) return reply.code(404).send({ code: 'REFUND_NOT_AVAILABLE', message: 'No approved refund was found.' })
+      return reply.send(refund)
+    } catch (error) {
+      const response = refundError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/refunds', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    const params = refundParamsSchema.safeParse(request.params)
+    const body = emptyBodySchema.safeParse(request.body ?? {})
+    if (!params.success || !body.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The refund request is invalid.' })
+    if (!database || !config.SESSION_SECRET) return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund creation is temporarily unavailable.' })
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.code(201).send(await createRefund(database, {
+        claimPublicId: params.data.claimPublicId,
+        merchantPublicId: params.data.merchantPublicId,
+        network: config.NIMIQ_NETWORK,
+      }))
+    } catch (error) {
+      const response = refundError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/refunds/:attemptPublicId/wallet-state', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    const params = refundAttemptParamsSchema.safeParse(request.params)
+    const body = refundWalletStateBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The refund wallet state is invalid.' })
+    if (!database || !config.SESSION_SECRET) return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund recovery is temporarily unavailable.' })
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.send(await updateRefundState(database, { ...params.data, event: body.data.event }))
+    } catch (error) {
+      const response = refundError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/refunds/:attemptPublicId/transactions', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    const params = refundAttemptParamsSchema.safeParse(request.params)
+    const body = attachTransactionBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The refund transaction attachment is invalid.' })
+    if (!database || !config.SESSION_SECRET) return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund verification is temporarily unavailable.' })
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      const refund = await verifyRefund(database, purchaseReader, { ...params.data, hash: body.data.hash })
+      return reply.code(refund.attempt?.state === 'payment_pending' ? 202 : 200).send(refund)
+    } catch (error) {
+      const response = refundError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/refunds/:attemptPublicId/recheck', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    const params = refundAttemptParamsSchema.safeParse(request.params)
+    const body = emptyBodySchema.safeParse(request.body ?? {})
+    if (!params.success || !body.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The refund recheck request is invalid.' })
+    if (!database || !config.SESSION_SECRET) return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund verification is temporarily unavailable.' })
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      const refund = await recheckRefund(database, purchaseReader, params.data)
+      return reply.code(refund.attempt?.state === 'payment_pending' ? 202 : 200).send(refund)
+    } catch (error) {
+      const response = refundError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
   })
