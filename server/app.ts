@@ -31,6 +31,13 @@ import {
   type PurchaseTransactionReader,
 } from './domain/verify-purchase.js'
 import {
+  ClaimLifecycleError,
+  createClaimChallenge,
+  getClaim,
+  submitClaimAuthorization,
+  submitClaimProof,
+} from './domain/claim-lifecycle.js'
+import {
   createMerchantSessionToken,
   readMerchantSessionToken,
 } from './http/merchant-session.js'
@@ -69,6 +76,17 @@ const verifyBodySchema = z.object({
 const productParamsSchema = z.object({ productPublicId: publicToken }).strict()
 const orderParamsSchema = z.object({ orderPublicId: publicToken }).strict()
 const passportParamsSchema = z.object({ passportPublicId: publicToken }).strict()
+const claimParamsSchema = z.object({ claimPublicId: publicToken }).strict()
+const claimAuthorizationParamsSchema = z.object({
+  authorizationPublicId: publicToken,
+  claimPublicId: publicToken,
+}).strict()
+const createClaimBodySchema = z.object({
+  claimType: z.enum(['RETURN', 'WARRANTY']),
+  note: z.string().max(2_048).optional(),
+  reasonCode: z.enum(['CHANGED_MIND', 'DEFECTIVE', 'NOT_AS_DESCRIBED', 'OTHER']),
+}).strict()
+const claimProofBodySchema = z.object({ proof: policyProofEnvelopeSchema }).strict()
 const walletStateBodySchema = z.object({
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
 }).strict()
@@ -141,18 +159,58 @@ function purchaseError(error: unknown): WriterError {
   }
 }
 
+function claimError(error: unknown): WriterError {
+  const code = error instanceof ClaimLifecycleError ? error.code : 'CLAIM_UNAVAILABLE'
+  if (code === 'INVALID_REQUEST') {
+    return { code, message: 'The claim request is invalid.', statusCode: 400 }
+  }
+  if (code === 'CLAIM_NOT_FOUND' || code === 'AUTHORIZATION_NOT_FOUND') {
+    return { code, message: 'The claim or authorization was not found.', statusCode: 404 }
+  }
+  if (code === 'PASSPORT_NOT_AVAILABLE') {
+    return { code, message: 'The verified Purchase Passport is unavailable.', statusCode: 404 }
+  }
+  if (code === 'CLAIM_TYPE_UNAVAILABLE' || code === 'CHALLENGE_EXPIRED') {
+    return { code, message: 'This claim action is unavailable or expired.', statusCode: 410 }
+  }
+  if (
+    code === 'INVALID_PROOF'
+    || code === 'INVALID_SIGNATURE'
+    || code === 'MESSAGE_MISMATCH'
+    || code === 'PAYLOAD_HASH_MISMATCH'
+    || code === 'SIGNER_MISMATCH'
+  ) {
+    return { code, message: 'The submitted claim proof did not verify.', statusCode: 422 }
+  }
+  if (code === 'CHALLENGE_CONSUMED' || code === 'STATE_CONFLICT') {
+    return { code, message: 'The claim state conflicts with this action.', statusCode: 409 }
+  }
+  if (code === 'EVIDENCE_INTEGRITY') {
+    return { code, message: 'The claim evidence could not be verified safely.', statusCode: 503 }
+  }
+  return {
+    code: 'CLAIM_UNAVAILABLE',
+    message: 'The claim request could not be completed safely.',
+    statusCode: 503,
+  }
+}
+
 export interface AppDependencies {
   createDraft?: typeof createMerchantDraft
   createOrder?: typeof createPurchaseOrder
   createPolicyChallenge?: typeof createPolicyChallenge
   database?: postgres.Sql | null
   publishPolicy?: typeof publishVerifiedPolicy
+  createClaim?: typeof createClaimChallenge
+  readClaim?: typeof getClaim
   readOrder?: typeof getPurchaseOrder
   readPassport?: typeof getPurchasePassport
   readPublicProduct?: PublicProductReader
   recordWalletState?: typeof recordPurchaseWalletState
   rpc?: NimiqRpcClient | null
   verifyPurchase?: typeof verifyPurchaseTransaction
+  submitClaim?: typeof submitClaimProof
+  authorizeClaim?: typeof submitClaimAuthorization
 }
 
 export async function buildApp(config: ServerConfig, dependencies: AppDependencies = {}) {
@@ -182,13 +240,17 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
   const createOrder = dependencies.createOrder ?? createPurchaseOrder
+  const createClaim = dependencies.createClaim ?? createClaimChallenge
   const issuePolicyChallenge = dependencies.createPolicyChallenge ?? createPolicyChallenge
   const publishPolicy = dependencies.publishPolicy ?? publishVerifiedPolicy
   const readPublicProduct = dependencies.readPublicProduct ?? getPublicVerifiedProduct
   const readOrder = dependencies.readOrder ?? getPurchaseOrder
   const readPassport = dependencies.readPassport ?? getPurchasePassport
+  const readClaim = dependencies.readClaim ?? getClaim
   const updateWalletState = dependencies.recordWalletState ?? recordPurchaseWalletState
   const verifyPurchase = dependencies.verifyPurchase ?? verifyPurchaseTransaction
+  const submitClaim = dependencies.submitClaim ?? submitClaimProof
+  const authorizeClaim = dependencies.authorizeClaim ?? submitClaimAuthorization
   const rpc = dependencies.rpc ?? null
   const purchaseReader: PurchaseTransactionReader = rpc ?? {
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
@@ -221,7 +283,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   }
 
   app.get('/health', () => ({
-    phase: 2,
+    phase: 3,
     service: 'nimreturn-api',
     status: 'ok',
   }))
@@ -528,6 +590,103 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Passport read failed')
       const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/passports/:passportPublicId/claims/challenges', {
+    config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = passportParamsSchema.safeParse(request.params)
+    const body = createClaimBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim request is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim creation is temporarily unavailable.' })
+    }
+    try {
+      return reply.code(201).send(await createClaim(database, {
+        ...body.data,
+        passportPublicId: params.data.passportPublicId,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim challenge creation failed')
+      const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/claims/:claimPublicId', async (request, reply) => {
+    const params = claimParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim lookup is temporarily unavailable.' })
+    }
+    try {
+      const claim = await readClaim(database, params.data.claimPublicId)
+      if (!claim) return reply.code(404).send({ code: 'CLAIM_NOT_FOUND', message: 'The claim was not found.' })
+      return reply.send(claim)
+    } catch (error) {
+      const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/claims/:claimPublicId/submit', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = claimParamsSchema.safeParse(request.params)
+    const body = claimProofBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim proof is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim submission is temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await submitClaim(database, {
+        claimPublicId: params.data.claimPublicId,
+        proof: body.data.proof,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim proof submission failed')
+      const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/claims/:claimPublicId/authorizations/:authorizationPublicId/submit', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = claimAuthorizationParamsSchema.safeParse(request.params)
+    const body = claimProofBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The authorization proof is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim authorization is temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await authorizeClaim(database, {
+        authorizationPublicId: params.data.authorizationPublicId,
+        claimPublicId: params.data.claimPublicId,
+        proof: body.data.proof,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim authorization failed')
+      const response = claimError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
   })

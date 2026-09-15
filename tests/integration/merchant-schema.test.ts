@@ -15,6 +15,12 @@ import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { createPurchaseOrder } from '../../server/domain/purchase-order.js'
 import { recordPurchaseWalletState } from '../../server/domain/purchase-wallet-state.js'
 import {
+  createClaimChallenge,
+  getClaim,
+  submitClaimAuthorization,
+  submitClaimProof,
+} from '../../server/domain/claim-lifecycle.js'
+import {
   recheckPurchaseTransaction,
   verifyPurchaseTransaction,
 } from '../../server/domain/verify-purchase.js'
@@ -42,6 +48,10 @@ const PRIVATE_KEY_POLICY_API_JOURNEY = '0102030405060708090a0b0c0d0e0f1011121314
 const PRIVATE_KEY_POLICY_PURCHASE = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
 const PRIVATE_KEY_POLICY_PASSPORT = '111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000'
 const PRIVATE_KEY_POLICY_FAILURE_MATRIX = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+const PRIVATE_KEY_CLAIM_BUYER = '2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40'
+const PRIVATE_KEY_CLAIM_DELEGATE = '3132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f50'
+const PRIVATE_KEY_CLAIM_UNRELATED = '4142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60'
+const PRIVATE_KEY_POLICY_CLAIMS = '5152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70'
 const UTF8_ENCODER = new TextEncoder()
 const SIGNED_MESSAGE_PREFIX = '\x16Nimiq Signed Message:\n'
 
@@ -2145,5 +2155,153 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       purchase_sender_address: source.purchase_sender_address,
       workflow_state: 'ineligible',
     })
+  })
+
+  it('accepts self and exact delegated claim authorization while rejecting an unrelated signer', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    try {
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: VALID_ADDRESS_D,
+        displayName: 'Claims Journey Merchant',
+        productName: 'Claims Journey Product',
+      })
+      const policyChallenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 55_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 604_800,
+        settlementAddress: VALID_ADDRESS_D,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 7_776_000,
+      })
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: policyChallenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof(PRIVATE_KEY_POLICY_CLAIMS, policyChallenge.canonicalMessage).proof,
+      })
+      const order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      const buyer = createPolicyProof(PRIVATE_KEY_CLAIM_BUYER, 'derive-address-only')
+      const purchaseHash = '91'.repeat(32)
+      const purchaseTime = Date.now() - 60_000
+      const observed: ObservedTransaction = {
+        blockNumber: 3_000,
+        blockTimestamp: purchaseTime,
+        data: order.expectedPayment.data,
+        executionResult: true,
+        finality: { finalizingBlockNumber: 3_010, headBlockNumber: 3_011, reached: true },
+        hash: purchaseHash,
+        network: order.expectedPayment.network,
+        recipient: order.expectedPayment.recipient,
+        sender: buyer.address,
+        state: 'finalized',
+        valueLuna: order.expectedPayment.valueLuna,
+      }
+      const purchased = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve(observed),
+      }, { hash: purchaseHash, orderPublicId: order.publicId })
+      const passportPublicId = purchased.passport?.publicId
+      if (!passportPublicId) throw new Error('Claim journey requires a verified Passport.')
+
+      const selfChallenge = await createClaimChallenge(runtime, {
+        claimType: 'RETURN',
+        note: '  Defective on arrival  ',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE',
+      })
+      const selfProof = createPolicyProof(PRIVATE_KEY_CLAIM_BUYER, selfChallenge.challenge.canonicalMessage).proof
+      const selfClaim = await submitClaimProof(runtime, {
+        claimPublicId: selfChallenge.publicId,
+        proof: selfProof,
+      })
+      expect(selfClaim).toMatchObject({
+        authorization: { mode: 'self', status: 'verified' },
+        claimSignerAddress: buyer.address,
+        eligibility: { eligible: true },
+        purchaseSenderAddress: buyer.address,
+        workflowState: 'eligible',
+      })
+      await expect(submitClaimProof(runtime, {
+        claimPublicId: selfChallenge.publicId,
+        proof: selfProof,
+      })).resolves.toMatchObject({ publicId: selfChallenge.publicId, workflowState: 'eligible' })
+
+      const delegatedChallenge = await createClaimChallenge(runtime, {
+        claimType: 'WARRANTY',
+        note: '',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE',
+      })
+      const delegate = createPolicyProof(
+        PRIVATE_KEY_CLAIM_DELEGATE,
+        delegatedChallenge.challenge.canonicalMessage,
+      )
+      const pending = await submitClaimProof(runtime, {
+        claimPublicId: delegatedChallenge.publicId,
+        proof: delegate.proof,
+      })
+      expect(pending).toMatchObject({
+        authorization: {
+          mode: 'delegated',
+          requiredSignerAddress: buyer.address,
+          status: 'pending',
+        },
+        claimSignerAddress: delegate.address,
+        eligibility: null,
+        workflowState: 'authorization_pending',
+      })
+      const authorization = pending.authorization
+      if (!authorization?.canonicalMessage) throw new Error('Expected a delegated authorization challenge.')
+      const unrelatedProof = createPolicyProof(
+        PRIVATE_KEY_CLAIM_UNRELATED,
+        authorization.canonicalMessage,
+      ).proof
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: authorization.publicId,
+        claimPublicId: pending.publicId,
+        proof: unrelatedProof,
+      })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH', name: 'ClaimLifecycleError' })
+      await expect(getClaim(runtime, pending.publicId)).resolves.toMatchObject({
+        eligibility: null,
+        workflowState: 'authorization_pending',
+      })
+
+      const buyerAuthorizationProof = createPolicyProof(
+        PRIVATE_KEY_CLAIM_BUYER,
+        authorization.canonicalMessage,
+      ).proof
+      const delegated = await submitClaimAuthorization(runtime, {
+        authorizationPublicId: authorization.publicId,
+        claimPublicId: pending.publicId,
+        proof: buyerAuthorizationProof,
+      })
+      expect(delegated).toMatchObject({
+        authorization: { mode: 'delegated', status: 'verified' },
+        claimSignerAddress: delegate.address,
+        eligibility: { eligible: true },
+        purchaseSenderAddress: buyer.address,
+        workflowState: 'eligible',
+      })
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: authorization.publicId,
+        claimPublicId: pending.publicId,
+        proof: buyerAuthorizationProof,
+      })).resolves.toMatchObject({ workflowState: 'eligible' })
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: authorization.publicId,
+        claimPublicId: pending.publicId,
+        proof: unrelatedProof,
+      })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+    } finally {
+      await runtime.end()
+    }
   })
 })
