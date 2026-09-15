@@ -36,6 +36,13 @@
       "when": 1789417958748,
       "tag": "0004_phase_one_runtime_role",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789459910126,
+      "tag": "0005_phase_two_purchase_foundation",
+      "breakpoints": true
     }
   ]
 }

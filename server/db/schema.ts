@@ -1,5 +1,9 @@
 import { sql } from 'drizzle-orm'
 import type { PolicyPayload } from '../../src/lib/protocol/policy.js'
+import type {
+  ObservedTransaction,
+  TransactionVerification,
+} from '../../src/lib/protocol/transaction-verification.js'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import {
   bigint,
@@ -31,6 +35,27 @@ export const policyVerificationStatus = pgEnum('policy_verification_status', [
 ])
 export const signingChallengeAction = pgEnum('signing_challenge_action', ['POLICY'])
 export const evidenceType = pgEnum('evidence_type', ['signature', 'chain', 'backend'])
+export const orderPaymentState = pgEnum('order_payment_state', [
+  'payment_requested',
+  'wallet_request_started',
+  'payment_cancelled',
+  'submission_outcome_unknown',
+  'payment_verifying',
+  'payment_pending',
+  'payment_failed',
+  'expired',
+  'purchased',
+])
+export const chainTransactionPurpose = pgEnum('chain_transaction_purpose', ['purchase', 'refund'])
+export const chainObservedState = pgEnum('chain_observed_state', [
+  'absent',
+  'mempool',
+  'included',
+  'finalized',
+  'invalid',
+  'inconclusive',
+])
+export const passportStatus = pgEnum('passport_status', ['active', 'refunded'])
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -249,6 +274,227 @@ export const signingChallenges = pgTable('signing_challenges', {
   check(
     'signing_challenges_valid_times',
     sql`${table.expiresAt} > ${table.createdAt} and (${table.consumedAt} is null or (${table.consumedAt} >= ${table.createdAt} and ${table.consumedAt} <= ${table.expiresAt}))`,
+  ),
+])
+
+export const orders = pgTable('orders', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  productId: uuid('product_id').notNull(),
+  policyVersionId: uuid('policy_version_id').notNull(),
+  merchantId: uuid('merchant_id').notNull(),
+  productName: varchar('product_name', { length: 100 }).notNull(),
+  productDescription: varchar('product_description', { length: 500 }).default('').notNull(),
+  merchantDisplayName: varchar('merchant_display_name', { length: 80 }).notNull(),
+  policyPayloadHash: char('policy_payload_hash', { length: 64 }).notNull(),
+  policyVersion: integer('policy_version').notNull(),
+  protocolVersion: varchar('protocol_version', { length: 8 }).notNull(),
+  expectedRecipient: varchar('expected_recipient', { length: 36 }).notNull(),
+  expectedValueLuna: bigint('expected_value_luna', { mode: 'number' }).notNull(),
+  expectedData: varchar('expected_data', { length: 64 }).notNull(),
+  network: varchar('network', { length: 24 }).notNull(),
+  buyerAddress: varchar('buyer_address', { length: 36 }),
+  paymentState: orderPaymentState('payment_state').default('payment_requested').notNull(),
+  failureCode: varchar('failure_code', { length: 50 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  rowVersion: integer('row_version').default(1).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('orders_public_id_unique').on(table.publicId),
+  unique('orders_id_product_unique').on(table.id, table.productId),
+  unique('orders_id_policy_unique').on(table.id, table.policyVersionId),
+  unique('orders_id_merchant_unique').on(table.id, table.merchantId),
+  foreignKey({
+    name: 'orders_product_merchant_fk',
+    columns: [table.productId, table.merchantId],
+    foreignColumns: [products.id, products.merchantId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'orders_policy_product_fk',
+    columns: [table.policyVersionId, table.productId],
+    foreignColumns: [policyVersions.id, policyVersions.productId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'orders_policy_merchant_fk',
+    columns: [table.policyVersionId, table.merchantId],
+    foreignColumns: [policyVersions.id, policyVersions.merchantId],
+  }).onDelete('restrict'),
+  index('orders_merchant_state_created_index').on(table.merchantId, table.paymentState, table.createdAt),
+  index('orders_state_updated_index').on(table.paymentState, table.updatedAt),
+  index('orders_buyer_created_index').on(table.buyerAddress, table.createdAt),
+  check('orders_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('orders_policy_payload_hash_format', sql`${table.policyPayloadHash} ~ '^[0-9a-f]{64}$'`),
+  check('orders_policy_version_positive', sql`${table.policyVersion} > 0`),
+  check('orders_protocol', sql`${table.protocolVersion} = 'NR1'`),
+  check(
+    'orders_expected_recipient_format',
+    sql`${table.expectedRecipient} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'orders_buyer_address_format',
+    sql`${table.buyerAddress} is null or ${table.buyerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'orders_expected_value_range',
+    sql`${table.expectedValueLuna} > 0 and ${table.expectedValueLuna} <= 9007199254740991`,
+  ),
+  check('orders_expected_data_binding', sql`${table.expectedData} = 'NR1:P:' || ${table.publicId}`),
+  check('orders_valid_expiry', sql`${table.expiresAt} > ${table.createdAt}`),
+  check('orders_row_version_positive', sql`${table.rowVersion} > 0`),
+  check(
+    'orders_buyer_only_when_purchased',
+    sql`(${table.paymentState} = 'purchased' and ${table.buyerAddress} is not null) or (${table.paymentState} <> 'purchased' and ${table.buyerAddress} is null)`,
+  ),
+  check(
+    'orders_failure_code_state',
+    sql`(${table.paymentState} = 'payment_failed' and ${table.failureCode} is not null) or (${table.paymentState} <> 'payment_failed' and ${table.failureCode} is null)`,
+  ),
+])
+
+export const chainTransactions = pgTable('chain_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  network: varchar('network', { length: 24 }).notNull(),
+  transactionHash: char('transaction_hash', { length: 64 }).notNull(),
+  purpose: chainTransactionPurpose('purpose').notNull(),
+  resourceId: uuid('resource_id').notNull(),
+  observedState: chainObservedState('observed_state').default('inconclusive').notNull(),
+  normalizedEvidence: jsonb('normalized_evidence').$type<ObservedTransaction>(),
+  providerId: varchar('provider_id', { length: 80 }).notNull(),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+  blockNumber: bigint('block_number', { mode: 'number' }),
+  blockTimestampMs: bigint('block_timestamp_ms', { mode: 'number' }),
+  finalizingBlockNumber: bigint('finalizing_block_number', { mode: 'number' }),
+  headBlockNumber: bigint('head_block_number', { mode: 'number' }),
+  confirmations: bigint('confirmations', { mode: 'number' }),
+  executionResult: boolean('execution_result'),
+  sender: varchar('sender', { length: 36 }),
+  recipient: varchar('recipient', { length: 36 }),
+  valueLuna: bigint('value_luna', { mode: 'number' }),
+  dataText: varchar('data_text', { length: 64 }),
+  verificationChecks: jsonb('verification_checks').$type<TransactionVerification['checks']>(),
+  verificationReason: varchar('verification_reason', { length: 500 }).notNull(),
+  verifierVersion: varchar('verifier_version', { length: 40 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('chain_transactions_network_hash_unique').on(table.network, table.transactionHash),
+  unique('chain_transactions_purpose_resource_unique').on(table.purpose, table.resourceId),
+  index('chain_transactions_state_updated_index').on(table.observedState, table.updatedAt),
+  check('chain_transactions_hash_format', sql`${table.transactionHash} ~ '^[0-9a-f]{64}$'`),
+  check('chain_transactions_network_not_blank', sql`btrim(${table.network}) <> ''`),
+  check('chain_transactions_provider_not_blank', sql`btrim(${table.providerId}) <> ''`),
+  check('chain_transactions_reason_not_blank', sql`btrim(${table.verificationReason}) <> ''`),
+  check(
+    'chain_transactions_sender_format',
+    sql`${table.sender} is null or ${table.sender} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'chain_transactions_recipient_format',
+    sql`${table.recipient} is null or ${table.recipient} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'chain_transactions_value_range',
+    sql`${table.valueLuna} is null or (${table.valueLuna} >= 0 and ${table.valueLuna} <= 9007199254740991)`,
+  ),
+  check(
+    'chain_transactions_block_ranges',
+    sql`(${table.blockNumber} is null or ${table.blockNumber} >= 0) and (${table.blockTimestampMs} is null or (${table.blockTimestampMs} >= 0 and ${table.blockTimestampMs} <= 9007199254740991)) and (${table.finalizingBlockNumber} is null or ${table.finalizingBlockNumber} >= 0) and (${table.headBlockNumber} is null or ${table.headBlockNumber} >= 0) and (${table.confirmations} is null or ${table.confirmations} >= 0)`,
+  ),
+  check(
+    'chain_transactions_normalized_evidence_object',
+    sql`${table.normalizedEvidence} is null or jsonb_typeof(${table.normalizedEvidence}) = 'object'`,
+  ),
+  check(
+    'chain_transactions_verification_checks_object',
+    sql`${table.verificationChecks} is null or jsonb_typeof(${table.verificationChecks}) = 'object'`,
+  ),
+])
+
+export const purchaseTransactions = pgTable('purchase_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'restrict' }),
+  chainTransactionId: uuid('chain_transaction_id')
+    .notNull()
+    .references(() => chainTransactions.id, { onDelete: 'restrict' }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull(),
+  confirmationPolicy: varchar('confirmation_policy', { length: 40 }).notNull(),
+}, (table) => [
+  unique('purchase_transactions_order_unique').on(table.orderId),
+  unique('purchase_transactions_chain_unique').on(table.chainTransactionId),
+  check(
+    'purchase_transactions_confirmation_policy',
+    sql`${table.confirmationPolicy} = 'albatross-next-macro-v1'`,
+  ),
+])
+
+export const purchasePassports = pgTable('purchase_passports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'restrict' }),
+  purchaseTransactionId: uuid('purchase_transaction_id')
+    .notNull()
+    .references(() => purchaseTransactions.id, { onDelete: 'restrict' }),
+  policyVersionId: uuid('policy_version_id')
+    .notNull()
+    .references(() => policyVersions.id, { onDelete: 'restrict' }),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
+  merchantId: uuid('merchant_id').notNull().references(() => merchants.id, { onDelete: 'restrict' }),
+  originalBuyerAddress: varchar('original_buyer_address', { length: 36 }).notNull(),
+  productName: varchar('product_name', { length: 100 }).notNull(),
+  productDescription: varchar('product_description', { length: 500 }).default('').notNull(),
+  merchantDisplayName: varchar('merchant_display_name', { length: 80 }).notNull(),
+  policyPayloadHash: char('policy_payload_hash', { length: 64 }).notNull(),
+  policyVersion: integer('policy_version').notNull(),
+  protocolVersion: varchar('protocol_version', { length: 8 }).notNull(),
+  priceLuna: bigint('price_luna', { mode: 'number' }).notNull(),
+  settlementRecipient: varchar('settlement_recipient', { length: 36 }).notNull(),
+  purchaseTime: timestamp('purchase_time', { withTimezone: true }).notNull(),
+  returnDeadline: timestamp('return_deadline', { withTimezone: true }),
+  warrantyDeadline: timestamp('warranty_deadline', { withTimezone: true }),
+  status: passportStatus('status').default('active').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('purchase_passports_public_id_unique').on(table.publicId),
+  unique('purchase_passports_order_unique').on(table.orderId),
+  unique('purchase_passports_purchase_transaction_unique').on(table.purchaseTransactionId),
+  foreignKey({
+    name: 'purchase_passports_order_product_fk',
+    columns: [table.orderId, table.productId],
+    foreignColumns: [orders.id, orders.productId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'purchase_passports_order_policy_fk',
+    columns: [table.orderId, table.policyVersionId],
+    foreignColumns: [orders.id, orders.policyVersionId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'purchase_passports_order_merchant_fk',
+    columns: [table.orderId, table.merchantId],
+    foreignColumns: [orders.id, orders.merchantId],
+  }).onDelete('restrict'),
+  index('purchase_passports_buyer_created_index').on(table.originalBuyerAddress, table.createdAt),
+  index('purchase_passports_merchant_created_index').on(table.merchantId, table.createdAt),
+  check('purchase_passports_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check(
+    'purchase_passports_buyer_address_format',
+    sql`${table.originalBuyerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'purchase_passports_settlement_address_format',
+    sql`${table.settlementRecipient} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check('purchase_passports_policy_hash_format', sql`${table.policyPayloadHash} ~ '^[0-9a-f]{64}$'`),
+  check('purchase_passports_policy_version_positive', sql`${table.policyVersion} > 0`),
+  check('purchase_passports_protocol', sql`${table.protocolVersion} = 'NR1'`),
+  check(
+    'purchase_passports_price_range',
+    sql`${table.priceLuna} > 0 and ${table.priceLuna} <= 9007199254740991`,
+  ),
+  check(
+    'purchase_passports_deadline_order',
+    sql`(${table.returnDeadline} is null or ${table.returnDeadline} >= ${table.purchaseTime}) and (${table.warrantyDeadline} is null or ${table.warrantyDeadline} >= ${table.purchaseTime})`,
   ),
 ])
 

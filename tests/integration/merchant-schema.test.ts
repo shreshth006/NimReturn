@@ -11,6 +11,7 @@ import { expireStalePolicyChallenges } from '../../server/domain/expire-policy-c
 import { getPublicVerifiedProduct } from '../../server/domain/get-public-product.js'
 import { hashMerchantBootstrapCapability } from '../../server/domain/merchant-bootstrap.js'
 import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
+import { createPurchaseOrder } from '../../server/domain/purchase-order.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
 
@@ -25,6 +26,7 @@ const PRIVATE_KEY_POLICY_FIRST = '202122232425262728292a2b2c2d2e2f30313233343536
 const PRIVATE_KEY_POLICY_ESTABLISHED = '404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f'
 const PRIVATE_KEY_POLICY_CONCURRENT = '606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f'
 const PRIVATE_KEY_POLICY_API_JOURNEY = '0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
+const PRIVATE_KEY_POLICY_PURCHASE = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
 const UTF8_ENCODER = new TextEncoder()
 const SIGNED_MESSAGE_PREFIX = '\x16Nimiq Signed Message:\n'
 
@@ -1443,6 +1445,146 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
     } finally {
       await app.close()
+      await runtime.end()
+    }
+  })
+
+  it('freezes an order to the verified active policy and enforces replay-safe purchase tables', async () => {
+    const draft = await createMerchantDraft(client, {
+      defaultSettlementAddress: VALID_ADDRESS_F,
+      description: 'Immutable order snapshot',
+      displayName: 'Purchase Foundation Merchant',
+      productName: 'Purchase Foundation Product',
+    })
+    const v1Terms = {
+      bootstrapCapability: draft.bootstrapCapability,
+      merchantPublicId: draft.merchantPublicId,
+      priceLuna: 2_500_000,
+      productPublicId: draft.productPublicId,
+      returnWindowSeconds: 604_800,
+      settlementAddress: VALID_ADDRESS_F,
+      warrantyTransferAllowed: false,
+      warrantyWindowSeconds: 7_776_000,
+    }
+    const v1Challenge = await createPolicyChallenge(client, v1Terms)
+    const signer = createPolicyProof(PRIVATE_KEY_POLICY_PURCHASE, v1Challenge.canonicalMessage)
+    await publishVerifiedPolicy(client, {
+      bootstrapCapability: draft.bootstrapCapability,
+      challengeNonce: v1Challenge.nonce,
+      merchantPublicId: draft.merchantPublicId,
+      productPublicId: draft.productPublicId,
+      proof: signer.proof,
+    })
+
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 2,
+    })
+    try {
+      const v1Order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      expect(v1Order).toMatchObject({
+        buyerAddress: null,
+        expectedPayment: {
+          data: `NR1:P:${v1Order.publicId}`,
+          network: 'TestAlbatross',
+          recipient: VALID_ADDRESS_F,
+          valueLuna: 2_500_000,
+        },
+        paymentState: 'payment_requested',
+        policy: { payloadHash: v1Challenge.payloadHash, version: 1 },
+      })
+
+      const v2Challenge = await createPolicyChallenge(client, {
+        ...v1Terms,
+        bootstrapCapability: undefined,
+        priceLuna: 3_000_000,
+        returnWindowSeconds: 1_209_600,
+      })
+      await publishVerifiedPolicy(client, {
+        challengeNonce: v2Challenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof(PRIVATE_KEY_POLICY_PURCHASE, v2Challenge.canonicalMessage).proof,
+      })
+      const v2Order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      expect(v2Order).toMatchObject({
+        expectedPayment: { valueLuna: 3_000_000 },
+        policy: { payloadHash: v2Challenge.payloadHash, version: 2 },
+      })
+
+      const rows = await runtime<{
+        id: string
+        policy_payload_hash: string
+        policy_version: number
+        value_luna: string
+      }[]>`
+        select id, policy_payload_hash, policy_version, expected_value_luna::text as value_luna
+        from orders where public_id in (${v1Order.publicId}, ${v2Order.publicId})
+        order by policy_version
+      `
+      expect(rows.map((row) => ({
+        policy_payload_hash: row.policy_payload_hash,
+        policy_version: row.policy_version,
+        value_luna: row.value_luna,
+      }))).toEqual([
+        {
+          policy_payload_hash: v1Challenge.payloadHash,
+          policy_version: 1,
+          value_luna: '2500000',
+        },
+        {
+          policy_payload_hash: v2Challenge.payloadHash,
+          policy_version: 2,
+          value_luna: '3000000',
+        },
+      ])
+      const firstOrder = rows[0]
+      const secondOrder = rows[1]
+      if (!firstOrder || !secondOrder) throw new Error('Expected two order fixtures.')
+
+      await expect(runtime`
+        update orders set expected_value_luna = 1 where id = ${firstOrder.id}
+      `).rejects.toThrow(/permission denied|order payment expectations are immutable/u)
+      await expect(runtime`
+        update orders set payment_state = 'purchased', buyer_address = ${VALID_ADDRESS_A}
+        where id = ${firstOrder.id}
+      `).rejects.toThrow(/illegal order payment transition/u)
+
+      const transactionHash = 'de'.repeat(32)
+      await runtime`
+        insert into chain_transactions (
+          network, transaction_hash, purpose, resource_id, observed_state,
+          provider_id, observed_at, verification_reason, verifier_version
+        ) values (
+          'TestAlbatross', ${transactionHash}, 'purchase', ${firstOrder.id}, 'inconclusive',
+          'fixture-rpc', now(), 'Fixture is intentionally inconclusive.', 'nr1-test'
+        )
+      `
+      await expect(runtime`
+        insert into chain_transactions (
+          network, transaction_hash, purpose, resource_id, observed_state,
+          provider_id, observed_at, verification_reason, verifier_version
+        ) values (
+          'TestAlbatross', ${transactionHash}, 'purchase', ${secondOrder.id}, 'inconclusive',
+          'fixture-rpc', now(), 'Fixture is intentionally inconclusive.', 'nr1-test'
+        )
+      `).rejects.toThrow(/chain_transactions_network_hash_unique/u)
+      await expect(runtime`
+        insert into chain_transactions (
+          network, transaction_hash, purpose, resource_id, observed_state,
+          provider_id, observed_at, verification_reason, verifier_version
+        ) values (
+          'TestAlbatross', ${'ef'.repeat(32)}, 'purchase', ${firstOrder.id}, 'inconclusive',
+          'fixture-rpc', now(), 'Fixture is intentionally inconclusive.', 'nr1-test'
+        )
+      `).rejects.toThrow(/chain_transactions_purpose_resource_unique/u)
+    } finally {
       await runtime.end()
     }
   })

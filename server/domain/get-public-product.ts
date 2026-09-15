@@ -179,7 +179,7 @@ function projectVerifiedPolicy(row: PublicProductRow): PublicVerifiedProduct['po
 }
 
 export async function getPublicVerifiedProduct(
-  client: postgres.Sql,
+  client: postgres.Sql | postgres.TransactionSql,
   rawProductPublicId: unknown,
 ): Promise<PublicVerifiedProduct | null> {
   const productIdResult = publicProductIdSchema.safeParse(rawProductPublicId)

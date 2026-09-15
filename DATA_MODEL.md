@@ -57,9 +57,11 @@ Indexes: `(product_id, version desc)`, `(merchant_id, verification_status)`, uni
 
 - `id uuid primary key`, `public_id char(22) unique` — BACKEND, immutable token used in purchase tag.
 - `product_id`, `policy_version_id`, `merchant_id` foreign keys — BACKEND, immutable bindings.
+- `product_name`, `product_description`, `merchant_display_name` — BACKEND snapshots copied before the wallet request; immutable display context.
+- `policy_payload_hash`, `policy_version`, `protocol_version` — SIGNATURE/BACKEND snapshot of the exact verified active policy; immutable.
 - `buyer_address varchar(36) null` — unset at order creation; populated immutably from the macro-final verified CHAIN sender in the purchase transaction.
 - `network varchar(24) not null`, `expected_recipient varchar(36)`, `expected_value_luna bigint`, `expected_data varchar(64)` — BACKEND copied from the verified policy settlement address/price and generated order tag; immutable.
-- `payment_state` (`payment_requested`, `payment_cancelled`, `payment_pending`, `payment_verifying`, `purchased`, `payment_failed`) — BACKEND, constrained transition.
+- `payment_state` (`payment_requested`, `wallet_request_started`, `payment_cancelled`, `submission_outcome_unknown`, `payment_verifying`, `payment_pending`, `payment_failed`, `expired`, `purchased`) — BACKEND, constrained transition. Cancellation can retry before a hash; ambiguous submission cannot reopen the wallet request.
 - `failure_code varchar(50) null`, `expires_at timestamptz`, timestamps/version — BACKEND, mutable.
 
 Indexes: partial `(buyer_address, created_at desc) where buyer_address is not null`, `(merchant_id, payment_state, created_at)`, `(payment_state, updated_at)` for retries. A constraint/transaction guard permits setting `buyer_address` only during the `purchased` transition and requires it thereafter. Expected data must equal protocol encoder output via application/check constraint where practical.
@@ -69,10 +71,10 @@ Indexes: partial `(buyer_address, created_at desc) where buyer_address is not nu
 - `id uuid primary key` — BACKEND.
 - `network varchar(24) not null`, `transaction_hash char(64) not null` — CHAIN key; unique `(network, transaction_hash)` across all uses.
 - `purpose` (`purchase`, `refund`) and `resource_id uuid` — BACKEND immutable binding.
-- `observed_state` (`absent`, `mempool`, `included`, `confirmed`, `invalid`, `inconclusive`) — CHAIN/BACKEND, monotonic except reorg handling.
-- `raw_evidence jsonb null`, `provider_id varchar(80)`, `observed_at`, `block_number`, `block_hash`, `confirmations` — CHAIN/cache.
-- `network_id`, `sender`, `recipient`, `value_luna`, `data_hex`, `data_text` — CHAIN normalized fields.
-- `verification_checks jsonb`, `verifier_version`, timestamps — BACKEND result.
+- `observed_state` (`absent`, `mempool`, `included`, `finalized`, `invalid`, `inconclusive`) — CHAIN/BACKEND, monotonic except a future explicit reorg correction path.
+- `normalized_evidence jsonb null`, `provider_id varchar(80)`, `observed_at`, `block_number`, `block_timestamp_ms`, `finalizing_block_number`, `head_block_number`, `confirmations` — CHAIN/cache.
+- `execution_result`, `sender`, `recipient`, `value_luna`, `data_text` — CHAIN normalized fields.
+- `verification_checks jsonb`, `verification_reason`, `verifier_version`, timestamps — BACKEND result.
 
 Indexes: retry `(observed_state, updated_at)` and resource `(purpose, resource_id)`. Raw response has a bounded schema/size and is not blindly returned publicly.
 
@@ -89,6 +91,7 @@ No mutable user fields. Insert only after all checks pass in the same transactio
 - `id uuid primary key`, `public_id char(22) unique` — BACKEND.
 - `order_id uuid unique`, `purchase_transaction_id uuid unique`, `policy_version_id uuid`, `product_id`, `merchant_id` — immutable relations.
 - `original_buyer_address varchar(36)` — DERIVED from verified purchase sender, immutable.
+- `product_name`, `product_description`, `merchant_display_name`, `policy_payload_hash`, `policy_version`, `protocol_version`, `price_luna`, `settlement_recipient` — immutable order/policy snapshot copied under database validation.
 - `purchase_time timestamptz`, `return_deadline timestamptz null`, `warranty_deadline timestamptz null` — DERIVED from CHAIN + SIGNATURE, immutable.
 - `status passport_status` (`active`, `refunded`) — DERIVED workflow; mutable only through verified refund.
 - `created_at`, `updated_at` — BACKEND.
