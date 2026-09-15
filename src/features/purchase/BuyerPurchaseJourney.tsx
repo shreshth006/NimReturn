@@ -304,6 +304,7 @@ export function BuyerPurchaseJourney({
             <div><dt>Transferable</dt><dd>{payload.warrantyTransferAllowed ? 'Yes' : 'No'}</dd></div>
           </dl>
           <details><summary>Verify policy evidence</summary><code>{product.policy.proof.payloadHash}</code><code>{product.policy.signerAddress}</code></details>
+          <a className="policy-ticket__ledger" href={`/?merchant=${product.merchant.publicId}`}>View public Promise Ledger →</a>
         </aside>
       </section>
 
@@ -422,7 +423,7 @@ function PassportPanel({
           <PassportFact label="Latest reconciliation" value={passport.reconciliation.status} detail={passport.reconciliation.checkedAt ? formatDate(passport.reconciliation.checkedAt) : 'Original verification'} />
         </dl>
       </div>
-      <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance.</p>
+      <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance. <a href={`/?merchant=${passport.merchant.publicId}`}>View this merchant&apos;s factual Promise Ledger →</a></p>
     </section>
   )
 }

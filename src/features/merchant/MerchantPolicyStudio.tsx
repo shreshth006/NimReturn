@@ -598,6 +598,12 @@ function VerifiedPolicyPanel({
         <span>The server rebuilt the canonical payload, verified the Nimiq signature, derived the signer from its public key, and matched every stored field before returning this page.</span>
       </div>
 
+      <a className="public-ledger-link" href={`/?merchant=${product.merchant.publicId}`}>
+        <span>Public merchant proof</span>
+        <strong>Open {product.merchant.displayName}&apos;s Promise Ledger</strong>
+        <small>Verified purchases, claim outcomes, refunds, definitions, and sample sizes →</small>
+      </a>
+
       <PolicySummary payload={payload} />
 
       <div className="evidence-section">
