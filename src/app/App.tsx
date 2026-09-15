@@ -1,20 +1,25 @@
 import { PhaseZeroDiagnostics } from '../features/diagnostics/PhaseZeroDiagnostics.js'
 import { MerchantPolicyStudio } from '../features/merchant/MerchantPolicyStudio.js'
+import { BuyerPurchaseJourney } from '../features/purchase/BuyerPurchaseJourney.js'
 
 export function App() {
-  const diagnostics = new URL(globalThis.location.href).searchParams.has('diagnostics')
+  const params = new URL(globalThis.location.href).searchParams
+  const diagnostics = params.has('diagnostics')
+  const passportPublicId = params.get('passport')
+  const productPublicId = params.get('product')
+  const buyerJourney = !diagnostics && Boolean(passportPublicId || productPublicId)
 
   return (
     <main>
       <header className="site-header">
-        <a className="wordmark" href="/" aria-label="NimReturn merchant studio">
+        <a className="wordmark" href="/" aria-label="NimReturn home">
           Nim<span>Return</span>
         </a>
         <nav aria-label="Utility navigation">
-          <a className="utility-link" href={diagnostics ? '/' : '/?diagnostics=1'}>
-            {diagnostics ? 'Merchant studio' : 'Diagnostics'}
+          <a className="utility-link" href={diagnostics || buyerJourney ? '/' : '/?diagnostics=1'}>
+            {diagnostics || buyerJourney ? 'Merchant studio' : 'Diagnostics'}
           </a>
-          <span className="phase-badge">Phase 1 · Merchant</span>
+          <span className="phase-badge">{buyerJourney ? 'Phase 2 · Purchase' : diagnostics ? 'Phase 0 · Diagnostics' : 'Phase 1 · Merchant'}</span>
         </nav>
       </header>
 
@@ -27,6 +32,11 @@ export function App() {
           </section>
           <PhaseZeroDiagnostics />
         </>
+      ) : buyerJourney ? (
+        <BuyerPurchaseJourney
+          passportPublicId={passportPublicId}
+          productPublicId={productPublicId}
+        />
       ) : <MerchantPolicyStudio />}
 
       <footer>

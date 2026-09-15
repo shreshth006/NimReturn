@@ -166,6 +166,7 @@ export async function getPurchasePassport(
       orders.expected_data as order_expected_data,
       products.public_id as product_public_id,
       orders.policy_version_id as active_policy_version_id,
+      products.description as product_description,
       merchants.public_id as merchant_public_id,
       merchants.display_name,
       merchants.policy_signer_address as merchant_policy_signer_address,

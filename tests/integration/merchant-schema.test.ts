@@ -1172,7 +1172,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         signerAddress: signer.address,
       })
       expect(publicProduct?.policy.verifiedAt).toBeInstanceOf(Date)
-      expect(publicProduct?.product).toEqual({ publicId: draft.productPublicId })
+      expect(publicProduct?.product).toEqual({ description: '', publicId: draft.productPublicId })
       expect(publicProduct?.policy.payload.settlementAddress).not.toBe(signer.address)
 
       await client`alter table policy_versions disable trigger policy_versions_immutable`

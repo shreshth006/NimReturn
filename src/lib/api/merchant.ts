@@ -56,7 +56,10 @@ const publicProductSchema = z.object({
   }).strict(),
   policy: verifiedPolicySchema,
   policyVersions: z.array(verifiedPolicySchema.extend({ active: z.boolean() })).min(1),
-  product: z.object({ publicId: publicTokenSchema }).strict(),
+  product: z.object({
+    description: z.string().max(500),
+    publicId: publicTokenSchema,
+  }).strict(),
 }).strict()
 
 const createMerchantInputSchema = z.object({

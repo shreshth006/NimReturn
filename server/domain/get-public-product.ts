@@ -32,6 +32,7 @@ export interface PublicProductRow {
   policy_public_key: string | null
   policy_signature: string | null
   policy_signer_address: string | null
+  product_description: string
   product_public_id: string
   product_name: string
   protocol_version: string
@@ -64,6 +65,7 @@ export interface PublicVerifiedProduct {
     verifiedAt: Date
   }>
   product: {
+    description: string
     publicId: string
   }
 }
@@ -99,6 +101,24 @@ function requireCanonicalDisplayName(value: string): string {
     || codePoints.length < 1
     || codePoints.length > 80
     || UTF8_ENCODER.encode(value).byteLength > 256
+    || containsControlCharacter
+  ) {
+    integrityFailure()
+  }
+  return value
+}
+
+function requireCanonicalDescription(value: string): string {
+  const codePoints = Array.from(value)
+  const containsControlCharacter = codePoints.some((character) => {
+    const point = character.codePointAt(0)
+    return point !== undefined && (point <= 0x1f || (point >= 0x7f && point <= 0x9f))
+  })
+  if (
+    value !== value.trim()
+    || value !== value.normalize('NFC')
+    || codePoints.length > 500
+    || UTF8_ENCODER.encode(value).byteLength > 2_048
     || containsControlCharacter
   ) {
     integrityFailure()
@@ -190,6 +210,7 @@ export async function getPublicVerifiedProduct(
   const rows = await client<PublicProductRow[]>`
     select
       products.public_id as product_public_id,
+      products.description as product_description,
       products.active_policy_version_id,
       merchants.public_id as merchant_public_id,
       merchants.display_name,
@@ -237,6 +258,9 @@ export async function getPublicVerifiedProduct(
       ...policy,
       active: row.policy_version_id === row.active_policy_version_id,
     })),
-    product: { publicId: active.policy.payload.productId },
+    product: {
+      description: requireCanonicalDescription(firstRow.product_description),
+      publicId: active.policy.payload.productId,
+    },
   }
 }
