@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. Phase 3 is preserved at 90% experimental/code-complete: D-025 is safe/fail-closed, but its actual signer-routing usability is unproven. D-029 supersedes D-027's incorrect attribution of prior blanket authority and records the project lead's current explicit authorization to begin Phase 4. Every physical wallet, purchase, Passport, claim, decision, refund, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
+Phase 0 remains 98%, Phase 1 remains 92%, and Phase 2 remains 90% at their physical-device boundaries. Phase 3 and Phase 4 are preserved at 90% experimental/code-complete. D-025's claimant authorization and D-028's exact-sender refund protocol are fail-closed, but their actual Nimiq Pay account-routing usability is unproven. D-029 supersedes D-027's incorrect attribution of prior blanket authority and explicitly authorized this Phase 4 implementation only. Every physical wallet, purchase, Passport, claim, decision, refund, reload, and mobile result remains open/pending until the project lead personally performs the test and explicitly reports it.
 
 # What is complete
 
@@ -20,9 +20,11 @@ Phase 2 includes immutable server-issued orders bound to one exact active verifi
 
 Phase 3 includes canonical claim and exact-claim authorization messages; proof-derived self/delegated claimant authority; immutable challenge/proof/evaluation evidence; inclusive purchase-bound RETURN/WARRANTY eligibility; a protected merchant queue; full-value approve or zero-value reject resolutions signed only by the historical policy signer; private pending drafts; verified-only public decisions; and buyer/merchant UI with public-only reload recovery. Approval is never displayed as paid.
 
+Phase 4 includes immutable server-derived refund attempts bound to the approved claim, purchase-bound settlement sender, original buyer, full value, network, and compact refund tag; protected wallet-state/hash attachment; independent exact-field/execution/Albatross-finality verification; global hash uniqueness; one atomic Passport-refunded transition; append-only reconciliation; and merchant/buyer UI for cancellation, unknown outcomes, recovered hashes, pending finality, failure, and verified evidence. The API cannot select or certify the wallet sender.
+
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 149 hermetic plus 26 PostgreSQL tests (175 total with `TEST_DATABASE_URL`). GitHub Actions run `34979104531` passed pushed baseline `9f8371f`. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 159 hermetic plus 26 PostgreSQL tests (185 total with `TEST_DATABASE_URL`). GitHub Actions run `34981815713` passed the complete Phase 4 implementation baseline `804bd57`; the documentation closeout commit still requires its own CI verification. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3/4 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
@@ -34,10 +36,10 @@ A claim signer is derived from its public key. Exact equality with the independe
 
 # Known blockers
 
-Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, reload, and mobile behavior. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
+Physical Android Nimiq Pay must still prove T-001, T-002, T-020, merchant signing/v1→v2, purchase/Passport, claim authorization, merchant resolution, an exact-sender refund through finality, reload, and mobile behavior. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade.
 
 # Next actions
 
-1. Begin the narrowly scoped Phase 4 refund protocol and implementation without claiming earlier phase exit.
-2. Keep `docs/evidence/consolidated-device-validation.md` aligned with every deferred physical flow.
-3. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git.
+1. Run the consolidated physical Nimiq Pay checklist when the project lead is available; report an inability to route the purchase-bound settlement account as FAIL rather than weakening sender verification.
+2. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git.
+3. Do not start Phase 5 without a new explicit instruction.

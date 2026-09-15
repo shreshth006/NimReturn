@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, and D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, while batching physical checks into one later session. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, and D-029 explicitly permits Phase 4 after correcting D-027's false attribution of blanket authority. Physical checks remain batched for a later session. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -84,7 +84,7 @@ First close the D-018 claimant-authorization design gate: define how a proof-der
 - [x] Only policy merchant can resolve; one final resolution under concurrency.
 - [ ] Actual-device claim/resolution signing and reload work.
 
-Phase 3 implementation is code-complete but cannot formally exit until the consolidated physical-device claim/resolution, reload, and mobile checks pass. D-027 allows Phase 4 implementation to proceed under the same explicit testing deferral; it does not convert any open item to PASS.
+Phase 3 implementation is code-complete but cannot formally exit until the consolidated physical-device claim/resolution, reload, and mobile checks pass. D-029 explicitly allows Phase 4 implementation to proceed while correcting D-027's authorization history; it does not convert any open item to PASS.
 
 ## Phase 4 — Refund
 
@@ -95,10 +95,12 @@ Approved refund expectation; direct purchase-bound settlement address→original
 ### Exit criteria
 
 - [ ] Low-value device refund verifies end to end.
-- [ ] Wrong network/sender/recipient/value/data/state/duplicate fail.
-- [ ] Approved is never confused with refunded.
-- [ ] Reload, RPC outage, double tap, and concurrent verifier tests pass.
+- [x] Wrong network/sender/recipient/value/data/state/duplicate fail in automated verification; physical exact-sender validation remains open.
+- [x] Approved is never confused with refunded.
+- [x] Reload-safe identifiers, RPC outage, cancellation/unknown recovery, double-submit, and concurrent verifier tests pass; actual WebView reload remains open.
 - [ ] Full purchase→claim→decision→refund story completes reliably on target devices.
+
+Phase 4 implementation is code-complete but cannot formally exit until the consolidated low-value exact-sender refund, independent finality, recovery/reload, and mobile checks pass. D-029 authorizes Phase 4 only and grants no automatic authority to begin Phase 5.
 
 ## Phase 5 — Promise Ledger + polish
 

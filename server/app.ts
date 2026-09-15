@@ -392,7 +392,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   }
 
   app.get('/health', () => ({
-    phase: 3,
+    phase: 4,
     service: 'nimreturn-api',
     status: 'ok',
   }))

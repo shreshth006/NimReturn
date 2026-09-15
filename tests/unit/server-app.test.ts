@@ -69,7 +69,7 @@ describe('server app', () => {
     const response = await app.inject({ method: 'GET', url: '/health' })
 
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ phase: 3, service: 'nimreturn-api', status: 'ok' })
+    expect(response.json()).toEqual({ phase: 4, service: 'nimreturn-api', status: 'ok' })
   })
 
   it('rejects malformed public product identifiers before database access', async () => {

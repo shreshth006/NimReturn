@@ -2,7 +2,7 @@
 
 Status: **PENDING — no item in this document is a PASS until the project lead personally performs it and explicitly reports the result.**
 
-This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–3 physical boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
+This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–4 physical boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
 ## Prepare once
 
@@ -75,6 +75,21 @@ This single TestAlbatross session covers the deferred Phase 0/1 gates and the Ph
 4. For an approval, confirm the UI says **refund not yet paid**. On a second fixture, publish a signed rejection and confirm no refund is implied.
 5. At 320–430 CSS pixels and 200% zoom, confirm claim, authorization, eligibility, queue, canonical evidence, and decision controls remain readable without horizontal clipping.
 
+### M. Phase 4 direct refund and cancellation
+
+1. On an approved low-value claim, open the protected merchant refund action and verify the displayed expectation: sender is the purchase-bound signed settlement address, recipient is the independently observed original buyer, value is the full approved purchase value, and data is exact `NR1:R:<claim-id>`.
+2. Start the refund once and cancel the native payment dialog. Confirm the attempt says cancelled, the buyer still sees approved/not paid, no refund transaction exists, and a deliberate retry creates a fresh attempt.
+3. Retry from the settlement account and approve exactly one payment. Nimiq Pay exposes no caller-selected sender: if the required settlement account cannot be used or the resulting chain sender differs, report FAIL and do not bypass verification or send another blind payment.
+4. Confirm submitted/included/pre-macro states remain pending. After the following macro, independently retrieve the hash and compare network, settlement sender, original-buyer recipient, exact value, refund tag, `executionResult=true`, inclusion block/timestamp, finalizing macro, and head.
+5. Confirm exactly one immutable refund record exists, the signed resolution still says approved, the Passport now separately says refunded, and the buyer view shows the exact verified chain evidence.
+
+### N. Phase 4 recovery, replay, and mobile behavior
+
+1. On a separate tiny approved fixture, background/reload after the native request begins. If no hash was returned, confirm another payment is blocked and the UI asks for recovery from wallet history; attach only the recovered 64-hex hash.
+2. If a hash is returned before reload, confirm the same public attempt/hash resumes verification without another native dialog. Exercise recheck during an RPC outage and confirm it stays inconclusive/pending rather than paid or failed.
+3. Confirm a wrong-sender or otherwise mismatched test hash is rejected and does not mark the Passport refunded. Confirm reusing any purchase/refund hash is rejected globally and double-submit/concurrent rechecks do not create a second refund.
+4. At 320–430 CSS pixels and 200% zoom, confirm the merchant expectation, cancellation/recovery actions, pending/failure states, and buyer refund proof remain readable without horizontal clipping.
+
 ## Explicit result format
 
 Send results using these exact independent lines; report `FAIL` with the observed problem for anything that does not pass:
@@ -96,6 +111,11 @@ Phase 3 distinct-signer authorization PASS|FAIL
 Phase 3 merchant resolution PASS|FAIL
 Phase 3 claim/resolution reload PASS|FAIL
 Phase 3 mobile/accessibility PASS|FAIL
+Phase 4 native refund cancellation PASS|FAIL
+Phase 4 settlement-sender routing PASS|FAIL
+Phase 4 independent refund verification PASS|FAIL
+Phase 4 refund reload/recovery PASS|FAIL
+Phase 4 mobile/accessibility PASS|FAIL
 ```
 
 Only the project lead's explicit lines are authoritative. A partial report changes only the named items; every omitted item remains open.

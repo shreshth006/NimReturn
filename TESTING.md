@@ -146,7 +146,9 @@ D-023 permits Phase 2 implementation and batches the open Phase 0/1 checks with 
 
 The Phase 2 automated suite passes T-021 through T-029 and the implementation portions of T-031 through T-033, including a simulated finalized-evidence regression. T-020 and all actual-device portions remain open. The exact consolidated procedure is `docs/evidence/consolidated-device-validation.md`.
 
-The Phase 3 automated suite passes the implementation portions of T-040 through T-055: both claimant-authority paths, strict proof failures, inclusive eligibility boundaries, purchase-bound historical policy, atomic outage behavior, protected merchant review, policy-signer-only decisions, idempotent/concurrent finality, and approved-versus-paid copy. Pending resolution drafts are not public. Actual-device equal/distinct-account signing, resolution signing, reload, and mobile behavior remain open under D-027.
+The Phase 3 automated suite passes the implementation portions of T-040 through T-055: both claimant-authority paths, strict proof failures, inclusive eligibility boundaries, purchase-bound historical policy, atomic outage behavior, protected merchant review, policy-signer-only decisions, idempotent/concurrent finality, and approved-versus-paid copy. Pending resolution drafts are not public. Actual-device equal/distinct-account signing, resolution signing, reload, and mobile behavior remain open under D-029's corrected boundary record.
+
+The Phase 4 automated suite covers immutable server-derived refund expectations; strict merchant ownership; cancellation, unknown-outcome, recovered-hash, pending, failure, and finalized states; exact sender/recipient/value/data/network/execution/finality checks; global hash replay rejection; idempotent and concurrent verification; the atomic Passport-refunded transition; immutable transaction evidence; append-only reconciliation; and strict frontend/session response parsing. Actual-device settlement-account routing, native cancellation, real-chain finality, WebView recovery, and mobile behavior remain open.
 
 ## Test data rules
 

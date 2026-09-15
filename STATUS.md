@@ -4,7 +4,7 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 3 — Claims: experimental/code-complete at the consolidated device boundary; Phase 4 is explicitly authorized to start under D-029.** D-029 corrects D-027's false attribution of earlier blanket phase authority. Phases 0–2 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, and claim/resolution validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
+**Phase 4 — Refund: experimental/code-complete at the consolidated device boundary.** D-029 corrects D-027's false attribution of earlier blanket phase authority and explicitly authorizes this Phase 4 implementation. Phases 0–3 remain open at their recorded physical boundaries. T-001, T-002, T-020, physical policy/versioning, purchase/Passport, claim/resolution, and refund validation remain open until the project lead personally performs and explicitly reports each result. They are batched for later testing, not waived.
 
 ## Completion by phase
 
@@ -12,7 +12,7 @@ Last updated: 2026-09-15 (IST)
 - Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
 - Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical purchase/Passport, reload, mobile/accessibility, and first-minute validation pending).
 - Phase 3 — Claims: **90% experimental/code-complete** (protocol, implementation, UI, and automated gates complete; signer-routing usability, actual-device claim/resolution, reload, and mobile validation pending).
-- Phase 4 — Refund: **0%**.
+- Phase 4 — Refund: **90% experimental/code-complete** (protocol, persistence, API, UI, and automated gates complete; required-sender routing, actual-device payment/finality, reload, and mobile validation pending).
 - Phase 5 — Promise Ledger + polish: **0%**.
 - Phase 6 — Real pilot: **0%**.
 - Phase 7 — Competition submission: **5%** (strategy/checklist drafted; no assets or submission).
@@ -44,11 +44,19 @@ Percentages are planning estimates, not earned rubric points.
 - Pending merchant decisions remain private and recover only through the authenticated merchant endpoint; buyers read only verified resolutions. Approval is visibly distinguished from a paid refund.
 - The buyer journey supports claim creation, exact Nimiq Pay signing, distinct-signer authorization, eligibility evidence, reload recovery, and verified decision display. The merchant journey supports queue review, exact decision signing, pending recovery, and a judge-visible signer/hash receipt.
 
+## Phase 4 implementation
+
+- A verified approved resolution creates an immutable, server-derived refund expectation for the purchase-bound settlement sender, original chain-derived buyer, full approved integer-Luna value, TestAlbatross network, and exact `NR1:R:<claim-id>` tag. The merchant session allocates workflow state but is never payment authority.
+- The merchant refund journey distinguishes requested, native-wallet started, cancelled, hashless unknown, verifying, pre-finality pending, failed, and independently verified states. Cancellation permits a fresh attempt; an unknown native result blocks blind repayment and accepts only a recovered transaction hash.
+- Refund verification independently fetches the chain transaction and requires the exact network, sender, recipient, value, data, successful execution, and following-macro finality. Wrong fields fail closed, global network/hash uniqueness prevents replay, and concurrent exact verification is idempotent.
+- Only finalized matching evidence creates the immutable refund transaction and moves the Purchase Passport from active to refunded. The signed claim resolution remains approved; buyer copy separately reports refund pending, failed, or verified.
+- Post-finality rechecks append confirmed, inconclusive, or exception evidence without rewriting the accepted refund. The public buyer view shows the exact expectation and finalized proof while protected mutation routes remain bound to the owning merchant session.
+
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34979104531` passed locked install, PostgreSQL 16, lint, typecheck, all tests, and build for pushed baseline `9f8371f`. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34981815713` passed locked install, PostgreSQL 16, lint, typecheck, all tests, and build for the complete Phase 4 implementation baseline `804bd57`; the documentation closeout commit still requires its own CI verification. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
 
-The configured suite has 149 hermetic tests plus 26 PostgreSQL 16 integration tests (175 total with `TEST_DATABASE_URL`). Phase 3 coverage includes exact self/delegated claimant authorization, unrelated/altered/replayed/expired failure, inclusive deadline boundaries, purchase-bound policy selection, protected merchant queue, wrong-signer resolution rejection, exact idempotency, concurrent final decisions, immutable evidence, strict frontend response validation, and public-only reload pointers.
+The configured suite has 159 hermetic tests plus 26 PostgreSQL 16 integration tests (185 total with `TEST_DATABASE_URL`). Phase 4 coverage includes server-derived refund expectations, strict merchant authorization, cancellation and safe retry, hashless-unknown recovery, exact chain-field rejection, global hash uniqueness, execution/finality gating, concurrent idempotency, immutable evidence, Passport transition, append-only reconciliation, strict frontend response validation, and reload-safe public identifiers.
 
 ## Manual verification
 
@@ -58,6 +66,7 @@ The configured suite has 149 hermetic tests plus 26 PostgreSQL 16 integration te
 - No current personal PASS confirmation exists for T-001, T-002, T-020, Phase 1 physical signing/publication, or physical v1→v2 validation. Automated, CI, browser, code-completeness, simulated, and earlier cryptographic results are not substitutes.
 - No Phase 2 physical payment, real-chain Passport, WebView reload/recovery, mobile accessibility, or first-minute result is claimed. These remain in the consolidated project-lead checklist.
 - No Phase 3 physical claim signing, distinct-account authorization, merchant resolution signing, WebView reload/recovery, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
+- No Phase 4 physical refund, required settlement-sender routing, real-chain finality, recovery/reload, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
 
 ## Deployment and RPC
 
@@ -69,8 +78,9 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 - **Phase 1 exit:** physical signing/publication and physical v1→v2 validation require explicit project-lead results after personal testing.
 - **Phase 2 exit:** a real low-value buyer payment, independent chain verification, Passport creation, reload/recovery, and first-minute/mobile checks require explicit project-lead results.
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
+- **Phase 4 exit:** an actual low-value refund from the purchase-bound settlement account, independent chain/finality verification, recovery/reload, and mobile checks require explicit project-lead results. If Nimiq Pay cannot route the required sender, that is a FAIL and must not be bypassed.
 - **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
 
 ## Next milestone
 
-Implement Phase 4 under D-029 without treating the unproven Nimiq Pay sender routing or any physical gate as passed. Keep the consolidated checklist current and record only the project lead's explicit results.
+Run the consolidated physical Nimiq Pay session when the project lead is available. Do not begin Phase 5 without a new explicit phase instruction; no earlier deferral grants automatic authority across this boundary.
