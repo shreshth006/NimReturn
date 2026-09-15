@@ -54,7 +54,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34981815713` passed locked install, PostgreSQL 16, lint, typecheck, all tests, and build for the complete Phase 4 implementation baseline `804bd57`; the documentation closeout commit still requires its own CI verification. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
+Local Node 24.13.1/npm 11.8.0 gates pass: `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. GitHub Actions run `34982334127` passed locked install, PostgreSQL 16, lint, typecheck, all 185 tests, and build for the Phase 4 closeout baseline `dd5c16e`. `npm ci` reports four moderate development-tree advisories; the production-only audit reports zero known vulnerabilities. No forced audit upgrade is authorized.
 
 The configured suite has 159 hermetic tests plus 26 PostgreSQL 16 integration tests (185 total with `TEST_DATABASE_URL`). Phase 4 coverage includes server-derived refund expectations, strict merchant authorization, cancellation and safe retry, hashless-unknown recovery, exact chain-field rejection, global hash uniqueness, execution/finality gating, concurrent idempotency, immutable evidence, Passport transition, append-only reconciliation, strict frontend response validation, and reload-safe public identifiers.
 

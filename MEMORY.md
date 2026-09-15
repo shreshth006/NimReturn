@@ -24,7 +24,7 @@ Phase 4 includes immutable server-derived refund attempts bound to the approved 
 
 # Verification status
 
-Local lint, typecheck, all tests, and production builds pass. The configured suite has 159 hermetic plus 26 PostgreSQL tests (185 total with `TEST_DATABASE_URL`). GitHub Actions run `34981815713` passed the complete Phase 4 implementation baseline `804bd57`; the documentation closeout commit still requires its own CI verification. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3/4 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
+Local lint, typecheck, all tests, and production builds pass. The configured suite has 159 hermetic plus 26 PostgreSQL tests (185 total with `TEST_DATABASE_URL`). GitHub Actions run `34982334127` passed locked install, PostgreSQL 16, all 185 tests, and build for the Phase 4 closeout baseline `dd5c16e`. The production dependency audit is clean; `npm ci` reports four moderate development-tree advisories and no forced upgrade should be applied. No Phase 2/3/4 device, layout, accessibility, reload, signer-routing, or first-minute result is inferred from automated coverage.
 
 # Important implementation details
 
