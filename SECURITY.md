@@ -76,7 +76,7 @@ Explicitly outside the system. No cryptographic result proves delivery, defect, 
 
 Threat: accept a signature over different bytes, try multiple message variants, mishandle hex, or conflate Mini App and Hub schemes.
 
-Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; actual Nimiq Pay policy proof required before the Phase 1 exit; verifier version stored. No framed/unframed fallback.
+Controls: exact stored canonical challenge; NR1 domain prefix; strict key/signature lengths; Nimiq signed-message framing with decimal UTF-8 byte length and SHA-256; official core Ed25519 verification of that digest; separately computed BLAKE2b-256 protocol hash over the unframed message; known-good/tampered/raw-message rejection tests; completed actual Nimiq Pay policy proof for the Phase 1 exit; verifier version stored. No framed/unframed fallback.
 
 ### Public-key/role mismatch
 
@@ -215,8 +215,8 @@ Pin lockfile; use official Nimiq packages; review new install scripts, licenses,
 
 - [ ] No custody path, server wallet, private-key/seed input, or treasury address.
 - [ ] Mini App SDK/core versions pinned and current behavior re-reviewed.
-- [ ] Actual-device sign fixture validates exact NR1 bytes and address binding on target Nimiq Pay versions.
-- [ ] Known-good/tampered/wrong-address signature tests pass.
+- [x] Actual-device sign fixture validates exact NR1 bytes and address binding on the accepted Android Nimiq Pay target.
+- [x] Known-good/tampered/wrong-address signature tests pass.
 - [ ] Purchase/refund wrong network/sender/recipient/value/data/state/hash tests pass.
 - [ ] Global hash/nonces and one-to-one constraints verified under concurrency.
 - [x] Historical policy update/delete denied at database level.

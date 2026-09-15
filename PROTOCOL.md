@@ -4,7 +4,7 @@
 
 Protocol family: `NR1`.
 
-This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and D-020 enables only the NR1 policy writer while its actual-device Phase 1 exit remains open. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
+This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and the completed Phase 1 device run validates the NR1 policy writer and immutable version flow. Phase 2 enables only purchase-order, transaction-verification, and Purchase Passport work. The claim payload and claimant authorization remain **P3 candidate** under D-018; no production claim writes may be enabled before that gate closes. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
 
 ## Goals and exclusions
 

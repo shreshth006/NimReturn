@@ -4,12 +4,12 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 1 — Policy + Merchant: implementation complete; actual-device exit pending.** D-020 supersedes D-019's backend-only restriction and activates the narrow merchant policy journey. Phase 2 has not started. Phase 0 remains 98% rather than being declared complete; T-001/T-002 are still due in the Phase 1 device run and T-020 remains due in Phase 2.
+**Phase 2 — Purchase Passport: active.** D-021 accepts the project lead's sanitized physical-device PASS results and formally closes Phases 0 and 1. Phase 2 is limited to pending orders, direct purchase payment, independent verification, and the Purchase Passport; claims and later features remain closed.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **98%** (Android chain/signature proof complete; T-001/T-002 provider/account recovery and T-020 payment cancellation remain open).
-- Phase 1 — Policy + Merchant: **92%** (code, browser flow, writer/read APIs, immutable versioning, and automated integration complete; physical Nimiq Pay signing/recovery and full mobile-accessibility exit remain).
+- Phase 0 — Technical proof: **100%** (accepted Android target-device suite complete; iOS remains a documented post-competition exception).
+- Phase 1 — Policy + Merchant: **100%** (implementation, automated integration, responsive browser checks, and physical v1/v2 flow complete).
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
@@ -38,7 +38,7 @@ The configured suite has 110 hermetic tests across eighteen files plus twenty Po
 - In the local in-app browser, the real API/PostgreSQL path created a merchant/product and issued an exact v1 canonical challenge. A normal browser correctly stopped at “Open this page inside Nimiq Pay” and did not fabricate publication.
 - A deterministic test-only proof produced public v1 and v2 records. The frontend independently read them through the fail-closed API and visibly showed v2 active plus v1 preserved, with distinct hashes and terms.
 - Desktop and 375 CSS-pixel mobile layouts were inspected; the mobile document had no horizontal overflow and the tested page emitted no console warning/error. This is not a substitute for Nimiq Pay or full accessibility evidence.
-- No current merchant policy has been signed in the physical Nimiq Pay host. T-001 and T-002 therefore remain open.
+- The project lead reported physical-device PASS outcomes for T-001 provider recovery, T-002 account cancellation/recovery, T-020 payment cancellation/safe retry, Phase 1 v1 signing/publication, and the v2 immutable-version flow. Only the sanitized outcome record is committed; wallet and raw proof material remain private.
 
 ## Deployment and RPC
 
@@ -46,11 +46,9 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 
 ## Current blockers
 
-- **Phase 1 exit:** one physical Android Nimiq Pay run must complete the merchant v1 signing/public read plus T-001 provider timeout/retry and T-002 account-permission cancellation/retry. Any failure must be fixed; no evidence is inferred from browser or deterministic tests.
-- **Phase 2 later:** T-020 native payment cancellation/safe retry remains open and is not satisfied by the earlier successful TestAlbatross transaction.
 - **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
 - **Phase 3 later:** D-018 claimant authorization must be specified and security-reviewed before any claim writes.
 
 ## Next milestone
 
-Run the shortest physical Nimiq Pay Phase 1 procedure, record sanitized results for the successful policy plus T-001/T-002, update the three open outcomes truthfully, and only then mark Phase 1 complete and begin Phase 2. Do not build merchant claims, purchases, refunds, Promise Ledger, AI, NFTs, or escrow before that gate.
+Implement the Phase 2 order and immutable expected-payment foundation, then connect strict hash attachment to the existing independent execution/finality verifier and create exactly one Purchase Passport from valid macro-final evidence. Do not build claims, refunds, Promise Ledger, AI, NFTs, or escrow.

@@ -241,3 +241,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The complete browser/API path can be built and reviewed without fabricating native-wallet evidence. A production writer still needs a real authorization boundary: a one-time hashed bootstrap establishes the first signer, then a server-HMAC-authenticated, eight-hour `HttpOnly`/`Secure`/`SameSite=Strict` session authorizes later challenge requests for that merchant. That session carries only merchant public ID and expiry, cannot publish a policy, and never replaces the required established-signer proof. Exact Origin checks, strict schemas, body bounds, and per-IP writer rate limits constrain the exposed routes.
 
 **Consequences:** NR1 policy writers are registered when database/session configuration is present, and production startup requires database URL, exact browser origin, and a 32-character-or-longer unpredictable session secret. Every publish still re-verifies the exact stored message and proof, and a successful publish rotates the merchant session. The implementation and desktop/mobile browser path may be called code-complete, but Phase 1 cannot exit and Phase 2 must not start until an actual Nimiq Pay run completes policy signing plus T-001/T-002. T-020 remains due in Phase 2.
+
+## D-021 — 2026-09-15 — Accept sanitized device closeout and open Phase 2
+
+**Decision:** Accept the project lead's explicit physical-device PASS results for T-001, T-002, T-020, Phase 1 v1 signing/publication, and the v2 immutable-version flow. Formally close Phases 0 and 1 and open the Phase 2 Purchase Passport scope. Commit only a sanitized outcome attestation; keep wallet and raw proof material outside Git.
+
+**Context:** Phase 0's checksum-bound Android evidence had already proven exact framed signing, public-key/address binding, one independently retrieved TestAlbatross transaction, successful execution, and Albatross macro finality. Phase 1 code, PostgreSQL integration, immutable v1/v2 behavior, responsive browser checks, and CI were complete. The project lead then completed and reported the remaining physical scenarios.
+
+**Alternatives:** keep the phases open despite the reported accepted validation; request or publish identifying raw wallet evidence; re-run completed backend work; begin claims or refunds early.
+
+**Rationale:** The project lead is the authority for the external physical-device action. Recording scenario-level outcomes preserves an auditable phase decision while following the privacy rule that wallet addresses, hashes, public keys, signatures, nonces, tags, and raw device artifacts are not committed. The reported v1/v2 results directly cover the remaining merchant journey and immutable-version exit.
+
+**Consequences:** Phase 0 and Phase 1 are 100% complete for the Cycle II Android target. Phase 2 may implement only pending orders, direct purchase payment, independent chain verification, and Purchase Passports. D-016 still defers iOS, D-018 still blocks claim writers, and deployment/RPC production-readiness gates remain open.

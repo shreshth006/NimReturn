@@ -38,8 +38,8 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Provider/account
 
-- **T-001 Wallet provider unavailable:** init times out; “Open in Nimiq Pay” shown; retry works after injection.
-- **T-002 Account permission rejected:** normalized cancelled state; no merchant/buyer session or challenge consumed.
+- **T-001 Wallet provider unavailable — PASS 2026-09-15:** init times out; “Open in Nimiq Pay” shown; retry works after injection.
+- **T-002 Account permission rejected — PASS 2026-09-15:** normalized cancelled state; no merchant/buyer session or challenge consumed.
 - **T-003 No accounts/returned SDK error value:** actionable state, no unsafe array assumption.
 - **T-004 Multiple accounts:** an expected account can be selected for diagnostics, but cryptographic signer identity comes from the returned public key; listed-membership and expectation-match are reported separately.
 - **T-005 Wallet head without consensus:** provider/head remain visibly reachable, consensus is false, retry is offered, and the native payment request stays locked.
@@ -58,7 +58,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Payment and transaction verification
 
-- **T-020 Payment cancelled:** order not purchased, no passport, safe retry.
+- **T-020 Payment cancelled — PASS 2026-09-15:** order not purchased, no passport, safe retry.
 - **T-021 Payment pending/mempool:** visible `pending-inclusion`; the completed lookup leaves “Check again” enabled; no passport.
 - **T-022 Payment failed/evicted/invalid:** visible failure or exceptional recovery; no passport.
 - **T-023 RPC unavailable/timeout/malformed:** inconclusive and retryable; no client fallback; only an actively running HTTP request disables the retry control.
@@ -136,11 +136,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - Server lookup accepts only validated hashes and reports unavailable configuration/failure without fabrication.
 - Lint, typecheck, unit tests, and production build pass.
 
-The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. Phase 0 is still **not complete** until actual-device T-001, T-002, and clean native payment-cancellation behavior under T-020 are recorded.
-
-D-019 changes scheduling, not outcomes: T-001/T-002 are rerun alongside the Phase 1 native policy-signing suite, and T-020 alongside the Phase 2 native purchase suite. They remain open scenario IDs and release blockers; adjacent happy-path evidence cannot mark them passed.
-
-D-020 enables the merchant implementation without changing that evidence rule. Desktop/mobile browser checks and deterministic API proof do not close T-001/T-002 or the native policy-signing exit.
+The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. On 2026-09-15, the project lead reported T-001, T-002, T-020, Phase 1 v1 signing/publication, and the v2 immutable-version flow as passing on a physical device. The sanitized outcome record contains no wallet or proof identifiers. These results close Phases 0 and 1; future wallet/SDK changes still require a new device run.
 
 ## Test data rules
 

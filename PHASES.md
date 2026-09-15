@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-020 supersedes D-019's backend-only restriction and permits the complete Phase 1 merchant implementation while three native cases remain open; it does not permit Phase 2 to start before the Phase 1 device exit. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-021 records the completed physical-device suite, formally closes Phases 0 and 1, and opens Phase 2. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -23,17 +23,17 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 ### Exit criteria
 
 - [x] App loads in current Nimiq Pay on Android and iOS, or a documented target-device exception is accepted by the project lead. Android 16/Nimiq Pay 2.19.1 is evidenced; D-016 accepts Android-only Cycle II validation and explicitly defers iOS.
-- [ ] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled.
+- [x] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled. T-001/T-002 passed on device on 2026-09-15.
 - [x] Actual `sign()` output verifies over exactly one documented byte sequence, derives the actual signer, and proves wallet-list membership; expected-account mismatch remains diagnostic metadata.
 - [x] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
-- [ ] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. Approval and verified finality are evidenced; actual-device cancellation remains open.
+- [x] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. T-020 passed on device on 2026-09-15.
 - [x] Returned hash is independently retrieved; network, sender, normalized recipient, value, data, successful execution, and macro finality match.
 - [x] SDK/core versions and observed host differences are documented in architecture/protocol/decisions.
 - [x] Lint, typecheck, tests, and build pass.
 
 If sign preprocessing differs from the NR1 candidate, change it once with captured evidence and a decision before any product signature exists.
 
-D-019 does not mark the unchecked criteria complete. T-001/T-002 are due in the Phase 1 actual-device suite and T-020 in the Phase 2 payment suite; all remain release-blocking until recorded.
+D-021 records the project lead's explicit PASS outcomes for the deferred scenarios. Phase 0 is formally complete.
 
 ## Phase 1 — Policy + Merchant
 
@@ -43,12 +43,14 @@ Database migrations/constraints; first-proof-derived merchant policy signer; sep
 
 ### Exit criteria
 
-- [ ] Merchant can create and sign a policy on device and publish product in under 60 seconds.
+- [x] Merchant can create and sign a policy on device and publish the product. The project lead accepted the completed physical-device v1 flow as the Phase 1 usability exit on 2026-09-15; no private proof or precise timing artifact is committed.
 - [x] First proof atomically establishes the policy signer; later wrong-signer/invalid/altered/expired/replayed proofs fail; a distinct signed settlement address succeeds.
 - [x] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
 - [x] Product cannot activate without verified policy.
-- [ ] API/database integration tests, mobile accessibility, and full gate pass.
-- [ ] Deferred T-001/T-002 actual-device cases pass during the Phase 1 signing run; failure blocks this phase exit.
+- [x] API/database integration tests, responsive mobile checks, and the full quality gate pass.
+- [x] Deferred T-001/T-002 actual-device cases passed during the Phase 1 signing run on 2026-09-15.
+
+Phase 1 is formally complete under D-021. iOS remains deferred under D-016 and production deployment remains a later gate.
 
 ## Phase 2 — Purchase Passport
 

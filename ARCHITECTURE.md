@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 now implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. D-020 activates this narrow implementation while the actual Nimiq Pay Phase 1 exit remains open.
+This document describes the intended MVP architecture. Phase 0 proved the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. The project lead's sanitized physical-device results close both phases; Phase 2 Purchase Passport implementation is now active.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -91,7 +91,7 @@ Current official SDK behavior inspected on 2026-09-14:
 - `sendBasicTransactionWithData({ recipient, value, data, fee?, validityStartHeight? })` uses numeric Luna, attaches text data, returns a transaction hash according to official docs, and requires native approval. It exposes no sender parameter.
 - Published 0.1.0 declarations also allow methods to return `{ error: { type, message } }`; adapters normalize both returned errors and thrown errors.
 
-Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebView never receives a private key. Phase 0 must still test exact `sign()` preprocessing and response behavior on the current iOS/Android host; published types and desktop unit tests cannot prove host interoperability.
+Sensitive actions stay inside Nimiq Pay's native confirmation surface. The WebView never receives a private key. Exact `sign()` preprocessing, response behavior, provider/account cancellation recovery, and native payment cancellation have passed the accepted Android target-device suite. Published types and desktop unit tests remain insufficient evidence for future host or SDK changes.
 
 Confirmed contract facts are kept separate from device observations. The installed 0.1.0 declarations, bundled provider implementation, and current official provider reference expose no NIM account parameter for `sign()` or `sendBasicTransactionWithData()`. One Android/TestAlbatross run observed that changing NimReturn's expected-account dropdown did not necessarily change which wallet key signed or paid; the implementation therefore never generalizes a fixed wallet account-order rule.
 
