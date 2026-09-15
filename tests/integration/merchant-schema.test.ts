@@ -19,6 +19,12 @@ import {
   verifyPurchaseTransaction,
 } from '../../server/domain/verify-purchase.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
+import {
+  buildClaimAuthorizationMessage,
+  buildClaimMessage,
+  type ClaimAuthorizationPayload,
+  type ClaimPayload,
+} from '../../src/lib/protocol/claim.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
 import type { ObservedTransaction } from '../../src/lib/protocol/transaction-verification.js'
 
@@ -1879,5 +1885,265 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     } finally {
       await runtime.end()
     }
+  })
+
+  it('enforces authorized claim acceptance and append-only eligibility evidence', async () => {
+    const passportRows = await client<{
+      id: string
+      merchant_id: string
+      order_id: string
+      order_public_id: string
+      original_buyer_address: string
+      policy_version_id: string
+    }[]>`
+      select
+        purchase_passports.id,
+        purchase_passports.merchant_id,
+        purchase_passports.order_id,
+        orders.public_id as order_public_id,
+        purchase_passports.original_buyer_address,
+        purchase_passports.policy_version_id
+      from purchase_passports
+      join orders on orders.id = purchase_passports.order_id
+      order by purchase_passports.created_at desc
+      limit 1
+    `
+    const passport = passportRows[0]
+    if (!passport) throw new Error('Claim schema test requires the verified Passport fixture.')
+
+    const claimTime = Date.parse('2026-09-15T13:00:00.000Z')
+    const payload: ClaimPayload = {
+      claimId: 'ClaimSchemaFixture0001',
+      claimType: 'RETURN',
+      createdAt: claimTime,
+      nonce: 'ClaimNonceFixture00001',
+      note: 'Item is defective',
+      orderId: passport.order_public_id,
+      protocol: 'NR1',
+      purchaseSenderAddress: passport.original_buyer_address,
+      reasonCode: 'DEFECTIVE',
+      type: 'CLAIM',
+    }
+    const canonicalMessage = buildClaimMessage(payload)
+    const claimHash = hashProtocolPayload(canonicalMessage)
+    const rows = await client<{ id: string }[]>`
+      insert into claims (
+        public_id, passport_id, order_id, policy_version_id, merchant_id,
+        purchase_sender_address, claim_type, reason_code, note, claim_time,
+        challenge_nonce, payload, canonical_message, payload_hash, expires_at
+      ) values (
+        ${payload.claimId}, ${passport.id}, ${passport.order_id}, ${passport.policy_version_id},
+        ${passport.merchant_id}, ${passport.original_buyer_address}, ${payload.claimType},
+        ${payload.reasonCode}, ${payload.note}, to_timestamp(${claimTime} / 1000.0),
+        ${payload.nonce}, ${client.json(payload)}, ${canonicalMessage}, ${claimHash},
+        now() + interval '10 minutes'
+      ) returning id
+    `
+    const claimId = rows[0]?.id
+    if (!claimId) throw new Error('Claim fixture insert returned no row.')
+
+    await expect(client`
+      update claims set
+        claim_signer_address = ${passport.original_buyer_address},
+        public_key = ${'ab'.repeat(32)}, signature = ${'cd'.repeat(64)},
+        verifier_version = 'integration-test', signature_status = 'verified',
+        workflow_state = 'eligible', verified_at = now()
+      where id = ${claimId}
+    `).rejects.toThrow(/matching authorization and eligibility/u)
+
+    await client`
+      update claims set
+        claim_signer_address = ${passport.original_buyer_address},
+        public_key = ${'ab'.repeat(32)}, signature = ${'cd'.repeat(64)},
+        verifier_version = 'integration-test', signature_status = 'verified',
+        workflow_state = 'authorization_pending', verified_at = now()
+      where id = ${claimId}
+    `
+    await expect(client`
+      insert into claim_eligibility_evaluations (
+        claim_id, evaluator_version, evaluated_at, inputs, rule_results, eligible
+      ) values (
+        ${claimId}, 'nr1-claim-eligibility-v1', now(), ${client.json({})},
+        ${client.json({ authorizationVerified: true })}, true
+      )
+    `).rejects.toThrow(/completed claimant authorization/u)
+
+    const authorizationRows = await client<{ id: string }[]>`
+      insert into claim_authorizations (
+        public_id, claim_id, authorization_mode, purchase_sender_address,
+        claim_signer_address, claim_payload_hash, consumed_at, verified_at
+      ) values (
+        'SelfAuthFixture0000001', ${claimId}, 'self', ${passport.original_buyer_address},
+        ${passport.original_buyer_address}, ${claimHash}, now(), now()
+      ) returning id
+    `
+    const authorizationId = authorizationRows[0]?.id
+    if (!authorizationId) throw new Error('Self-authorization fixture insert returned no row.')
+    await client`
+      insert into claim_eligibility_evaluations (
+        claim_id, evaluator_version, evaluated_at, inputs, rule_results, eligible
+      ) values (
+        ${claimId}, 'nr1-claim-eligibility-v1', now(),
+        ${client.json({ claimType: 'RETURN' })},
+        ${client.json({ authorizationVerified: true, withinInclusiveDeadline: true })}, true
+      )
+    `
+    await client`update claims set workflow_state = 'eligible' where id = ${claimId}`
+
+    await expect(client`
+      update claims set signature = ${'ef'.repeat(64)} where id = ${claimId}
+    `).rejects.toThrow(/verified claim proof is immutable/u)
+    await expect(client`
+      update claim_authorizations set verified_at = now() where id = ${authorizationId}
+    `).rejects.toThrow(/completed claim authorization is immutable/u)
+    await expect(client`
+      update claim_eligibility_evaluations set eligible = false where claim_id = ${claimId}
+    `).rejects.toThrow(/append-only/u)
+    await expect(client`
+      insert into claims (
+        public_id, passport_id, order_id, policy_version_id, merchant_id,
+        purchase_sender_address, claim_type, reason_code, note, claim_time,
+        challenge_nonce, payload, canonical_message, payload_hash, expires_at
+      ) values (
+        'ClaimSchemaFixture0002', ${passport.id}, ${passport.order_id},
+        ${passport.policy_version_id}, ${passport.merchant_id},
+        ${passport.original_buyer_address}, 'RETURN', 'OTHER', '', now(),
+        'ClaimNonceFixture00002', ${client.json({ ...payload, claimId: 'ClaimSchemaFixture0002' })},
+        ${canonicalMessage}, ${claimHash}, now() + interval '10 minutes'
+      )
+    `).rejects.toThrow(/claims_one_active_type_per_passport/u)
+  })
+
+  it('requires delegated authorization evidence to preserve both signer roles', async () => {
+    const claimRows = await client<{
+      id: string
+      merchant_id: string
+      order_id: string
+      order_public_id: string
+      passport_id: string
+      policy_version_id: string
+      purchase_sender_address: string
+    }[]>`
+      select
+        claims.id, claims.merchant_id, claims.order_id, orders.public_id as order_public_id,
+        claims.passport_id, claims.policy_version_id, claims.purchase_sender_address
+      from claims join orders on orders.id = claims.order_id
+      where claims.public_id = 'ClaimSchemaFixture0001'
+    `
+    const source = claimRows[0]
+    if (!source) throw new Error('Delegated schema test requires the self-authorized fixture.')
+    const claimTime = Date.parse('2026-09-15T13:05:00.000Z')
+    const claimPayload: ClaimPayload = {
+      claimId: 'ClaimSchemaFixture0003',
+      claimType: 'WARRANTY',
+      createdAt: claimTime,
+      nonce: 'ClaimNonceFixture00003',
+      note: '',
+      orderId: source.order_public_id,
+      protocol: 'NR1',
+      purchaseSenderAddress: source.purchase_sender_address,
+      reasonCode: 'DEFECTIVE',
+      type: 'CLAIM',
+    }
+    const claimMessage = buildClaimMessage(claimPayload)
+    const claimHash = hashProtocolPayload(claimMessage)
+    const insertedClaims = await client<{ id: string }[]>`
+      insert into claims (
+        public_id, passport_id, order_id, policy_version_id, merchant_id,
+        purchase_sender_address, claim_type, reason_code, note, claim_time,
+        challenge_nonce, payload, canonical_message, payload_hash, expires_at
+      ) values (
+        ${claimPayload.claimId}, ${source.passport_id}, ${source.order_id},
+        ${source.policy_version_id}, ${source.merchant_id}, ${source.purchase_sender_address},
+        ${claimPayload.claimType}, ${claimPayload.reasonCode}, '',
+        to_timestamp(${claimTime} / 1000.0), ${claimPayload.nonce},
+        ${client.json(claimPayload)}, ${claimMessage}, ${claimHash}, now() + interval '10 minutes'
+      ) returning id
+    `
+    const claimId = insertedClaims[0]?.id
+    if (!claimId) throw new Error('Delegated claim fixture insert returned no row.')
+    await client`
+      update claims set
+        claim_signer_address = ${VALID_ADDRESS_C}, public_key = ${'12'.repeat(32)},
+        signature = ${'34'.repeat(64)}, verifier_version = 'integration-test',
+        signature_status = 'verified', workflow_state = 'authorization_pending', verified_at = now()
+      where id = ${claimId}
+    `
+
+    const createdAt = claimTime + 1_000
+    const authorizationPayload: ClaimAuthorizationPayload = {
+      authorizationId: 'DelegAuthFixture000001',
+      claimId: claimPayload.claimId,
+      claimPayloadHash: claimHash,
+      claimSignerAddress: VALID_ADDRESS_C,
+      createdAt,
+      expiresAt: createdAt + 600_000,
+      nonce: 'DelegNonceFixture00001',
+      protocol: 'NR1',
+      purchaseSenderAddress: source.purchase_sender_address,
+      type: 'CLAIM_AUTHORIZATION',
+    }
+    const authorizationMessage = buildClaimAuthorizationMessage(authorizationPayload)
+    const authorizationHash = hashProtocolPayload(authorizationMessage)
+    const authorizations = await client<{ id: string }[]>`
+      insert into claim_authorizations (
+        public_id, claim_id, authorization_mode, purchase_sender_address,
+        claim_signer_address, claim_payload_hash, challenge_nonce, payload,
+        canonical_message, payload_hash, expires_at, created_at
+      ) values (
+        ${authorizationPayload.authorizationId}, ${claimId}, 'delegated',
+        ${source.purchase_sender_address}, ${VALID_ADDRESS_C}, ${claimHash},
+        ${authorizationPayload.nonce}, ${client.json(authorizationPayload)},
+        ${authorizationMessage}, ${authorizationHash},
+        to_timestamp(${authorizationPayload.expiresAt} / 1000.0),
+        to_timestamp(${authorizationPayload.createdAt} / 1000.0)
+      ) returning id
+    `
+    const authorizationId = authorizations[0]?.id
+    if (!authorizationId) throw new Error('Delegated authorization fixture insert returned no row.')
+    await expect(client`
+      update claim_authorizations set
+        public_key = ${'56'.repeat(32)}, signature = ${'78'.repeat(64)},
+        authorization_signer_address = ${VALID_ADDRESS_D}, verifier_version = 'integration-test',
+        consumed_at = now(), verified_at = now()
+      where id = ${authorizationId}
+    `).rejects.toThrow(/delegated_proof_complete/u)
+    await client`
+      update claim_authorizations set
+        public_key = ${'56'.repeat(32)}, signature = ${'78'.repeat(64)},
+        authorization_signer_address = ${source.purchase_sender_address},
+        verifier_version = 'integration-test', consumed_at = now(), verified_at = now()
+      where id = ${authorizationId}
+    `
+    await client`
+      insert into claim_eligibility_evaluations (
+        claim_id, evaluator_version, evaluated_at, inputs, rule_results, eligible
+      ) values (
+        ${claimId}, 'nr1-claim-eligibility-v1', now(), ${client.json({})},
+        ${client.json({ authorizationVerified: true })}, false
+      )
+    `
+    await client`update claims set workflow_state = 'ineligible' where id = ${claimId}`
+    const stored = await client<{
+      authorization_signer_address: string
+      claim_signer_address: string
+      purchase_sender_address: string
+      workflow_state: string
+    }[]>`
+      select
+        claim_authorizations.authorization_signer_address,
+        claims.claim_signer_address,
+        claims.purchase_sender_address,
+        claims.workflow_state
+      from claims
+      join claim_authorizations on claim_authorizations.claim_id = claims.id
+      where claims.id = ${claimId}
+    `
+    expect(stored[0]).toEqual({
+      authorization_signer_address: source.purchase_sender_address,
+      claim_signer_address: VALID_ADDRESS_C,
+      purchase_sender_address: source.purchase_sender_address,
+      workflow_state: 'ineligible',
+    })
   })
 })

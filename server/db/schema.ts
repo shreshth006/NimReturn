@@ -1,6 +1,11 @@
 import { sql } from 'drizzle-orm'
 import type { PolicyPayload } from '../../src/lib/protocol/policy.js'
 import type {
+  ClaimAuthorizationPayload,
+  ClaimPayload,
+} from '../../src/lib/protocol/claim.js'
+import type { ClaimEligibilityEvaluation } from '../../src/lib/protocol/claim-eligibility.js'
+import type {
   ObservedTransaction,
   TransactionVerification,
 } from '../../src/lib/protocol/transaction-verification.js'
@@ -61,6 +66,28 @@ export const chainReconciliationOutcome = pgEnum('chain_reconciliation_outcome',
   'exception',
 ])
 export const passportStatus = pgEnum('passport_status', ['active', 'refunded'])
+export const claimType = pgEnum('claim_type', ['RETURN', 'WARRANTY'])
+export const claimReasonCode = pgEnum('claim_reason_code', [
+  'CHANGED_MIND',
+  'DEFECTIVE',
+  'NOT_AS_DESCRIBED',
+  'OTHER',
+])
+export const claimSignatureStatus = pgEnum('claim_signature_status', [
+  'pending',
+  'verified',
+  'expired',
+])
+export const claimWorkflowState = pgEnum('claim_workflow_state', [
+  'signature_requested',
+  'authorization_pending',
+  'eligible',
+  'ineligible',
+  'decision_pending',
+  'approved',
+  'rejected',
+])
+export const claimAuthorizationMode = pgEnum('claim_authorization_mode', ['self', 'delegated'])
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -483,6 +510,9 @@ export const purchasePassports = pgTable('purchase_passports', {
   unique('purchase_passports_public_id_unique').on(table.publicId),
   unique('purchase_passports_order_unique').on(table.orderId),
   unique('purchase_passports_purchase_transaction_unique').on(table.purchaseTransactionId),
+  unique('purchase_passports_id_order_unique').on(table.id, table.orderId),
+  unique('purchase_passports_id_policy_unique').on(table.id, table.policyVersionId),
+  unique('purchase_passports_id_merchant_unique').on(table.id, table.merchantId),
   foreignKey({
     name: 'purchase_passports_order_product_fk',
     columns: [table.orderId, table.productId],
@@ -520,6 +550,172 @@ export const purchasePassports = pgTable('purchase_passports', {
     'purchase_passports_deadline_order',
     sql`(${table.returnDeadline} is null or ${table.returnDeadline} >= ${table.purchaseTime}) and (${table.warrantyDeadline} is null or ${table.warrantyDeadline} >= ${table.purchaseTime})`,
   ),
+])
+
+export const claims = pgTable('claims', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  passportId: uuid('passport_id').notNull(),
+  orderId: uuid('order_id').notNull(),
+  policyVersionId: uuid('policy_version_id').notNull(),
+  merchantId: uuid('merchant_id').notNull(),
+  purchaseSenderAddress: varchar('purchase_sender_address', { length: 36 }).notNull(),
+  claimSignerAddress: varchar('claim_signer_address', { length: 36 }),
+  claimType: claimType('claim_type').notNull(),
+  reasonCode: claimReasonCode('reason_code').notNull(),
+  note: varchar('note', { length: 1024 }).default('').notNull(),
+  claimTime: timestamp('claim_time', { withTimezone: true }).notNull(),
+  challengeNonce: char('challenge_nonce', { length: 22 }).notNull(),
+  payload: jsonb('payload').$type<ClaimPayload>().notNull(),
+  canonicalMessage: text('canonical_message').notNull(),
+  payloadHash: char('payload_hash', { length: 64 }).notNull(),
+  publicKey: char('public_key', { length: 64 }),
+  signature: char('signature', { length: 128 }),
+  verifierVersion: varchar('verifier_version', { length: 40 }),
+  signatureStatus: claimSignatureStatus('signature_status').default('pending').notNull(),
+  workflowState: claimWorkflowState('workflow_state').default('signature_requested').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('claims_public_id_unique').on(table.publicId),
+  unique('claims_challenge_nonce_unique').on(table.challengeNonce),
+  unique('claims_id_passport_unique').on(table.id, table.passportId),
+  foreignKey({
+    name: 'claims_passport_order_fk',
+    columns: [table.passportId, table.orderId],
+    foreignColumns: [purchasePassports.id, purchasePassports.orderId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'claims_passport_policy_fk',
+    columns: [table.passportId, table.policyVersionId],
+    foreignColumns: [purchasePassports.id, purchasePassports.policyVersionId],
+  }).onDelete('restrict'),
+  foreignKey({
+    name: 'claims_passport_merchant_fk',
+    columns: [table.passportId, table.merchantId],
+    foreignColumns: [purchasePassports.id, purchasePassports.merchantId],
+  }).onDelete('restrict'),
+  uniqueIndex('claims_one_active_type_per_passport')
+    .on(table.passportId, table.claimType)
+    .where(sql`${table.workflowState} <> 'rejected'`),
+  index('claims_merchant_queue_index').on(table.merchantId, table.workflowState, table.createdAt),
+  index('claims_sender_created_index').on(table.purchaseSenderAddress, table.createdAt),
+  check('claims_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('claims_nonce_format', sql`${table.challengeNonce} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('claims_payload_hash_format', sql`${table.payloadHash} ~ '^[0-9a-f]{64}$'`),
+  check('claims_payload_object', sql`jsonb_typeof(${table.payload}) = 'object'`),
+  check(
+    'claims_canonical_message_domain',
+    sql`${table.canonicalMessage} like 'NIMRETURN/1/CLAIM' || chr(10) || '%'`,
+  ),
+  check(
+    'claims_purchase_sender_format',
+    sql`${table.purchaseSenderAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'claims_signer_format',
+    sql`${table.claimSignerAddress} is null or ${table.claimSignerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'claims_note_format',
+    sql`btrim(${table.note}) = ${table.note} and ${table.note} !~ '[[:cntrl:]]'`,
+  ),
+  check('claims_valid_expiry', sql`${table.expiresAt} > ${table.createdAt}`),
+  check(
+    'claims_verified_proof_complete',
+    sql`${table.signatureStatus} <> 'verified' or (${table.claimSignerAddress} is not null and ${table.publicKey} is not null and ${table.signature} is not null and ${table.verifierVersion} is not null and ${table.verifiedAt} is not null)`,
+  ),
+  check(
+    'claims_pending_proof_empty',
+    sql`${table.signatureStatus} <> 'pending' or (${table.claimSignerAddress} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.verifierVersion} is null and ${table.verifiedAt} is null and ${table.workflowState} = 'signature_requested')`,
+  ),
+  check(
+    'claims_authorization_state_requires_proof',
+    sql`${table.workflowState} = 'signature_requested' or ${table.signatureStatus} = 'verified'`,
+  ),
+])
+
+export const claimAuthorizations = pgTable('claim_authorizations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  claimId: uuid('claim_id').notNull().references(() => claims.id, { onDelete: 'restrict' }),
+  mode: claimAuthorizationMode('authorization_mode').notNull(),
+  purchaseSenderAddress: varchar('purchase_sender_address', { length: 36 }).notNull(),
+  claimSignerAddress: varchar('claim_signer_address', { length: 36 }).notNull(),
+  claimPayloadHash: char('claim_payload_hash', { length: 64 }).notNull(),
+  challengeNonce: char('challenge_nonce', { length: 22 }),
+  payload: jsonb('payload').$type<ClaimAuthorizationPayload>(),
+  canonicalMessage: text('canonical_message'),
+  payloadHash: char('payload_hash', { length: 64 }),
+  publicKey: char('public_key', { length: 64 }),
+  signature: char('signature', { length: 128 }),
+  authorizationSignerAddress: varchar('authorization_signer_address', { length: 36 }),
+  verifierVersion: varchar('verifier_version', { length: 40 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('claim_authorizations_public_id_unique').on(table.publicId),
+  unique('claim_authorizations_nonce_unique').on(table.challengeNonce),
+  uniqueIndex('claim_authorizations_one_consumed_per_claim')
+    .on(table.claimId)
+    .where(sql`${table.consumedAt} is not null`),
+  index('claim_authorizations_claim_created_index').on(table.claimId, table.createdAt),
+  check('claim_authorizations_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check(
+    'claim_authorizations_nonce_format',
+    sql`${table.challengeNonce} is null or ${table.challengeNonce} ~ '^[A-Za-z0-9_-]{22}$'`,
+  ),
+  check(
+    'claim_authorizations_address_format',
+    sql`${table.purchaseSenderAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and ${table.claimSignerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and (${table.authorizationSignerAddress} is null or ${table.authorizationSignerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$')`,
+  ),
+  check('claim_authorizations_claim_hash_format', sql`${table.claimPayloadHash} ~ '^[0-9a-f]{64}$'`),
+  check(
+    'claim_authorizations_payload_hash_format',
+    sql`${table.payloadHash} is null or ${table.payloadHash} ~ '^[0-9a-f]{64}$'`,
+  ),
+  check(
+    'claim_authorizations_payload_object',
+    sql`${table.payload} is null or jsonb_typeof(${table.payload}) = 'object'`,
+  ),
+  check(
+    'claim_authorizations_mode_shape',
+    sql`(${table.mode} = 'self' and ${table.purchaseSenderAddress} = ${table.claimSignerAddress} and ${table.challengeNonce} is null and ${table.payload} is null and ${table.canonicalMessage} is null and ${table.payloadHash} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.authorizationSignerAddress} is null and ${table.expiresAt} is null and ${table.consumedAt} is not null and ${table.verifiedAt} is not null) or (${table.mode} = 'delegated' and ${table.purchaseSenderAddress} <> ${table.claimSignerAddress} and ${table.challengeNonce} is not null and ${table.payload} is not null and ${table.canonicalMessage} like 'NIMRETURN/1/CLAIM_AUTHORIZATION' || chr(10) || '%' and ${table.payloadHash} is not null and ${table.expiresAt} is not null and ${table.expiresAt} > ${table.createdAt})`,
+  ),
+  check(
+    'claim_authorizations_delegated_proof_complete',
+    sql`${table.mode} <> 'delegated' or ${table.consumedAt} is null or (${table.publicKey} is not null and ${table.signature} is not null and ${table.authorizationSignerAddress} = ${table.purchaseSenderAddress} and ${table.verifierVersion} is not null and ${table.verifiedAt} is not null)`,
+  ),
+])
+
+export const claimEligibilityEvaluations = pgTable('claim_eligibility_evaluations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  claimId: uuid('claim_id').notNull().references(() => claims.id, { onDelete: 'restrict' }),
+  evaluatorVersion: varchar('evaluator_version', { length: 40 }).notNull(),
+  evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
+  inputs: jsonb('inputs').$type<Record<string, unknown>>().notNull(),
+  ruleResults: jsonb('rule_results').$type<ClaimEligibilityEvaluation['rules']>().notNull(),
+  eligible: boolean('eligible').notNull(),
+  supersedesId: uuid('supersedes_id'),
+  reason: varchar('reason', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({
+    name: 'claim_eligibility_supersedes_fk',
+    columns: [table.supersedesId],
+    foreignColumns: [table.id],
+  }).onDelete('restrict'),
+  uniqueIndex('claim_eligibility_one_current_per_claim')
+    .on(table.claimId)
+    .where(sql`${table.supersedesId} is null`),
+  index('claim_eligibility_claim_evaluated_index').on(table.claimId, table.evaluatedAt),
+  check('claim_eligibility_inputs_object', sql`jsonb_typeof(${table.inputs}) = 'object'`),
+  check('claim_eligibility_rules_object', sql`jsonb_typeof(${table.ruleResults}) = 'object'`),
+  check('claim_eligibility_evaluator_not_blank', sql`btrim(${table.evaluatorVersion}) <> ''`),
 ])
 
 export const protocolEvents = pgTable('protocol_events', {
