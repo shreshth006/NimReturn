@@ -22,6 +22,7 @@ const configSchema = z.object({
   for (const [field, value] of [
     ['CORS_ORIGIN', config.CORS_ORIGIN],
     ['DATABASE_URL', config.DATABASE_URL],
+    ['NIMIQ_RPC_URL', config.NIMIQ_RPC_URL],
     ['SESSION_SECRET', config.SESSION_SECRET],
   ] as const) {
     if (!value) {

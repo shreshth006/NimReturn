@@ -1,0 +1,67 @@
+name: nimreturn-staging
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    environment:
+      CORS_ORIGIN: https://${PUBLIC_HOST:?set PUBLIC_HOST}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      HOST: 0.0.0.0
+      NIMIQ_NETWORK: TestAlbatross
+      NIMIQ_RPC_URL: ${NIMIQ_RPC_URL:?set NIMIQ_RPC_URL}
+      NODE_ENV: production
+      PORT: 3001
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set PUBLIC_HOST}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+
+  migrate:
+    build:
+      context: .
+      target: api
+    command: ["node", "dist-server/server/db/run-migrations.js"]
+    environment:
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?set MIGRATION_DATABASE_URL}
+    profiles:
+      - tools
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  caddy_config:
+  caddy_data:

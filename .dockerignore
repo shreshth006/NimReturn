@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+coverage
+dist
+dist-server
+node_modules
+playwright-report
+private-evidence
+test-results
+*.log
