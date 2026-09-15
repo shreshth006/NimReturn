@@ -4,12 +4,12 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 2 — Purchase Passport: active.** D-021 accepts the project lead's sanitized physical-device PASS results and formally closes Phases 0 and 1. Phase 2 is limited to pending orders, direct purchase payment, independent verification, and the Purchase Passport; claims and later features remain closed.
+**Phase 1 — Policy + Merchant: implementation complete; physical-device exit pending.** D-022 supersedes the mistaken closeout in D-021. T-001, T-002, T-020, physical policy signing/publication, and physical v1→v2 validation are open/pending until the project lead personally performs and explicitly reports each result. Phase 2 has not started.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **100%** (accepted Android target-device suite complete; iOS remains a documented post-competition exception).
-- Phase 1 — Policy + Merchant: **100%** (implementation, automated integration, responsive browser checks, and physical v1/v2 flow complete).
+- Phase 0 — Technical proof: **98%** (prior Android chain/signature proof complete; T-001/T-002/T-020 remain open).
+- Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
 - Phase 2 — Purchase Passport: **0%**.
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
@@ -38,7 +38,7 @@ The configured suite has 110 hermetic tests across eighteen files plus twenty Po
 - In the local in-app browser, the real API/PostgreSQL path created a merchant/product and issued an exact v1 canonical challenge. A normal browser correctly stopped at “Open this page inside Nimiq Pay” and did not fabricate publication.
 - A deterministic test-only proof produced public v1 and v2 records. The frontend independently read them through the fail-closed API and visibly showed v2 active plus v1 preserved, with distinct hashes and terms.
 - Desktop and 375 CSS-pixel mobile layouts were inspected; the mobile document had no horizontal overflow and the tested page emitted no console warning/error. This is not a substitute for Nimiq Pay or full accessibility evidence.
-- The project lead reported physical-device PASS outcomes for T-001 provider recovery, T-002 account cancellation/recovery, T-020 payment cancellation/safe retry, Phase 1 v1 signing/publication, and the v2 immutable-version flow. Only the sanitized outcome record is committed; wallet and raw proof material remain private.
+- No current personal PASS confirmation exists for T-001, T-002, T-020, Phase 1 physical signing/publication, or physical v1→v2 validation. Automated, CI, browser, code-completeness, simulated, and earlier cryptographic results are not substitutes.
 
 ## Deployment and RPC
 
@@ -46,9 +46,11 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 
 ## Current blockers
 
+- **Phase 0 exit:** T-001, T-002, and T-020 require explicit project-lead results after personal physical Nimiq Pay testing.
+- **Phase 1 exit:** physical signing/publication and physical v1→v2 validation require explicit project-lead results after personal testing.
 - **Deployment:** production database/origin/session/RPC secrets, HTTPS host, and operated RPC redundancy are not configured.
 - **Phase 3 later:** D-018 claimant authorization must be specified and security-reviewed before any claim writes.
 
 ## Next milestone
 
-Implement the Phase 2 order and immutable expected-payment foundation, then connect strict hash attachment to the existing independent execution/finality verifier and create exactly one Purchase Passport from valid macro-final evidence. Do not build claims, refunds, Promise Ledger, AI, NFTs, or escrow.
+Stop at the physical-device boundary. Run the five open device-gated checks using the exact procedure in the handoff, then report each result explicitly. Do not begin Phase 2 until every required Phase 0/1 result is personally confirmed.

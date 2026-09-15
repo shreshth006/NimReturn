@@ -1,19 +1,19 @@
-# Phase 0 and Phase 1 device closeout — 2026-09-15
+# Withdrawn Phase 0 and Phase 1 closeout wording — 2026-09-15
 
-This is a sanitized public record of the project lead's completed physical-device validation. It records only scenario outcomes. No wallet address, transaction hash, public key, signature, nonce, NR1 tag, raw proof, device fingerprint, or private wallet material was supplied for or copied into this repository.
+This record corrects an earlier interpretation of pass-like wording as a physical-device attestation. The project lead subsequently clarified that the wording was not personal confirmation of completed Nimiq Pay tests. It therefore supplies no PASS evidence and closes no scenario or phase.
 
-## Reported outcomes
+No wallet address, transaction hash, public key, signature, nonce, NR1 tag, raw proof, device fingerprint, or private wallet material was supplied for or copied into this repository.
 
-- **T-001 — PASS:** provider-unavailable handling and recovery completed on a physical Nimiq Pay device.
-- **T-002 — PASS:** account-permission cancellation and safe recovery completed on a physical Nimiq Pay device.
-- **T-020 — PASS:** native payment cancellation left no false purchase success and allowed a safe retry.
-- **Phase 1 v1 — PASS:** a canonical NR1 policy was signed in Nimiq Pay, server-verified, published, and displayed as a verified public policy.
-- **Phase 1 v2 — PASS:** changed terms produced a separately signed and verified v2 while the verified v1 remained preserved and visible.
+## Correct status
 
-## Provenance and privacy
+- **T-001 — OPEN:** requires the project lead's explicit result after personally testing provider timeout and recovery in Nimiq Pay.
+- **T-002 — OPEN:** requires the project lead's explicit result after personally testing account-permission cancellation and recovery in Nimiq Pay.
+- **T-020 — OPEN:** requires the project lead's explicit result after personally testing native payment cancellation in Nimiq Pay.
+- **Phase 1 physical signing/publication — PENDING:** requires the project lead's explicit personal result.
+- **Phase 1 physical v1→v2 validation — PENDING:** requires the project lead's explicit personal result.
 
-The project lead reported these results directly on 2026-09-15 and authorized the repository closeout. This summary is an outcome attestation, not a replacement for private raw proof. The earlier checksum-bound Phase 0 chain/signature artifact remains documented separately and outside Git.
+Automated tests, CI, browser checks, implementation completeness, simulated proofs, the earlier Android cryptographic artifact, and prompt text containing example PASS wording cannot change these statuses.
 
 ## Scope
 
-Together with the existing Android signature, transaction execution, and Albatross-finality evidence, these results close the remaining Phase 0 criteria and the Phase 1 physical-device exit. They do not claim iOS validation; D-016's documented Android-only Cycle II exception remains in force. They do not establish Phase 2 purchase-passport completion, deployment readiness, or Phase 3 claimant authorization.
+The earlier checksum-bound Phase 0 chain/signature artifact remains truthful and unchanged. D-022 supersedes the closeout decision made from the misinterpreted wording. Phase 0 and Phase 1 remain open, Phase 2 is not authorized to begin, D-016's iOS exception remains in force, and D-018 still blocks claim writers.

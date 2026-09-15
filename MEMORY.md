@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 0 and Phase 1 are formally complete under D-021. On 2026-09-15 the project lead reported physical-device PASS outcomes for T-001, T-002, T-020, Phase 1 v1 signing/publication, and the v2 immutable-version flow. The repository stores only a sanitized outcome attestation. Phase 2 Purchase Passport is now active. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
+Phase 1 implementation is complete under D-020 but remains at 92% until the physical Nimiq Pay exit. Phase 0 remains 98%. Under D-022, T-001, T-002, T-020, physical signing/publication, and physical v1→v2 validation are explicitly open/pending until the project lead personally performs each test and reports its result. Phase 2 has not started. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
 
 # What is complete
 
@@ -28,10 +28,10 @@ The browser stores only public workspace IDs and an unexpired public challenge f
 
 # Known blockers
 
-iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade. Phase 2 must persist immutable order expectations and accept purchase success only from execution-valid, macro-final chain evidence. Phase 3 cannot assume claim signer equals purchase sender.
+Physical Android Nimiq Pay must still prove T-001, T-002, T-020, the current merchant signing/publication journey, and physical v1→v2 preservation. iOS is explicitly deferred by D-016, not claimed compatible. Deployment/database secrets, HTTPS, and operated primary/failover RPC are absent. The public development RPC is not production-grade. Phase 3 cannot assume claim signer equals purchase sender.
 
 # Next actions
 
-1. Add the Phase 2 order schema and immutable expected-payment lifecycle with database constraints and tests.
-2. Expose strict order creation/hash-attachment/status APIs and reuse the existing independent execution/finality verifier.
-3. Build the buyer payment/reload states and verified Purchase Passport projection without enabling claims or refunds.
+1. Have the project lead run T-001 provider timeout/recovery and report the explicit result.
+2. Have the project lead run T-002 account-permission cancellation/recovery, Phase 1 signing/publication, and physical v1→v2 preservation, then report each explicit result.
+3. Have the project lead run T-020 native payment cancellation and report the explicit result. Only after all required results pass may documentation close Phases 0/1 and implementation begin Phase 2.

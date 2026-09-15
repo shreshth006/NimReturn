@@ -253,3 +253,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The project lead is the authority for the external physical-device action. Recording scenario-level outcomes preserves an auditable phase decision while following the privacy rule that wallet addresses, hashes, public keys, signatures, nonces, tags, and raw device artifacts are not committed. The reported v1/v2 results directly cover the remaining merchant journey and immutable-version exit.
 
 **Consequences:** Phase 0 and Phase 1 are 100% complete for the Cycle II Android target. Phase 2 may implement only pending orders, direct purchase payment, independent chain verification, and Purchase Passports. D-016 still defers iOS, D-018 still blocks claim writers, and deployment/RPC production-readiness gates remain open.
+
+## D-022 — 2026-09-15 — Supersede mistaken device closeout and restore open gates
+
+**Decision:** Supersede D-021. Treat T-001, T-002, T-020, Phase 1 physical signing/publication, and Phase 1 physical v1→v2 validation as open/pending. Only an explicit result from the project lead after personally performing the corresponding physical Nimiq Pay test may change each status. Phase 0 and Phase 1 remain open, and Phase 2 may not begin.
+
+**Context:** The earlier message used explicit PASS wording, but the project lead clarified that it was not a report of personally completed device testing and that pass-like example wording, automated tests, browser checks, implementation completeness, simulated proofs, and prior Android cryptographic evidence must not be treated as current device-gate evidence.
+
+**Alternatives:** retain the mistaken closeout; silently delete its record; infer results from adjacent evidence; continue Phase 2 despite the restored phase gate.
+
+**Rationale:** Physical Nimiq Pay behavior can only be established by the responsible human's direct test and explicit result. An append-only superseding decision corrects current truth without erasing the historical decision trail or weakening the existing evidence standard.
+
+**Consequences:** D-021 has no operative effect. Documentation must show Phase 0 at 98%, Phase 1 at 92%, and Phase 2 not started. The repository may maintain completed Phase 0/1 code and tests, but work that depends on phase closure stops at the exact physical-device procedure.

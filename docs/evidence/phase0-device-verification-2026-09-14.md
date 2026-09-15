@@ -42,4 +42,4 @@ The companion checksum was verified before this summary was committed. The priva
 
 This artifact closes the Android framed-signature and independently verified TestAlbatross transaction/finality proof. It does not by itself establish iOS host compatibility, provider-timeout recovery, or account-permission cancellation behavior.
 
-The remaining physical-device outcomes were later reported as passing and are recorded without private proof material in the [Phase 0 and Phase 1 device closeout](./phase0-phase1-device-closeout-2026-09-15.md).
+The later [closeout wording was withdrawn](./phase0-phase1-device-closeout-2026-09-15.md) after the project lead clarified that it was not personal confirmation of the remaining device tests. This artifact's original scope remains unchanged.

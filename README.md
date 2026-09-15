@@ -46,7 +46,7 @@ The deliberately small architecture is a React/TypeScript mobile-first frontend,
 
 ## Current status
 
-Phase 0 and Phase 1 are complete. The merchant journey creates a product, sets exact policy terms, requests canonical NR1 bytes, signs through Nimiq Pay, publishes only after server verification, displays public cryptographic evidence, and creates a later immutable version while earlier proofs remain visible. The project lead's physical-device run passed T-001, T-002, T-020, v1 signing/publication, and v2 preservation. Phase 2 Purchase Passport work is now active. D-018 still keeps claimant authorization and all claim writes closed until its Phase 3 design gate. See the [sanitized device closeout](./docs/evidence/phase0-phase1-device-closeout-2026-09-15.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
+The Phase 1 merchant implementation is code-complete under D-020: a merchant can create a product, set exact policy terms, request canonical NR1 bytes, sign through Nimiq Pay, publish only after server verification, display public cryptographic evidence, and create a later immutable version while earlier proofs remain visible. Production-configured writers use strict schemas, an expiring one-time bootstrap, a protected established-merchant session, exact Origin checks, and rate limits. PostgreSQL constraints, least-privilege runtime behavior, and full v1→v2 HTTP integration are tested. Phase 1 has not exited: T-001, T-002, T-020, physical signing/publication, and physical v1→v2 validation remain open pending the project lead's explicit personal results. Phase 0 remains 98%; Phase 1 remains 92%; Phase 2 has not started. D-018 keeps claimant authorization and all claim writes closed until its Phase 3 design gate. See the [device-status correction](./docs/evidence/phase0-phase1-device-closeout-2026-09-15.md), [STATUS.md](./STATUS.md), and [MEMORY.md](./MEMORY.md).
 
 ## Local development
 
@@ -90,7 +90,7 @@ NimReturn is being built for **Nimiq Mini Apps Competition — Cycle II** (Augus
 - [SECURITY.md](./SECURITY.md): threat model and launch checklist.
 - [TESTING.md](./TESTING.md): automated and actual-device test strategy.
 - [docs/evidence/phase0-device-verification-2026-09-14.md](./docs/evidence/phase0-device-verification-2026-09-14.md): sanitized, checksum-bound Android Phase 0 proof summary.
-- [docs/evidence/phase0-phase1-device-closeout-2026-09-15.md](./docs/evidence/phase0-phase1-device-closeout-2026-09-15.md): sanitized physical-device scenario outcomes closing Phases 0 and 1.
+- [docs/evidence/phase0-phase1-device-closeout-2026-09-15.md](./docs/evidence/phase0-phase1-device-closeout-2026-09-15.md): correction restoring unconfirmed device scenarios to open/pending.
 - [PHASES.md](./PHASES.md): phased execution and exit criteria.
 - [RULES.md](./RULES.md): non-negotiable project constitution.
 - [DECISIONS.md](./DECISIONS.md): append-only decisions.
