@@ -1,12 +1,11 @@
 DO $$
 BEGIN
 	IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nimreturn_runtime') THEN
-		CREATE ROLE nimreturn_runtime NOLOGIN;
+		CREATE ROLE nimreturn_runtime
+			NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 	END IF;
 END;
 $$;--> statement-breakpoint
-ALTER ROLE nimreturn_runtime
-	NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;--> statement-breakpoint
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM nimreturn_runtime;--> statement-breakpoint
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM nimreturn_runtime;--> statement-breakpoint
