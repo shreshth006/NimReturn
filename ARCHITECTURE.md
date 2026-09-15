@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 now implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. The remaining device scenarios and physical merchant validation are open pending the project lead's explicit personal results; Phase 2 has not started.
+This document describes the intended MVP architecture. Phase 0 implements the wallet/cryptographic/transaction diagnostic slice. Phase 1 implements the PostgreSQL/domain trust core, configured production policy writers, merchant studio, and fail-closed public proof/history projection. D-023 authorizes Phase 2 Purchase Passport implementation while all unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -13,7 +13,7 @@ Principles:
 - make critical transitions idempotent and database-enforced;
 - keep pure protocol validation separate from transport and UI;
 - show uncertainty honestly;
-- prove Nimiq Pay interoperability on a device before product expansion.
+- prove Nimiq Pay interoperability on a device before formal phase exit; D-023 permits only the documented Phase 2 implementation deferral.
 
 ## Selected stack
 

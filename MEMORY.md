@@ -8,7 +8,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 # Current phase
 
-Phase 1 implementation is complete under D-020 but remains at 92% until the physical Nimiq Pay exit. Phase 0 remains 98%. Under D-022, T-001, T-002, T-020, physical signing/publication, and physical v1→v2 validation are explicitly open/pending until the project lead personally performs each test and reports its result. Phase 2 has not started. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
+Phase 1 implementation is complete under D-020 but remains at 92%; Phase 0 remains 98%. Under D-022, T-001, T-002, T-020, physical signing/publication, and physical v1→v2 validation are explicitly open/pending until the project lead personally performs each test and reports its result. D-023 authorizes Phase 2 Purchase Passport implementation now and batches all physical checks into one later session. D-018 still blocks claim writes until a reviewed claimant-authorization protocol exists.
 
 # What is complete
 
@@ -32,6 +32,6 @@ Physical Android Nimiq Pay must still prove T-001, T-002, T-020, the current mer
 
 # Next actions
 
-1. Have the project lead run T-001 provider timeout/recovery and report the explicit result.
-2. Have the project lead run T-002 account-permission cancellation/recovery, Phase 1 signing/publication, and physical v1→v2 preservation, then report each explicit result.
-3. Have the project lead run T-020 native payment cancellation and report the explicit result. Only after all required results pass may documentation close Phases 0/1 and implementation begin Phase 2.
+1. Implement Phase 2 immutable pending orders and exact active-policy binding.
+2. Add strict hash attachment, independent execution/finality verification, idempotent Passport creation, and recovery.
+3. Build the buyer-facing payment/Passport UI, then stop at one consolidated physical-device checklist. Do not mark any open device case passed or begin Phase 3.

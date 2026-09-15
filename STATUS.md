@@ -4,13 +4,13 @@ Last updated: 2026-09-15 (IST)
 
 ## Current phase
 
-**Phase 1 — Policy + Merchant: implementation complete; physical-device exit pending.** D-022 supersedes the mistaken closeout in D-021. T-001, T-002, T-020, physical policy signing/publication, and physical v1→v2 validation are open/pending until the project lead personally performs and explicitly reports each result. Phase 2 has not started.
+**Phase 2 — Purchase Passport: implementation authorized under D-023.** Phase 0 stays 98% and Phase 1 stays 92%. T-001, T-002, T-020, physical policy signing/publication, and physical v1→v2 validation remain open/pending until the project lead personally performs and explicitly reports each result. They are batched with the later Phase 2 device suite, not waived.
 
 ## Completion by phase
 
 - Phase 0 — Technical proof: **98%** (prior Android chain/signature proof complete; T-001/T-002/T-020 remain open).
 - Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
-- Phase 2 — Purchase Passport: **0%**.
+- Phase 2 — Purchase Passport: **0%** (implementation starting; physical validation deferred).
 - Phase 3 — Claims: **0%**.
 - Phase 4 — Refund: **0%**.
 - Phase 5 — Promise Ledger + polish: **0%**.
@@ -53,4 +53,4 @@ Not deployed. Vendor/region/credentials remain owner decisions. The ignored loca
 
 ## Next milestone
 
-Stop at the physical-device boundary. Run the five open device-gated checks using the exact procedure in the handoff, then report each result explicitly. Do not begin Phase 2 until every required Phase 0/1 result is personally confirmed.
+Implement the Phase 2 immutable order, independent transaction verification, one-Passport finalization, reload recovery, and buyer UI. Then stop at the consolidated physical-device boundary covering the still-open Phase 0/1 checks plus a real Phase 2 payment and Passport. Do not begin Phase 3.

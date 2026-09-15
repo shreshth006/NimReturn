@@ -265,3 +265,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Physical Nimiq Pay behavior can only be established by the responsible human's direct test and explicit result. An append-only superseding decision corrects current truth without erasing the historical decision trail or weakening the existing evidence standard.
 
 **Consequences:** D-021 has no operative effect. Documentation must show Phase 0 at 98%, Phase 1 at 92%, and Phase 2 not started. The repository may maintain completed Phase 0/1 code and tests, but work that depends on phase closure stops at the exact physical-device procedure.
+
+## D-023 — 2026-09-15 — Batch open device gates while implementing Phase 2
+
+**Decision:** At the project lead's direction, begin the narrowly scoped Phase 2 Purchase Passport implementation while keeping T-001, T-002, T-020, Phase 1 physical signing/publication, and Phase 1 physical v1→v2 validation open/pending. This is a scheduling and testing deferral, not a waiver or PASS. One later consolidated physical Nimiq Pay session will cover the open Phase 0, Phase 1, and Phase 2 device cases.
+
+**Context:** The project lead cannot perform the physical session now and explicitly authorized using development time for Phase 2. Phase 0 remains 98% and Phase 1 remains 92%; their completed implementation and prior truthful Android cryptographic/chain evidence are preserved, but cannot substitute for the named open tests.
+
+**Alternatives:** keep implementation blocked until the device is available; falsely close earlier gates; broaden work into claims/refunds or later features.
+
+**Rationale:** Phase 2 can be built and proven hermetically against the already frozen identity, policy, execution, and Albatross-finality rules without claiming native-wallet interoperability. Consolidating related device interactions reduces setup overhead while maintaining one explicit human evidence boundary.
+
+**Consequences:** Phase 2 may implement only pending purchase orders, documented direct Nimiq Pay payment requests, independent chain verification, immutable Purchase Passports, recovery/reconciliation, and their buyer UI. Automated coverage never changes a physical gate. Phase 2 cannot formally exit and Phase 3 cannot begin until the project lead reports the required consolidated device results.

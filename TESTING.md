@@ -140,6 +140,8 @@ The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026
 
 D-022 corrects an earlier interpretation of pass-like prompt wording: T-001, T-002, T-020, Phase 1 physical signing/publication, and physical v1→v2 validation remain open/pending. Automated tests, CI, browser checks, code completeness, simulated proofs, and the earlier Android cryptographic evidence do not close them.
 
+D-023 permits Phase 2 implementation and batches the open Phase 0/1 checks with the later Phase 2 physical purchase/Passport suite. This scheduling deferral does not change any scenario outcome; only the project lead's explicit result after personally performing each device test may do so.
+
 ## Test data rules
 
 - Keys are generated at test runtime or labeled deterministic fixtures with no funds/use outside tests.
