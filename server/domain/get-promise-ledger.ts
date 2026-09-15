@@ -7,6 +7,7 @@ const DEFINITIONS = {
   approvedClaims: 'Claims with a final APPROVED attestation verified to the purchase-bound policy signer.',
   claimsFiled: 'Authorized wallet-signed claims with a current deterministic eligibility evaluation.',
   eligibleClaims: 'Filed claims whose current stored NR1 evaluation matched the purchase-bound policy.',
+  evidenceExceptions: 'Finalized purchase or refund records whose latest independent recheck reported changed or regressed evidence. Original evidence remains preserved.',
   ineligibleClaims: 'Filed claims whose current stored NR1 evaluation did not match the purchase-bound policy.',
   medianResolutionTime: 'Median time from verified claimant authorization to the verified policy-signer decision. Unresolved claims are excluded.',
   refundPending: 'Verified APPROVED decisions without a matching independently verified refund transaction.',
@@ -45,6 +46,7 @@ export interface PromiseLedgerView {
     approvedClaims: CountMetric
     claimsFiled: CountMetric
     eligibleClaims: CountMetric
+    evidenceExceptions: CountMetric
     ineligibleClaims: CountMetric
     medianResolutionTime: DurationMetric
     refundPending: CountMetric
@@ -70,6 +72,7 @@ type LedgerRow = {
   as_of: Date
   claims_filed: number | string
   eligible_claims: number | string
+  evidence_exceptions: number | string
   ineligible_claims: number | string
   median_resolution_ms: number | string | null
   merchant_display_name: string
@@ -125,8 +128,13 @@ export async function getPromiseLedger(
   if (!parsedId.success) throw new PromiseLedgerReadError('INVALID_REQUEST')
 
   const rows = await database<LedgerRow[]>`
-    select ledger.*, transaction_timestamp() as as_of
+    select
+      ledger.*,
+      coalesce(reconciliations.evidence_exceptions, 0)::bigint as evidence_exceptions,
+      transaction_timestamp() as as_of
     from promise_ledger_v1 ledger
+    left join promise_ledger_reconciliation_v1 reconciliations
+      on reconciliations.merchant_id = ledger.merchant_id
     where ledger.merchant_public_id = ${parsedId.data}
       and ledger.policy_signer_address is not null
     limit 1
@@ -161,6 +169,7 @@ export async function getPromiseLedger(
   const claimsFiled = safeInteger(row.claims_filed, 'claims filed')
   const eligibleClaims = safeInteger(row.eligible_claims, 'eligible claims')
   const ineligibleClaims = safeInteger(row.ineligible_claims, 'ineligible claims')
+  const evidenceExceptions = safeInteger(row.evidence_exceptions, 'evidence exceptions')
   const approvedClaims = safeInteger(row.approved_claims, 'approved claims')
   const rejectedClaims = safeInteger(row.rejected_claims, 'rejected claims')
   const unresolvedCases = safeInteger(row.unresolved_claims, 'unresolved cases')
@@ -198,6 +207,11 @@ export async function getPromiseLedger(
       approvedClaims: countMetric(approvedClaims, decisionCount, DEFINITIONS.approvedClaims),
       claimsFiled: countMetric(claimsFiled, verifiedPurchases, DEFINITIONS.claimsFiled),
       eligibleClaims: countMetric(eligibleClaims, claimsFiled, DEFINITIONS.eligibleClaims),
+      evidenceExceptions: countMetric(
+        evidenceExceptions,
+        verifiedPurchases + verifiedRefunds,
+        DEFINITIONS.evidenceExceptions,
+      ),
       ineligibleClaims: countMetric(ineligibleClaims, claimsFiled, DEFINITIONS.ineligibleClaims),
       medianResolutionTime: {
         definition: DEFINITIONS.medianResolutionTime,

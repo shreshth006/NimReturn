@@ -40,6 +40,7 @@ const promiseLedgerSchema = z.object({
     approvedClaims: countMetricSchema,
     claimsFiled: countMetricSchema,
     eligibleClaims: countMetricSchema,
+    evidenceExceptions: countMetricSchema,
     ineligibleClaims: countMetricSchema,
     medianResolutionTime: durationMetricSchema,
     refundPending: countMetricSchema,

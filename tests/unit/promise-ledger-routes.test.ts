@@ -35,6 +35,7 @@ function ledger(): PromiseLedgerView {
       approvedClaims: count(2, 3),
       claimsFiled: count(4, 3),
       eligibleClaims: count(3, 4),
+      evidenceExceptions: count(0, 4),
       ineligibleClaims: count(1, 4),
       medianResolutionTime: {
         definition: 'Median verified response time.',

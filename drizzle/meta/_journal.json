@@ -78,6 +78,13 @@
       "when": 1789496892590,
       "tag": "0010_phase_five_promise_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789497805826,
+      "tag": "0011_promise_ledger_reconciliation_visibility",
+      "breakpoints": true
     }
   ]
 }

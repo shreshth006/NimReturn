@@ -149,6 +149,7 @@ export function PublicPromiseLedger({ merchantPublicId }: { merchantPublicId: st
           <MetricCard label="Verified purchases" metric={metrics.verifiedPurchases} tone="chain" />
           <MetricCard label="Claims filed" metric={metrics.claimsFiled} />
           <MetricCard label="Policy eligible" metric={metrics.eligibleClaims} tone="positive" />
+          <MetricCard label="Evidence exceptions" metric={metrics.evidenceExceptions} tone={metrics.evidenceExceptions.value > 0 ? 'warning' : 'neutral'} />
           <MetricCard label="Policy ineligible" metric={metrics.ineligibleClaims} />
           <MetricCard label="Approved" metric={metrics.approvedClaims} tone="positive" />
           <MetricCard label="Rejected" metric={metrics.rejectedClaims} />
@@ -242,7 +243,7 @@ function MetricCard({
 }: {
   label: string
   metric: PromiseLedgerCountMetric
-  tone?: 'chain' | 'neutral' | 'pending' | 'positive'
+  tone?: 'chain' | 'neutral' | 'pending' | 'positive' | 'warning'
 }) {
   return (
     <article className={`metric-card metric-card--${tone}`}>

@@ -2623,6 +2623,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
           approvedClaims: { sampleSize: 3, value: 2 },
           claimsFiled: { sampleSize: 3, value: 4 },
           eligibleClaims: { sampleSize: 4, value: 3 },
+          evidenceExceptions: { sampleSize: 4, value: 0 },
           ineligibleClaims: { sampleSize: 4, value: 1 },
           medianResolutionTime: { sampleSize: 3, unit: 'milliseconds' },
           refundPending: { sampleSize: 2, value: 1 },
@@ -2660,6 +2661,40 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         .map((row) => row.verified_at.getTime() - row.accepted_at.getTime())
         .sort((left, right) => left - right)[1]
       expect(ledger?.metrics.medianResolutionTime.value).toBe(expectedMedian)
+
+      const refundChains = await runtime<{ id: string }[]>`
+        select chain.id
+        from chain_transactions chain
+        join refund_transactions refunds on refunds.chain_transaction_id = chain.id
+        join purchase_passports passports on passports.id = refunds.passport_id
+        where passports.merchant_id = (
+          select id from merchants where public_id = ${draft.merchantPublicId}
+        )
+      `
+      const refundChainId = refundChains[0]?.id
+      if (!refundChainId) throw new Error('Promise Ledger exception fixture requires a refund chain record.')
+      await runtime`
+        insert into chain_reconciliations (
+          chain_transaction_id, outcome, reason, verifier_version, checked_at
+        ) values (
+          ${refundChainId}, 'exception', 'Synthetic regression detected by integration test.',
+          'integration-test', clock_timestamp() + interval '1 second'
+        )
+      `
+      await expect(getPromiseLedger(runtime, draft.merchantPublicId)).resolves.toMatchObject({
+        metrics: { evidenceExceptions: { value: 1 } },
+      })
+      await runtime`
+        insert into chain_reconciliations (
+          chain_transaction_id, outcome, reason, verifier_version, checked_at
+        ) values (
+          ${refundChainId}, 'confirmed', 'Synthetic evidence confirmed by integration test.',
+          'integration-test', clock_timestamp() + interval '2 seconds'
+        )
+      `
+      await expect(getPromiseLedger(runtime, draft.merchantPublicId)).resolves.toMatchObject({
+        metrics: { evidenceExceptions: { value: 0 } },
+      })
 
       const privileges = await runtime<{
         can_delete: boolean

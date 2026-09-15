@@ -383,6 +383,7 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .metric-card--chain { border-color: var(--green); }
 .metric-card--positive { border-color: #5e9075; }
 .metric-card--pending { border-color: #bd8b28; }
+.metric-card--warning { border-color: var(--red); background: var(--red-soft); }
 .metric-card--time { border-color: var(--navy); }
 .metric-card > span { min-height: 2.4em; color: var(--muted); font-size: 0.66rem; font-weight: 850; letter-spacing: 0.07em; text-transform: uppercase; }
 .metric-card > strong { margin-top: 10px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.6rem, 5vw, 4.1rem); font-weight: 500; line-height: 1; }
