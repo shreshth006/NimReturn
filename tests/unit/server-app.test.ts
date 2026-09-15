@@ -72,6 +72,24 @@ describe('server app', () => {
     expect(response.json()).toEqual({ phase: 5, service: 'nimreturn-api', status: 'ok' })
   })
 
+  it('sets restrictive browser security headers in production', async () => {
+    const app = await buildApp({
+      ...writerConfig,
+      CORS_ORIGIN: 'https://staging.example.com',
+      DATABASE_URL: 'postgresql://runtime:secret@database.example.com:5432/nimreturn',
+      NIMIQ_RPC_URL: 'https://rpc.example.com',
+      NODE_ENV: 'production',
+    })
+    apps.push(app)
+
+    const response = await app.inject({ method: 'GET', url: '/health' })
+
+    expect(response.headers['content-security-policy']).toContain("default-src 'self'")
+    expect(response.headers['permissions-policy']).toBe('camera=(), geolocation=(), microphone=()')
+    expect(response.headers['strict-transport-security']).toContain('max-age=31536000')
+    expect(response.headers['x-content-type-options']).toBe('nosniff')
+  })
+
   it('rejects malformed public product identifiers before database access', async () => {
     const app = await buildApp(config)
     apps.push(app)

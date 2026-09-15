@@ -26,3 +26,7 @@ FROM caddy:2.10.2-alpine AS web
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 EXPOSE 80 443
+
+FROM api AS render
+ENV STATIC_ROOT=/app/dist
+COPY --from=build /app/dist ./dist

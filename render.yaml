@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: nimreturn-staging-cycle2
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: NIMIQ_NETWORK
+        value: TestAlbatross
+      - key: NIMIQ_RPC_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: STATIC_ROOT
+        value: /app/dist

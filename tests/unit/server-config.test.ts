@@ -27,4 +27,12 @@ describe('server production configuration', () => {
       NODE_ENV: 'production',
     })
   })
+
+  it('derives the exact public origin from Render without weakening production validation', () => {
+    expect(parseServerConfig({
+      ...productionEnvironment,
+      CORS_ORIGIN: '',
+      RENDER_EXTERNAL_HOSTNAME: 'nimreturn-staging-cycle2.onrender.com',
+    }).CORS_ORIGIN).toBe('https://nimreturn-staging-cycle2.onrender.com')
+  })
 })

@@ -343,6 +343,18 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     global: false,
   })
 
+  if (config.NODE_ENV === 'production') {
+    app.addHook('onSend', async (_request, reply) => {
+      reply.headers({
+        'content-security-policy': "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; upgrade-insecure-requests",
+        'permissions-policy': 'camera=(), geolocation=(), microphone=()',
+        'referrer-policy': 'strict-origin-when-cross-origin',
+        'strict-transport-security': 'max-age=31536000; includeSubDomains',
+        'x-content-type-options': 'nosniff',
+      })
+    })
+  }
+
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
   const createOrder = dependencies.createOrder ?? createPurchaseOrder

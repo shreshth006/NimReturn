@@ -17,6 +17,10 @@ const configSchema = z.object({
     (value) => value === '' ? undefined : value,
     z.string().min(32).optional(),
   ),
+  STATIC_ROOT: z.preprocess(
+    (value) => value === '' ? undefined : value,
+    z.string().min(1).optional(),
+  ),
 }).superRefine((config, context) => {
   if (config.NODE_ENV !== 'production') return
   for (const [field, value] of [
@@ -38,7 +42,13 @@ const configSchema = z.object({
 export type ServerConfig = z.infer<typeof configSchema>
 
 export function parseServerConfig(environment: NodeJS.ProcessEnv): ServerConfig {
-  const parsed = configSchema.safeParse(environment)
+  const renderOrigin = environment.RENDER_EXTERNAL_HOSTNAME
+    ? `https://${environment.RENDER_EXTERNAL_HOSTNAME}`
+    : undefined
+  const parsed = configSchema.safeParse({
+    ...environment,
+    CORS_ORIGIN: environment.CORS_ORIGIN || renderOrigin,
+  })
   if (!parsed.success) {
     throw new Error(`Invalid server environment: ${z.prettifyError(parsed.error)}`)
   }
