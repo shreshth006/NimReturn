@@ -38,6 +38,9 @@ interface PurchaseOrderRow {
   product_name: string
   product_public_id: string
   row_version: number
+  reconciliation_checked_at: Date | null
+  reconciliation_outcome: 'confirmed' | 'exception' | 'inconclusive' | null
+  reconciliation_reason: string | null
   transaction_hash: string | null
   verification_reason: string | null
 }
@@ -93,6 +96,9 @@ export async function getPurchaseOrder(
       chain_transactions.head_block_number::text,
       chain_transactions.execution_result,
       chain_transactions.sender as chain_sender,
+      latest_reconciliation.checked_at as reconciliation_checked_at,
+      latest_reconciliation.outcome as reconciliation_outcome,
+      latest_reconciliation.reason as reconciliation_reason,
       purchase_passports.public_id as passport_public_id
     from orders
     join products on products.id = orders.product_id
@@ -102,6 +108,13 @@ export async function getPurchaseOrder(
       on chain_transactions.purpose = 'purchase' and chain_transactions.resource_id = orders.id
     left join purchase_transactions on purchase_transactions.order_id = orders.id
     left join purchase_passports on purchase_passports.order_id = orders.id
+    left join lateral (
+      select checked_at, outcome, reason
+      from chain_reconciliations
+      where chain_reconciliations.chain_transaction_id = chain_transactions.id
+      order by checked_at desc, id desc
+      limit 1
+    ) latest_reconciliation on true
     where orders.public_id = ${orderPublicId.data}
   `
   const row = rows[0]
@@ -124,6 +137,13 @@ export async function getPurchaseOrder(
         headBlockNumber: parseSafeInteger(row.head_block_number),
         observedState: row.observed_state,
         reason: row.verification_reason,
+        reconciliation: row.reconciliation_checked_at && row.reconciliation_outcome && row.reconciliation_reason
+          ? {
+              checkedAt: row.reconciliation_checked_at,
+              outcome: row.reconciliation_outcome,
+              reason: row.reconciliation_reason,
+            }
+          : null,
         sender: row.chain_sender,
       }
     : null

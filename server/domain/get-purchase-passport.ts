@@ -66,6 +66,9 @@ interface PurchasePassportRow extends PublicProductRow {
   passport_warranty_deadline: Date | null
   purchase_time: Date
   purchase_verified_at: Date
+  reconciliation_checked_at: Date | null
+  reconciliation_outcome: 'confirmed' | 'exception' | 'inconclusive' | null
+  reconciliation_reason: string | null
 }
 
 export interface PurchasePassportView {
@@ -111,7 +114,12 @@ export interface PurchasePassportView {
   }
   protocol: 'NR1'
   publicId: string
-  status: 'active' | 'refunded'
+  reconciliation: {
+    checkedAt: Date | null
+    reason: string
+    status: 'confirmed' | 'exception' | 'inconclusive' | 'original-verification'
+  }
+  status: 'active' | 'refunded' | 'verification_exception'
 }
 
 function parseSafeInteger(value: string): number {
@@ -199,7 +207,10 @@ export async function getPurchasePassport(
       chain_transactions.sender as chain_sender,
       chain_transactions.recipient as chain_recipient,
       chain_transactions.value_luna::text as chain_value_luna,
-      chain_transactions.data_text as chain_data_text
+      chain_transactions.data_text as chain_data_text,
+      latest_reconciliation.checked_at as reconciliation_checked_at,
+      latest_reconciliation.outcome as reconciliation_outcome,
+      latest_reconciliation.reason as reconciliation_reason
     from purchase_passports
     join orders on orders.id = purchase_passports.order_id
     join products on products.id = purchase_passports.product_id
@@ -207,6 +218,13 @@ export async function getPurchasePassport(
     join policy_versions on policy_versions.id = purchase_passports.policy_version_id
     join purchase_transactions on purchase_transactions.id = purchase_passports.purchase_transaction_id
     join chain_transactions on chain_transactions.id = purchase_transactions.chain_transaction_id
+    left join lateral (
+      select checked_at, outcome, reason
+      from chain_reconciliations
+      where chain_reconciliations.chain_transaction_id = chain_transactions.id
+      order by checked_at desc, id desc
+      limit 1
+    ) latest_reconciliation on true
     where purchase_passports.public_id = ${passportPublicId.data}
       and chain_transactions.observed_state = 'finalized'
   `
@@ -317,6 +335,19 @@ export async function getPurchasePassport(
     },
     protocol: 'NR1',
     publicId: row.passport_public_id,
-    status: row.passport_status,
+    reconciliation: row.reconciliation_checked_at && row.reconciliation_outcome && row.reconciliation_reason
+      ? {
+          checkedAt: row.reconciliation_checked_at,
+          reason: row.reconciliation_reason,
+          status: row.reconciliation_outcome,
+        }
+      : {
+          checkedAt: null,
+          reason: 'The original independent verification established successful execution and macro-block finality.',
+          status: 'original-verification',
+        },
+    status: row.reconciliation_outcome === 'exception'
+      ? 'verification_exception'
+      : row.passport_status,
   }
 }

@@ -62,6 +62,11 @@ const purchaseOrderSchema = z.object({
     headBlockNumber: z.number().int().nonnegative().safe().nullable(),
     observedState: z.enum(['absent', 'finalized', 'included', 'inconclusive', 'invalid', 'mempool']),
     reason: z.string().min(1),
+    reconciliation: z.object({
+      checkedAt: isoDateSchema,
+      outcome: z.enum(['confirmed', 'exception', 'inconclusive']),
+      reason: z.string().min(1),
+    }).strict().nullable(),
     sender: z.string().min(1).max(64).nullable(),
   }).strict().nullable(),
 }).strict()
@@ -109,7 +114,12 @@ const purchasePassportSchema = z.object({
   }).strict(),
   protocol: z.literal('NR1'),
   publicId: publicTokenSchema,
-  status: z.enum(['active', 'refunded']),
+  reconciliation: z.object({
+    checkedAt: isoDateSchema.nullable(),
+    reason: z.string().min(1),
+    status: z.enum(['confirmed', 'exception', 'inconclusive', 'original-verification']),
+  }).strict(),
+  status: z.enum(['active', 'refunded', 'verification_exception']),
 }).strict()
 
 const walletEventSchema = z.enum([

@@ -260,6 +260,9 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .order-evidence dd { margin: 0; overflow-wrap: anywhere; font-size: 0.78rem; font-weight: 750; }
 .ambiguity-lock { display: grid; gap: 6px; margin-top: 20px; padding: 16px; border-left: 3px solid var(--red); color: #6f2b27; background: var(--red-soft); font-size: 0.82rem; line-height: 1.5; }
 .passport { margin-top: 44px; border: 1px solid #9dcbb0; background: var(--surface); box-shadow: 0 24px 70px rgb(23 73 54 / 12%); }
+.passport--exception { border-color: #d99d95; box-shadow: 0 24px 70px rgb(126 45 38 / 11%); }
+.passport--exception .passport__hero { background: #762f2a; }
+.passport--exception .passport__statement { border-color: #e1b1ab; color: #702d28; background: var(--red-soft); }
 .passport__hero { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: clamp(26px, 5vw, 48px); color: white; background: #104d36; }
 .passport__seal { display: grid; place-items: center; width: 72px; height: 72px; border: 2px solid #9be0b9; border-radius: 50%; color: #bdf0d3; font-size: 2.2rem; }
 .passport__hero .eyebrow { margin-bottom: 7px; color: #a8dec0; }

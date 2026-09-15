@@ -43,6 +43,13 @@
       "when": 1789459910126,
       "tag": "0005_phase_two_purchase_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789462065211,
+      "tag": "0006_phase_two_reconciliation",
+      "breakpoints": true
     }
   ]
 }

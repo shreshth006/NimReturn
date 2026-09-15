@@ -66,6 +66,7 @@ describe('purchase API client', () => {
         headBlockNumber: null,
         observedState: 'absent',
         reason: 'Not found yet.',
+        reconciliation: null,
         sender: null,
       },
     }), { status: 202 }))

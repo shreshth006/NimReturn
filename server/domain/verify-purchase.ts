@@ -459,6 +459,113 @@ async function runIndependentVerification(
   )
 }
 
+async function persistReconciliation(
+  client: postgres.Sql,
+  orderPublicId: string,
+  outcome: 'confirmed' | 'exception' | 'inconclusive',
+  reason: string,
+  observed: ObservedTransaction | null,
+): Promise<PurchaseOrderView> {
+  return client.begin(async (transaction) => {
+    const rows = await transaction<{ chain_id: string; order_id: string }[]>`
+      select chain_transactions.id as chain_id, orders.id as order_id
+      from orders
+      join chain_transactions
+        on chain_transactions.purpose = 'purchase' and chain_transactions.resource_id = orders.id
+      where orders.public_id = ${orderPublicId}
+        and orders.payment_state = 'purchased'
+        and chain_transactions.observed_state = 'finalized'
+      for share of orders, chain_transactions
+    `
+    const row = rows[0]
+    if (!row) throw new PurchaseOrderError('STATE_CONFLICT', 'Only a finalized purchase can be reconciled.')
+    const nowRows = await transaction<{ now: Date }[]>`select clock_timestamp() as now`
+    const checkedAt = nowRows[0]?.now
+    if (!checkedAt) throw new PurchaseOrderError('PERSISTENCE_CONFLICT', 'The database clock was unavailable.')
+    await transaction`
+      insert into chain_reconciliations (
+        chain_transaction_id, outcome, normalized_evidence, reason, verifier_version, checked_at
+      ) values (
+        ${row.chain_id}, ${outcome},
+        ${observed ? transaction.json(observed as unknown as postgres.JSONValue) : null},
+        ${reason}, ${VERIFIER_VERSION}, ${checkedAt}
+      )
+    `
+    if (outcome === 'exception') {
+      await transaction`
+        insert into protocol_events (
+          aggregate_type, aggregate_id, event_type, protocol_version, occurred_at,
+          correlation_id, evidence_type, evidence_id, payload
+        ) values (
+          'order', ${row.order_id}, 'purchase.reconciliation-exception', 'NR1', ${checkedAt},
+          ${randomUUID()}, 'chain', ${row.chain_id},
+          ${transaction.json({ reason, transactionHash: observed?.hash ?? null })}
+        )
+      `
+    }
+    const view = await getPurchaseOrder(transaction, orderPublicId)
+    if (!view) throw new PurchaseOrderError('PERSISTENCE_CONFLICT', 'The reconciled purchase disappeared.')
+    return view
+  })
+}
+
+async function reconcilePurchasedTransaction(
+  client: postgres.Sql,
+  reader: PurchaseTransactionReader,
+  view: PurchaseOrderView,
+): Promise<PurchaseOrderView> {
+  const stored = view.transaction
+  if (!stored || stored.observedState !== 'finalized' || !stored.sender) {
+    throw new PurchaseOrderError('EVIDENCE_INTEGRITY', 'The finalized purchase evidence is incomplete.')
+  }
+  let observed: ObservedTransaction | null
+  try {
+    observed = await reader.getTransaction(stored.hash)
+  } catch {
+    return persistReconciliation(
+      client,
+      view.publicId,
+      'inconclusive',
+      'Reconciliation RPC was unavailable; original finalized evidence was not rewritten.',
+      null,
+    )
+  }
+  if (!observed) {
+    return persistReconciliation(
+      client,
+      view.publicId,
+      'inconclusive',
+      'Reconciliation did not find the transaction; independent follow-up is required.',
+      null,
+    )
+  }
+  const verification = verifyObservedTransaction({
+    ...view.expectedPayment,
+    hash: stored.hash,
+  }, observed)
+  const sameFinalizedIdentity = verification.outcome === 'verified'
+    && normalizeAddressOrNull(observed.sender) === stored.sender
+    && observed.blockNumber === stored.blockNumber
+    && observed.blockTimestamp === stored.blockTimestamp
+    && observed.finality.finalizingBlockNumber === stored.finalizingBlockNumber
+  if (!sameFinalizedIdentity) {
+    return persistReconciliation(
+      client,
+      view.publicId,
+      'exception',
+      `Previously finalized evidence regressed or changed: ${verification.reason}`,
+      observed,
+    )
+  }
+  return persistReconciliation(
+    client,
+    view.publicId,
+    'confirmed',
+    'Independent recheck confirmed the original transaction fields, execution, sender, and macro finality.',
+    observed,
+  )
+}
+
 export async function verifyPurchaseTransaction(
   client: postgres.Sql,
   reader: PurchaseTransactionReader,
@@ -485,6 +592,9 @@ export async function recheckPurchaseTransaction(
   }
   const view = await getPurchaseOrder(client, orderPublicId.data)
   if (!view) throw new PurchaseOrderError('ORDER_NOT_FOUND', 'The purchase was not found.')
+  if (view.paymentState === 'purchased') {
+    return reconcilePurchasedTransaction(client, reader, view)
+  }
   if (!view.transaction) {
     throw new PurchaseOrderError('STATE_CONFLICT', 'The purchase has no transaction to recheck.')
   }

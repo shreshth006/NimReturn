@@ -373,6 +373,7 @@ describe('server app', () => {
             headBlockNumber: null,
             observedState: 'absent',
             reason: 'Not observed yet.',
+            reconciliation: null,
             sender: null,
           },
         }))

@@ -1628,7 +1628,11 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       max: 4,
     })
     const finalizedAt = Date.parse('2026-09-15T11:15:00.000Z')
-    const finalized = (order: Awaited<ReturnType<typeof createPurchaseOrder>>, hash: string): ObservedTransaction => ({
+    const finalized = (
+      order: Awaited<ReturnType<typeof createPurchaseOrder>>,
+      hash: string,
+      overrides: Partial<ObservedTransaction> = {},
+    ): ObservedTransaction => ({
       blockNumber: 1_234,
       blockTimestamp: finalizedAt,
       confirmations: 8,
@@ -1645,6 +1649,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       sender: VALID_ADDRESS_A,
       state: 'finalized',
       valueLuna: order.expectedPayment.valueLuna,
+      ...overrides,
     })
     try {
       const order = await createPurchaseOrder(runtime, {
@@ -1666,10 +1671,13 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
 
       const hash = '10'.repeat(32)
       const reader = { getTransaction: () => Promise.resolve(finalized(order, hash)) }
-      const purchased = await verifyPurchaseTransaction(runtime, reader, {
-        hash,
-        orderPublicId: order.publicId,
-      })
+      const concurrent = await Promise.all([
+        verifyPurchaseTransaction(runtime, reader, { hash, orderPublicId: order.publicId }),
+        verifyPurchaseTransaction(runtime, reader, { hash, orderPublicId: order.publicId }),
+      ])
+      const purchased = concurrent[0]
+      if (!purchased) throw new Error('Expected concurrent purchase verification result.')
+      expect(concurrent[1]?.passport).toEqual(purchased.passport)
       expect(purchased).toMatchObject({
         buyerAddress: VALID_ADDRESS_A,
         paymentState: 'purchased',
@@ -1687,11 +1695,8 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         getTransaction: () => Promise.reject(new Error('idempotent replay must not need RPC')),
       }, { hash, orderPublicId: order.publicId })
       expect(repeated).toEqual(purchased)
-      const concurrent = await Promise.all([
-        recheckPurchaseTransaction(runtime, reader, order.publicId),
-        recheckPurchaseTransaction(runtime, reader, order.publicId),
-      ])
-      expect(concurrent).toEqual([purchased, purchased])
+      const reconciled = await recheckPurchaseTransaction(runtime, reader, order.publicId)
+      expect(reconciled.transaction?.reconciliation).toMatchObject({ outcome: 'confirmed' })
 
       const passportId = purchased.passport?.publicId
       if (!passportId) throw new Error('Expected a Passport after finalized verification.')
@@ -1711,6 +1716,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         product: { description: 'Phase 2 verification fixture' },
         protocol: 'NR1',
         publicId: passportId,
+        reconciliation: { status: 'confirmed' },
         status: 'active',
       })
       expect(passport?.payment.purchaseTime.getTime()).toBe(finalizedAt)
@@ -1718,6 +1724,30 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       await expect(runtime`
         update purchase_passports set product_name = 'Tampered' where public_id = ${passportId}
       `).rejects.toThrow(/permission denied|purchase passport evidence is immutable/u)
+
+      const regression = await recheckPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve(finalized(order, hash, {
+          finality: { finalizingBlockNumber: 1_240, headBlockNumber: 1_236, reached: false },
+          state: 'included',
+        })),
+      }, order.publicId)
+      expect(regression.transaction?.reconciliation).toMatchObject({ outcome: 'exception' })
+      await expect(getPurchasePassport(runtime, passportId)).resolves.toMatchObject({
+        reconciliation: { status: 'exception' },
+        status: 'verification_exception',
+      })
+      await expect(runtime`
+        update chain_reconciliations set outcome = 'confirmed'
+        where chain_transaction_id = (
+          select id from chain_transactions where transaction_hash = ${hash}
+        )
+      `).rejects.toThrow(/permission denied|chain reconciliation evidence is append-only/u)
+
+      await recheckPurchaseTransaction(runtime, reader, order.publicId)
+      await expect(getPurchasePassport(runtime, passportId)).resolves.toMatchObject({
+        reconciliation: { status: 'confirmed' },
+        status: 'active',
+      })
 
       const duplicateOrder = await createPurchaseOrder(runtime, {
         network: 'TestAlbatross',

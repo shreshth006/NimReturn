@@ -55,6 +55,11 @@ export const chainObservedState = pgEnum('chain_observed_state', [
   'invalid',
   'inconclusive',
 ])
+export const chainReconciliationOutcome = pgEnum('chain_reconciliation_outcome', [
+  'confirmed',
+  'inconclusive',
+  'exception',
+])
 export const passportStatus = pgEnum('passport_status', ['active', 'refunded'])
 
 export const merchants = pgTable('merchants', {
@@ -408,6 +413,25 @@ export const chainTransactions = pgTable('chain_transactions', {
   check(
     'chain_transactions_verification_checks_object',
     sql`${table.verificationChecks} is null or jsonb_typeof(${table.verificationChecks}) = 'object'`,
+  ),
+])
+
+export const chainReconciliations = pgTable('chain_reconciliations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  chainTransactionId: uuid('chain_transaction_id')
+    .notNull()
+    .references(() => chainTransactions.id, { onDelete: 'restrict' }),
+  outcome: chainReconciliationOutcome('outcome').notNull(),
+  normalizedEvidence: jsonb('normalized_evidence').$type<ObservedTransaction>(),
+  reason: varchar('reason', { length: 500 }).notNull(),
+  verifierVersion: varchar('verifier_version', { length: 40 }).notNull(),
+  checkedAt: timestamp('checked_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('chain_reconciliations_chain_checked_index').on(table.chainTransactionId, table.checkedAt),
+  check('chain_reconciliations_reason_not_blank', sql`btrim(${table.reason}) <> ''`),
+  check(
+    'chain_reconciliations_evidence_object',
+    sql`${table.normalizedEvidence} is null or jsonb_typeof(${table.normalizedEvidence}) = 'object'`,
   ),
 ])
 

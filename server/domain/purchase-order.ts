@@ -81,6 +81,11 @@ export interface PurchaseOrderView {
     headBlockNumber: number | null
     observedState: 'absent' | 'finalized' | 'included' | 'inconclusive' | 'invalid' | 'mempool'
     reason: string
+    reconciliation: null | {
+      checkedAt: Date
+      outcome: 'confirmed' | 'exception' | 'inconclusive'
+      reason: string
+    }
     sender: string | null
   }
 }

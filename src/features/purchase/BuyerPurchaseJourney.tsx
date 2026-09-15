@@ -343,16 +343,17 @@ function OrderEvidence({ order }: { order: PurchaseOrder }) {
 
 function PassportPanel({ passport }: { passport: PurchasePassport }) {
   const { payload } = passport.policy
+  const hasVerificationException = passport.status === 'verification_exception'
   return (
-    <section className="passport" aria-labelledby="passport-title">
+    <section className={hasVerificationException ? 'passport passport--exception' : 'passport'} aria-labelledby="passport-title">
       <div className="passport__hero">
         <span className="passport__seal" aria-hidden="true">✓</span>
-        <div><p className="eyebrow">NR1 · independently verified</p><h1 id="passport-title">Purchase Passport</h1><p>Payment verified on Nimiq</p></div>
+        <div><p className="eyebrow">NR1 · independently verified</p><h1 id="passport-title">Purchase Passport</h1><p>{hasVerificationException ? 'Chain recheck requires attention' : 'Payment verified on Nimiq'}</p></div>
         <strong>Policy v{passport.policy.version}</strong>
       </div>
       <div className="passport__statement">
-        <strong>The payment is your receipt.</strong>
-        <span>This purchase is permanently linked to the merchant-signed policy that was active when you paid. The merchant can publish new terms, but this purchase keeps v{passport.policy.version}.</span>
+        <strong>{hasVerificationException ? 'Verification exception detected.' : 'The payment is your receipt.'}</strong>
+        <span>{hasVerificationException ? passport.reconciliation.reason : `This purchase is permanently linked to the merchant-signed policy that was active when you paid. The merchant can publish new terms, but this purchase keeps v${passport.policy.version}.`}</span>
       </div>
       <dl className="passport__facts">
         <PassportFact label="Product" value={passport.product.name} />
@@ -362,7 +363,7 @@ function PassportPanel({ passport }: { passport: PurchasePassport }) {
         <PassportFact label="Policy at purchase" value={`v${passport.policy.version}`} detail={short(passport.policy.payloadHash)} />
         <PassportFact label="Return window" value={formatDuration(payload.returnWindowSeconds)} {...(passport.deadlines.return ? { detail: `Until ${formatDate(passport.deadlines.return)}` } : {})} />
         <PassportFact label="Warranty" value={formatDuration(payload.warrantyWindowSeconds)} {...(passport.deadlines.warranty ? { detail: `Until ${formatDate(passport.deadlines.warranty)}` } : {})} />
-        <PassportFact label="Finality" value="Verified" detail={`Macro ${passport.payment.finality.finalizingBlockNumber.toLocaleString()} · head ${passport.payment.finality.headBlockNumber.toLocaleString()}`} />
+        <PassportFact label="Finality" value={hasVerificationException ? 'Exception · recheck required' : 'Verified'} detail={`Macro ${passport.payment.finality.finalizingBlockNumber.toLocaleString()} · head ${passport.payment.finality.headBlockNumber.toLocaleString()}`} />
       </dl>
       <div className="passport__evidence">
         <h2>Independent evidence</h2>
@@ -375,6 +376,7 @@ function PassportPanel({ passport }: { passport: PurchasePassport }) {
           <PassportFact label="Cryptographic policy signer" value={passport.policy.signerAddress} mono />
           <PassportFact label="Policy payload hash" value={passport.policy.payloadHash} mono />
           <PassportFact label="Confirmation rule" value={passport.payment.confirmationPolicy} mono />
+          <PassportFact label="Latest reconciliation" value={passport.reconciliation.status} detail={passport.reconciliation.checkedAt ? formatDate(passport.reconciliation.checkedAt) : 'Original verification'} />
         </dl>
       </div>
       <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance.</p>
