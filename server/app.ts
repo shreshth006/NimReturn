@@ -768,6 +768,29 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
     try {
       const resolution = await readResolution(database, params.data.claimPublicId)
+      if (!resolution || resolution.status !== 'verified') {
+        return reply.code(404).send({ code: 'RESOLUTION_NOT_FOUND', message: 'No verified resolution was found.' })
+      }
+      return reply.send(resolution)
+    } catch (error) {
+      const response = resolutionError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/resolution', async (request, reply) => {
+    const params = resolutionParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The resolution identifiers are invalid.' })
+    }
+    if (!database || !config.SESSION_SECRET) {
+      return reply.code(503).send({ code: 'RESOLUTION_UNAVAILABLE', message: 'Resolution lookup is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      const resolution = await readResolution(database, params.data.claimPublicId)
       if (!resolution) return reply.code(404).send({ code: 'RESOLUTION_NOT_FOUND', message: 'No resolution was found.' })
       return reply.send(resolution)
     } catch (error) {

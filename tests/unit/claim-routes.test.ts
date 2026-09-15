@@ -222,6 +222,7 @@ describe('claim routes', () => {
         }))
       },
       readMerchantClaims: () => Promise.resolve(queue),
+      readResolution: () => Promise.resolve(resolutionView()),
     })
     apps.push(app)
 
@@ -243,6 +244,14 @@ describe('claim routes', () => {
     })
     expect(queueResponse.statusCode).toBe(200)
     expect(queueResponse.json()).toMatchObject({ claims: [{ productName: 'Wireless mouse' }] })
+
+    const resumed = await app.inject({
+      cookies,
+      method: 'GET',
+      url: `/api/v1/merchants/${MERCHANT_ID}/claims/${CLAIM_ID}/resolution`,
+    })
+    expect(resumed.statusCode).toBe(200)
+    expect(resumed.json()).toMatchObject({ status: 'pending' })
 
     const challenge = await app.inject({
       cookies,
@@ -287,5 +296,16 @@ describe('claim routes', () => {
     const response = await app.inject({ method: 'GET', url: `/api/v1/claims/${CLAIM_ID}/resolution` })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toMatchObject({ decision: 'APPROVED', status: 'verified' })
+  })
+
+  it('does not expose an unsigned merchant decision through the public resolution route', async () => {
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      readResolution: () => Promise.resolve(resolutionView({ status: 'pending' })),
+    })
+    apps.push(app)
+    const response = await app.inject({ method: 'GET', url: `/api/v1/claims/${CLAIM_ID}/resolution` })
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toMatchObject({ code: 'RESOLUTION_NOT_FOUND' })
   })
 })

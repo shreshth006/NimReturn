@@ -301,3 +301,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** Self-authorization relies on cryptographically observed equality rather than an assumption. Exact-claim delegation allows an intentionally distinct signer while requiring explicit authority from the chain-derived buyer. Binding the second proof to the immutable claim hash and both addresses minimizes replay scope and avoids custody, additional transfers, private keys, or account-selection claims.
 
 **Consequences:** Claim submission has a safe intermediate state and is not accepted, evaluated, queued, or publicly described as filed before authorization completes. A mismatched authorization signer fails closed. Challenges expire and consume atomically; successful authorization and the first eligibility evaluation commit together. The UI may ask for a second Nimiq Pay approval when the claim signer differs, and must explain that the purchase wallet must approve it. Physical equal/distinct-account behavior remains a later device gate; an inability to select the needed wallet key cannot be bypassed. At the project lead's direction, Phase 3 implementation may proceed while all earlier physical gates remain open under an expanded batched-testing deferral; no open gate is waived or marked PASS.
+
+## D-026 — 2026-09-15 — Keep unsigned resolution drafts private
+
+**Decision:** The public claim-resolution endpoint returns only a server-verified merchant decision. A pending or expired resolution challenge is indistinguishable from no public resolution. The authenticated merchant may recover that draft through a separate session-protected route.
+
+**Context:** Frontend integration showed that reusing the public read for merchant challenge recovery would reveal the merchant's unsigned draft decision and note to anyone holding the claim identifier before the policy signer approved it.
+
+**Alternatives:** expose all challenges publicly; prevent reload recovery; place pending canonical bytes in browser storage.
+
+**Rationale:** A draft has no cryptographic authority and should not be presented or disclosed as merchant speech. The existing merchant session is sufficient to recover it without persisting signature material or decision text in browser storage.
+
+**Consequences:** Buyers see only immutable verified decisions. Merchant reload can resume an exact pending challenge through the protected endpoint. Route tests must prove both the public fail-closed behavior and authenticated draft recovery.
