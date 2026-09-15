@@ -35,6 +35,7 @@ import {
   recheckRefundTransaction,
   verifyRefundTransaction,
 } from '../../server/domain/verify-refund.js'
+import { getPromiseLedger } from '../../server/domain/get-promise-ledger.js'
 import {
   recheckPurchaseTransaction,
   verifyPurchaseTransaction,
@@ -2524,6 +2525,164 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       expect(repeatedResolution).toEqual(firstResolution)
       const queue = await listMerchantClaims(runtime, draft.merchantPublicId)
       expect(queue.map((item) => item.claim.workflowState).sort()).toEqual(['approved', 'rejected'])
+
+      async function createVerifiedPassport(blockTimestamp: number, hashByte: string) {
+        const nextOrder = await createPurchaseOrder(runtime, {
+          network: 'TestAlbatross',
+          productPublicId: draft.productPublicId,
+        })
+        const nextHash = hashByte.repeat(32)
+        const nextObserved: ObservedTransaction = {
+          blockNumber: 4_000 + Number.parseInt(hashByte, 16),
+          blockTimestamp,
+          data: nextOrder.expectedPayment.data,
+          executionResult: true,
+          finality: {
+            finalizingBlockNumber: 5_000 + Number.parseInt(hashByte, 16),
+            headBlockNumber: 6_000 + Number.parseInt(hashByte, 16),
+            reached: true,
+          },
+          hash: nextHash,
+          network: nextOrder.expectedPayment.network,
+          recipient: nextOrder.expectedPayment.recipient,
+          sender: buyer.address,
+          state: 'finalized',
+          valueLuna: nextOrder.expectedPayment.valueLuna,
+        }
+        const verifiedOrder = await verifyPurchaseTransaction(runtime, {
+          getTransaction: () => Promise.resolve(nextObserved),
+        }, { hash: nextHash, orderPublicId: nextOrder.publicId })
+        const nextPassportId = verifiedOrder.passport?.publicId
+        if (!nextPassportId) throw new Error('Promise Ledger fixture requires a verified Passport.')
+        return nextPassportId
+      }
+
+      const pendingRefundPassport = await createVerifiedPassport(Date.now() - 120_000, '94')
+      const pendingRefundChallenge = await createClaimChallenge(runtime, {
+        claimType: 'RETURN',
+        note: '',
+        passportPublicId: pendingRefundPassport,
+        reasonCode: 'CHANGED_MIND',
+      })
+      const pendingRefundClaim = await submitClaimProof(runtime, {
+        claimPublicId: pendingRefundChallenge.publicId,
+        proof: createPolicyProof(
+          PRIVATE_KEY_CLAIM_BUYER,
+          pendingRefundChallenge.challenge.canonicalMessage,
+        ).proof,
+      })
+      expect(pendingRefundClaim.eligibility?.eligible).toBe(true)
+      const pendingRefundResolution = await createResolutionChallenge(runtime, {
+        claimPublicId: pendingRefundClaim.publicId,
+        decision: 'APPROVED',
+        merchantPublicId: draft.merchantPublicId,
+        note: 'Approved; direct refund is still pending',
+        reasonCode: 'POLICY_ACCEPTED',
+      })
+      await publishResolution(runtime, {
+        claimPublicId: pendingRefundClaim.publicId,
+        merchantPublicId: draft.merchantPublicId,
+        proof: createPolicyProof(
+          PRIVATE_KEY_POLICY_CLAIMS,
+          pendingRefundResolution.canonicalMessage,
+        ).proof,
+        resolutionPublicId: pendingRefundResolution.publicId,
+      })
+
+      const unresolvedPassport = await createVerifiedPassport(
+        Date.now() - (8 * 24 * 60 * 60 * 1_000),
+        '95',
+      )
+      const unresolvedChallenge = await createClaimChallenge(runtime, {
+        claimType: 'RETURN',
+        note: '',
+        passportPublicId: unresolvedPassport,
+        reasonCode: 'OTHER',
+      })
+      const unresolvedClaim = await submitClaimProof(runtime, {
+        claimPublicId: unresolvedChallenge.publicId,
+        proof: createPolicyProof(
+          PRIVATE_KEY_CLAIM_BUYER,
+          unresolvedChallenge.challenge.canonicalMessage,
+        ).proof,
+      })
+      expect(unresolvedClaim).toMatchObject({
+        eligibility: { eligible: false },
+        workflowState: 'ineligible',
+      })
+
+      const ledger = await getPromiseLedger(runtime, draft.merchantPublicId)
+      expect(ledger).toMatchObject({
+        definitionsVersion: 'promise-ledger-v1',
+        merchant: {
+          displayName: 'Claims Journey Merchant',
+          policySignerAddress: createPolicyProof(PRIVATE_KEY_POLICY_CLAIMS, 'derive').address,
+          publicId: draft.merchantPublicId,
+        },
+        metrics: {
+          approvedClaims: { sampleSize: 3, value: 2 },
+          claimsFiled: { sampleSize: 3, value: 4 },
+          eligibleClaims: { sampleSize: 4, value: 3 },
+          ineligibleClaims: { sampleSize: 4, value: 1 },
+          medianResolutionTime: { sampleSize: 3, unit: 'milliseconds' },
+          refundPending: { sampleSize: 2, value: 1 },
+          rejectedClaims: { sampleSize: 3, value: 1 },
+          unresolvedCases: { sampleSize: 4, value: 1 },
+          verifiedPurchases: { sampleSize: 3, value: 3 },
+          verifiedRefunds: { sampleSize: 2, value: 1 },
+        },
+        products: [{
+          name: 'Claims Journey Product',
+          policySignerAddress: createPolicyProof(PRIVATE_KEY_POLICY_CLAIMS, 'derive').address,
+          publicId: draft.productPublicId,
+          settlementAddress: VALID_ADDRESS_D,
+        }],
+      })
+      expect(ledger?.asOf).toBeInstanceOf(Date)
+      expect(ledger?.metrics.medianResolutionTime.value).toEqual(expect.any(Number))
+      expect(Object.values(ledger?.metrics ?? {}).every((metric) => metric.definition.length > 20)).toBe(true)
+
+      const resolutionTimes = await runtime<{
+        accepted_at: Date
+        verified_at: Date
+      }[]>`
+        select authorizations.verified_at as accepted_at, resolutions.verified_at
+        from claim_resolutions resolutions
+        join claim_authorizations authorizations on authorizations.claim_id = resolutions.claim_id
+        where resolutions.merchant_id = (
+          select id from merchants where public_id = ${draft.merchantPublicId}
+        )
+          and resolutions.verification_status = 'verified'
+          and authorizations.consumed_at is not null
+        order by resolutions.verified_at
+      `
+      const expectedMedian = resolutionTimes
+        .map((row) => row.verified_at.getTime() - row.accepted_at.getTime())
+        .sort((left, right) => left - right)[1]
+      expect(ledger?.metrics.medianResolutionTime.value).toBe(expectedMedian)
+
+      const privileges = await runtime<{
+        can_delete: boolean
+        can_insert: boolean
+        can_select: boolean
+        can_update: boolean
+      }[]>`
+        select
+          has_table_privilege(current_user, 'promise_ledger_v1', 'SELECT') as can_select,
+          has_table_privilege(current_user, 'promise_ledger_v1', 'INSERT') as can_insert,
+          has_table_privilege(current_user, 'promise_ledger_v1', 'UPDATE') as can_update,
+          has_table_privilege(current_user, 'promise_ledger_v1', 'DELETE') as can_delete
+      `
+      expect(privileges[0]).toEqual({
+        can_delete: false,
+        can_insert: false,
+        can_select: true,
+        can_update: false,
+      })
+      await expect(runtime`
+        update promise_ledger_v1 set verified_purchases = 99
+        where merchant_public_id = ${draft.merchantPublicId}
+      `).rejects.toThrow()
     } finally {
       await runtime.end()
     }

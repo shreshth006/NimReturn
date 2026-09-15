@@ -60,6 +60,10 @@ import {
   recheckRefundTransaction,
   verifyRefundTransaction,
 } from './domain/verify-refund.js'
+import {
+  getPromiseLedger,
+  PromiseLedgerReadError,
+} from './domain/get-promise-ledger.js'
 
 const publicToken = z.string().regex(/^[A-Za-z0-9_-]{22}$/u)
 const resourceParamsSchema = z.object({
@@ -135,6 +139,7 @@ const refundAttemptParamsSchema = z.object({
 const refundWalletStateBodySchema = z.object({
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
 }).strict()
+const merchantParamsSchema = z.object({ merchantPublicId: publicToken }).strict()
 const emptyBodySchema = z.object({}).strict()
 const walletStateBodySchema = z.object({
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
@@ -311,6 +316,7 @@ export interface AppDependencies {
   recordRefundState?: typeof recordRefundWalletState
   verifyRefund?: typeof verifyRefundTransaction
   recheckRefund?: typeof recheckRefundTransaction
+  readPromiseLedger?: typeof getPromiseLedger
 }
 
 export async function buildApp(config: ServerConfig, dependencies: AppDependencies = {}) {
@@ -360,6 +366,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const updateRefundState = dependencies.recordRefundState ?? recordRefundWalletState
   const verifyRefund = dependencies.verifyRefund ?? verifyRefundTransaction
   const recheckRefund = dependencies.recheckRefund ?? recheckRefundTransaction
+  const readPromiseLedger = dependencies.readPromiseLedger ?? getPromiseLedger
   const rpc = dependencies.rpc ?? null
   const purchaseReader: PurchaseTransactionReader = rpc ?? {
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
@@ -842,7 +849,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   })
 
   app.get('/api/v1/merchants/:merchantPublicId/claims', async (request, reply) => {
-    const params = z.object({ merchantPublicId: publicToken }).strict().safeParse(request.params)
+    const params = merchantParamsSchema.safeParse(request.params)
     if (!params.success) {
       return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant identifier is invalid.' })
     }
@@ -857,6 +864,30 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     } catch (error) {
       const response = resolutionError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/merchants/:merchantPublicId/promise-ledger', async (request, reply) => {
+    const params = merchantParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'LEDGER_UNAVAILABLE', message: 'The Promise Ledger is temporarily unavailable.' })
+    }
+    try {
+      const ledger = await readPromiseLedger(database, params.data.merchantPublicId)
+      if (!ledger) return reply.code(404).send({ code: 'MERCHANT_NOT_FOUND', message: 'No verified merchant was found.' })
+      return reply.send(ledger)
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Promise Ledger read failed')
+      if (error instanceof PromiseLedgerReadError && error.code === 'INVALID_REQUEST') {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant identifier is invalid.' })
+      }
+      return reply.code(503).send({
+        code: 'LEDGER_EVIDENCE_UNAVAILABLE',
+        message: 'The Promise Ledger could not be safely derived from verified evidence.',
+      })
     }
   })
 
