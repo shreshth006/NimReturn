@@ -5,6 +5,7 @@ import type {
   ClaimPayload,
 } from '../../src/lib/protocol/claim.js'
 import type { ClaimEligibilityEvaluation } from '../../src/lib/protocol/claim-eligibility.js'
+import type { ResolutionPayload } from '../../src/lib/protocol/resolution.js'
 import type {
   ObservedTransaction,
   TransactionVerification,
@@ -88,6 +89,18 @@ export const claimWorkflowState = pgEnum('claim_workflow_state', [
   'rejected',
 ])
 export const claimAuthorizationMode = pgEnum('claim_authorization_mode', ['self', 'delegated'])
+export const resolutionDecision = pgEnum('resolution_decision', ['APPROVED', 'REJECTED'])
+export const resolutionReasonCode = pgEnum('resolution_reason_code', [
+  'INSUFFICIENT_INFORMATION',
+  'POLICY_ACCEPTED',
+  'POLICY_NOT_APPLICABLE',
+  'OTHER',
+])
+export const resolutionVerificationStatus = pgEnum('resolution_verification_status', [
+  'pending',
+  'verified',
+  'expired',
+])
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -582,6 +595,7 @@ export const claims = pgTable('claims', {
   unique('claims_public_id_unique').on(table.publicId),
   unique('claims_challenge_nonce_unique').on(table.challengeNonce),
   unique('claims_id_passport_unique').on(table.id, table.passportId),
+  unique('claims_id_merchant_unique').on(table.id, table.merchantId),
   foreignKey({
     name: 'claims_passport_order_fk',
     columns: [table.passportId, table.orderId],
@@ -716,6 +730,79 @@ export const claimEligibilityEvaluations = pgTable('claim_eligibility_evaluation
   check('claim_eligibility_inputs_object', sql`jsonb_typeof(${table.inputs}) = 'object'`),
   check('claim_eligibility_rules_object', sql`jsonb_typeof(${table.ruleResults}) = 'object'`),
   check('claim_eligibility_evaluator_not_blank', sql`btrim(${table.evaluatorVersion}) <> ''`),
+])
+
+export const claimResolutions = pgTable('claim_resolutions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  publicId: char('public_id', { length: 22 }).notNull(),
+  claimId: uuid('claim_id').notNull(),
+  merchantId: uuid('merchant_id').notNull(),
+  policySignerAddress: varchar('policy_signer_address', { length: 36 }).notNull(),
+  decision: resolutionDecision('decision').notNull(),
+  reasonCode: resolutionReasonCode('reason_code').notNull(),
+  note: varchar('note', { length: 1024 }).default('').notNull(),
+  approvedRefundLuna: bigint('approved_refund_luna', { mode: 'number' }).notNull(),
+  resolutionTime: timestamp('resolution_time', { withTimezone: true }).notNull(),
+  challengeNonce: char('challenge_nonce', { length: 22 }).notNull(),
+  payload: jsonb('payload').$type<ResolutionPayload>().notNull(),
+  canonicalMessage: text('canonical_message').notNull(),
+  payloadHash: char('payload_hash', { length: 64 }).notNull(),
+  publicKey: char('public_key', { length: 64 }),
+  signature: char('signature', { length: 128 }),
+  signerAddress: varchar('signer_address', { length: 36 }),
+  verifierVersion: varchar('verifier_version', { length: 40 }),
+  verificationStatus: resolutionVerificationStatus('verification_status').default('pending').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('claim_resolutions_public_id_unique').on(table.publicId),
+  unique('claim_resolutions_challenge_nonce_unique').on(table.challengeNonce),
+  foreignKey({
+    name: 'claim_resolutions_claim_merchant_fk',
+    columns: [table.claimId, table.merchantId],
+    foreignColumns: [claims.id, claims.merchantId],
+  }).onDelete('restrict'),
+  uniqueIndex('claim_resolutions_one_pending_per_claim')
+    .on(table.claimId)
+    .where(sql`${table.verificationStatus} = 'pending'`),
+  uniqueIndex('claim_resolutions_one_verified_per_claim')
+    .on(table.claimId)
+    .where(sql`${table.verificationStatus} = 'verified'`),
+  index('claim_resolutions_merchant_created_index').on(table.merchantId, table.createdAt),
+  check('claim_resolutions_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('claim_resolutions_nonce_format', sql`${table.challengeNonce} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('claim_resolutions_payload_object', sql`jsonb_typeof(${table.payload}) = 'object'`),
+  check(
+    'claim_resolutions_canonical_message_domain',
+    sql`${table.canonicalMessage} like 'NIMRETURN/1/RESOLUTION' || chr(10) || '%'`,
+  ),
+  check('claim_resolutions_payload_hash_format', sql`${table.payloadHash} ~ '^[0-9a-f]{64}$'`),
+  check(
+    'claim_resolutions_policy_signer_format',
+    sql`${table.policySignerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'claim_resolutions_signer_format',
+    sql`${table.signerAddress} is null or ${table.signerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'claim_resolutions_note_format',
+    sql`btrim(${table.note}) = ${table.note} and ${table.note} !~ '[[:cntrl:]]'`,
+  ),
+  check(
+    'claim_resolutions_amount_shape',
+    sql`(${table.decision} = 'APPROVED' and ${table.approvedRefundLuna} > 0 and ${table.approvedRefundLuna} <= 9007199254740991) or (${table.decision} = 'REJECTED' and ${table.approvedRefundLuna} = 0)`,
+  ),
+  check('claim_resolutions_valid_expiry', sql`${table.expiresAt} > ${table.createdAt}`),
+  check(
+    'claim_resolutions_verified_proof_complete',
+    sql`${table.verificationStatus} <> 'verified' or (${table.publicKey} is not null and ${table.signature} is not null and ${table.signerAddress} = ${table.policySignerAddress} and ${table.verifierVersion} is not null and ${table.verifiedAt} is not null)`,
+  ),
+  check(
+    'claim_resolutions_pending_proof_empty',
+    sql`${table.verificationStatus} <> 'pending' or (${table.publicKey} is null and ${table.signature} is null and ${table.signerAddress} is null and ${table.verifierVersion} is null and ${table.verifiedAt} is null)`,
+  ),
 ])
 
 export const protocolEvents = pgTable('protocol_events', {

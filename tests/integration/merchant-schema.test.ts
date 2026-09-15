@@ -21,6 +21,12 @@ import {
   submitClaimProof,
 } from '../../server/domain/claim-lifecycle.js'
 import {
+  createResolutionChallenge,
+  getClaimResolution,
+  listMerchantClaims,
+  publishResolution,
+} from '../../server/domain/resolution-lifecycle.js'
+import {
   recheckPurchaseTransaction,
   verifyPurchaseTransaction,
 } from '../../server/domain/verify-purchase.js'
@@ -2300,6 +2306,93 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
         claimPublicId: pending.publicId,
         proof: unrelatedProof,
       })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+
+      await expect(listMerchantClaims(runtime, draft.merchantPublicId)).resolves.toHaveLength(2)
+      const approval = await createResolutionChallenge(runtime, {
+        claimPublicId: selfClaim.publicId,
+        decision: 'APPROVED',
+        merchantPublicId: draft.merchantPublicId,
+        note: 'Approved under the signed return terms',
+        reasonCode: 'POLICY_ACCEPTED',
+      })
+      expect(approval).toMatchObject({
+        approvedRefundLuna: order.expectedPayment.valueLuna,
+        decision: 'APPROVED',
+        status: 'pending',
+      })
+      const wrongMerchantProof = createPolicyProof(
+        PRIVATE_KEY_CLAIM_BUYER,
+        approval.canonicalMessage,
+      ).proof
+      await expect(publishResolution(runtime, {
+        claimPublicId: selfClaim.publicId,
+        merchantPublicId: draft.merchantPublicId,
+        proof: wrongMerchantProof,
+        resolutionPublicId: approval.publicId,
+      })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH', name: 'ResolutionLifecycleError' })
+      const policyProof = createPolicyProof(
+        PRIVATE_KEY_POLICY_CLAIMS,
+        approval.canonicalMessage,
+      ).proof
+      const approved = await publishResolution(runtime, {
+        claimPublicId: selfClaim.publicId,
+        merchantPublicId: draft.merchantPublicId,
+        proof: policyProof,
+        resolutionPublicId: approval.publicId,
+      })
+      expect(approved).toMatchObject({
+        approvedRefundLuna: order.expectedPayment.valueLuna,
+        decision: 'APPROVED',
+        status: 'verified',
+      })
+      await expect(publishResolution(runtime, {
+        claimPublicId: selfClaim.publicId,
+        merchantPublicId: draft.merchantPublicId,
+        proof: policyProof,
+        resolutionPublicId: approval.publicId,
+      })).resolves.toMatchObject({ status: 'verified' })
+      await expect(createResolutionChallenge(runtime, {
+        claimPublicId: selfClaim.publicId,
+        decision: 'REJECTED',
+        merchantPublicId: draft.merchantPublicId,
+        note: 'Conflicting decision',
+        reasonCode: 'POLICY_NOT_APPLICABLE',
+      })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+      await expect(getClaimResolution(runtime, selfClaim.publicId)).resolves.toMatchObject({
+        policySignerAddress: createPolicyProof(PRIVATE_KEY_POLICY_CLAIMS, 'derive').address,
+        status: 'verified',
+      })
+
+      const rejection = await createResolutionChallenge(runtime, {
+        claimPublicId: delegated.publicId,
+        decision: 'REJECTED',
+        merchantPublicId: draft.merchantPublicId,
+        note: 'Outside the signed warranty terms',
+        reasonCode: 'POLICY_NOT_APPLICABLE',
+      })
+      expect(rejection.approvedRefundLuna).toBe(0)
+      const rejectionProof = createPolicyProof(
+        PRIVATE_KEY_POLICY_CLAIMS,
+        rejection.canonicalMessage,
+      ).proof
+      const [firstResolution, repeatedResolution] = await Promise.all([
+        publishResolution(runtime, {
+          claimPublicId: delegated.publicId,
+          merchantPublicId: draft.merchantPublicId,
+          proof: rejectionProof,
+          resolutionPublicId: rejection.publicId,
+        }),
+        publishResolution(runtime, {
+          claimPublicId: delegated.publicId,
+          merchantPublicId: draft.merchantPublicId,
+          proof: rejectionProof,
+          resolutionPublicId: rejection.publicId,
+        }),
+      ])
+      expect(firstResolution).toMatchObject({ decision: 'REJECTED', status: 'verified' })
+      expect(repeatedResolution).toEqual(firstResolution)
+      const queue = await listMerchantClaims(runtime, draft.merchantPublicId)
+      expect(queue.map((item) => item.claim.workflowState).sort()).toEqual(['approved', 'rejected'])
     } finally {
       await runtime.end()
     }

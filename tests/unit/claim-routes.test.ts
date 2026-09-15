@@ -4,12 +4,21 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../server/app.js'
 import type { ServerConfig } from '../../server/config.js'
 import type { ClaimView } from '../../server/domain/claim-lifecycle.js'
+import type {
+  MerchantClaimQueueItem,
+  ResolutionView,
+} from '../../server/domain/resolution-lifecycle.js'
+import { createMerchantSessionToken } from '../../server/http/merchant-session.js'
 
 const config: ServerConfig = {
   HOST: '127.0.0.1',
   NIMIQ_NETWORK: 'TestAlbatross',
   NODE_ENV: 'test',
   PORT: 3001,
+}
+const writerConfig: ServerConfig = {
+  ...config,
+  SESSION_SECRET: 'claim-routes-test-session-secret-at-least-32-bytes',
 }
 const PASSPORT_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
 const CLAIM_ID = 'BBBBBBBBBBBBBBBBBBBBBB'
@@ -48,6 +57,27 @@ function claimView(overrides: Partial<ClaimView> = {}): ClaimView {
     reasonCode: 'DEFECTIVE',
     signatureStatus: 'pending',
     workflowState: 'signature_requested',
+    ...overrides,
+  }
+}
+
+function resolutionView(overrides: Partial<ResolutionView> = {}): ResolutionView {
+  return {
+    approvedRefundLuna: 500_000,
+    canonicalMessage: 'NIMRETURN/1/RESOLUTION\n{}',
+    claimPublicId: CLAIM_ID,
+    createdAt: new Date('2026-09-15T12:30:00.000Z'),
+    decision: 'APPROVED',
+    expiresAt: new Date('2026-09-15T12:40:00.000Z'),
+    note: 'Approved under policy',
+    payloadHash: '12'.repeat(32),
+    policySignerAddress: ADDRESS,
+    publicId: AUTHORIZATION_ID,
+    reasonCode: 'POLICY_ACCEPTED',
+    resolutionTime: new Date('2026-09-15T12:30:00.000Z'),
+    signerAddress: null,
+    status: 'pending',
+    verifiedAt: null,
     ...overrides,
   }
 }
@@ -156,5 +186,106 @@ describe('claim routes', () => {
     expect(unavailable.statusCode).toBe(503)
     const malformed = await app.inject({ method: 'GET', url: '/api/v1/claims/not-valid' })
     expect(malformed.statusCode).toBe(400)
+  })
+
+  it('protects the merchant claim queue and resolution writers with the merchant session', async () => {
+    const queue: MerchantClaimQueueItem[] = [{
+      claim: {
+        claimSignerAddress: ADDRESS,
+        claimTime: new Date('2026-09-15T12:00:00.000Z'),
+        claimType: 'RETURN',
+        eligibility: 'eligible',
+        note: 'Defective',
+        publicId: CLAIM_ID,
+        purchaseSenderAddress: ADDRESS,
+        reasonCode: 'DEFECTIVE',
+        workflowState: 'eligible',
+      },
+      passportPublicId: PASSPORT_ID,
+      productName: 'Wireless mouse',
+      resolution: null,
+    }]
+    const challengeInputs: unknown[] = []
+    const publishInputs: unknown[] = []
+    const app = await buildApp(writerConfig, {
+      createResolution: (_database, input) => {
+        challengeInputs.push(input)
+        return Promise.resolve(resolutionView())
+      },
+      database: {} as postgres.Sql,
+      publishResolution: (_database, input) => {
+        publishInputs.push(input)
+        return Promise.resolve(resolutionView({
+          signerAddress: ADDRESS,
+          status: 'verified',
+          verifiedAt: new Date('2026-09-15T12:31:00.000Z'),
+        }))
+      },
+      readMerchantClaims: () => Promise.resolve(queue),
+    })
+    apps.push(app)
+
+    const unauthenticated = await app.inject({
+      method: 'GET',
+      url: `/api/v1/merchants/${MERCHANT_ID}/claims`,
+    })
+    expect(unauthenticated.statusCode).toBe(401)
+
+    const token = createMerchantSessionToken({
+      merchantPublicId: MERCHANT_ID,
+      secret: writerConfig.SESSION_SECRET ?? '',
+    }).token
+    const cookies = { nimreturn_merchant_session: token }
+    const queueResponse = await app.inject({
+      cookies,
+      method: 'GET',
+      url: `/api/v1/merchants/${MERCHANT_ID}/claims`,
+    })
+    expect(queueResponse.statusCode).toBe(200)
+    expect(queueResponse.json()).toMatchObject({ claims: [{ productName: 'Wireless mouse' }] })
+
+    const challenge = await app.inject({
+      cookies,
+      method: 'POST',
+      payload: {
+        decision: 'APPROVED',
+        note: 'Approved under policy',
+        reasonCode: 'POLICY_ACCEPTED',
+      },
+      url: `/api/v1/merchants/${MERCHANT_ID}/claims/${CLAIM_ID}/resolutions/challenges`,
+    })
+    expect(challenge.statusCode).toBe(201)
+    expect(challengeInputs).toEqual([{
+      claimPublicId: CLAIM_ID,
+      decision: 'APPROVED',
+      merchantPublicId: MERCHANT_ID,
+      note: 'Approved under policy',
+      reasonCode: 'POLICY_ACCEPTED',
+    }])
+
+    const published = await app.inject({
+      cookies,
+      method: 'POST',
+      payload: { proof: PROOF },
+      url: `/api/v1/merchants/${MERCHANT_ID}/claims/${CLAIM_ID}/resolutions/${AUTHORIZATION_ID}/publish`,
+    })
+    expect(published.statusCode).toBe(200)
+    expect(publishInputs).toEqual([{
+      claimPublicId: CLAIM_ID,
+      merchantPublicId: MERCHANT_ID,
+      proof: PROOF,
+      resolutionPublicId: AUTHORIZATION_ID,
+    }])
+  })
+
+  it('exposes a resolution read without exposing merchant queue notes', async () => {
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      readResolution: () => Promise.resolve(resolutionView({ status: 'verified' })),
+    })
+    apps.push(app)
+    const response = await app.inject({ method: 'GET', url: `/api/v1/claims/${CLAIM_ID}/resolution` })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({ decision: 'APPROVED', status: 'verified' })
   })
 })

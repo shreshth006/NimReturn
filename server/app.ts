@@ -41,6 +41,13 @@ import {
   createMerchantSessionToken,
   readMerchantSessionToken,
 } from './http/merchant-session.js'
+import {
+  createResolutionChallenge,
+  getClaimResolution,
+  listMerchantClaims,
+  publishResolution,
+  ResolutionLifecycleError,
+} from './domain/resolution-lifecycle.js'
 import { NimiqRpcError } from './rpc/nimiq-rpc.js'
 import type { NimiqRpcClient } from './rpc/nimiq-rpc.js'
 
@@ -87,6 +94,25 @@ const createClaimBodySchema = z.object({
   reasonCode: z.enum(['CHANGED_MIND', 'DEFECTIVE', 'NOT_AS_DESCRIBED', 'OTHER']),
 }).strict()
 const claimProofBodySchema = z.object({ proof: policyProofEnvelopeSchema }).strict()
+const resolutionChallengeBodySchema = z.object({
+  decision: z.enum(['APPROVED', 'REJECTED']),
+  note: z.string().max(2_048).optional(),
+  reasonCode: z.enum([
+    'INSUFFICIENT_INFORMATION',
+    'POLICY_ACCEPTED',
+    'POLICY_NOT_APPLICABLE',
+    'OTHER',
+  ]),
+}).strict()
+const resolutionParamsSchema = z.object({
+  claimPublicId: publicToken,
+  merchantPublicId: publicToken,
+}).strict()
+const publishResolutionParamsSchema = z.object({
+  claimPublicId: publicToken,
+  merchantPublicId: publicToken,
+  resolutionPublicId: publicToken,
+}).strict()
 const walletStateBodySchema = z.object({
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
 }).strict()
@@ -195,6 +221,39 @@ function claimError(error: unknown): WriterError {
   }
 }
 
+function resolutionError(error: unknown): WriterError {
+  const code = error instanceof ResolutionLifecycleError ? error.code : 'RESOLUTION_UNAVAILABLE'
+  if (code === 'INVALID_REQUEST') {
+    return { code, message: 'The resolution request is invalid.', statusCode: 400 }
+  }
+  if (code === 'CLAIM_NOT_FOUND' || code === 'RESOLUTION_NOT_FOUND') {
+    return { code, message: 'The claim or resolution was not found.', statusCode: 404 }
+  }
+  if (code === 'CHALLENGE_EXPIRED') {
+    return { code, message: 'The resolution challenge expired.', statusCode: 410 }
+  }
+  if (
+    code === 'INVALID_PROOF'
+    || code === 'INVALID_SIGNATURE'
+    || code === 'MESSAGE_MISMATCH'
+    || code === 'PAYLOAD_HASH_MISMATCH'
+    || code === 'SIGNER_MISMATCH'
+  ) {
+    return { code, message: 'The submitted resolution proof did not verify.', statusCode: 422 }
+  }
+  if (code === 'CHALLENGE_CONSUMED' || code === 'STATE_CONFLICT') {
+    return { code, message: 'The claim or resolution state conflicts with this action.', statusCode: 409 }
+  }
+  if (code === 'EVIDENCE_INTEGRITY') {
+    return { code, message: 'The resolution evidence could not be verified safely.', statusCode: 503 }
+  }
+  return {
+    code: 'RESOLUTION_UNAVAILABLE',
+    message: 'The resolution request could not be completed safely.',
+    statusCode: 503,
+  }
+}
+
 export interface AppDependencies {
   createDraft?: typeof createMerchantDraft
   createOrder?: typeof createPurchaseOrder
@@ -211,6 +270,10 @@ export interface AppDependencies {
   verifyPurchase?: typeof verifyPurchaseTransaction
   submitClaim?: typeof submitClaimProof
   authorizeClaim?: typeof submitClaimAuthorization
+  createResolution?: typeof createResolutionChallenge
+  publishResolution?: typeof publishResolution
+  readResolution?: typeof getClaimResolution
+  readMerchantClaims?: typeof listMerchantClaims
 }
 
 export async function buildApp(config: ServerConfig, dependencies: AppDependencies = {}) {
@@ -251,6 +314,10 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const verifyPurchase = dependencies.verifyPurchase ?? verifyPurchaseTransaction
   const submitClaim = dependencies.submitClaim ?? submitClaimProof
   const authorizeClaim = dependencies.authorizeClaim ?? submitClaimAuthorization
+  const createResolution = dependencies.createResolution ?? createResolutionChallenge
+  const publishClaimResolution = dependencies.publishResolution ?? publishResolution
+  const readResolution = dependencies.readResolution ?? getClaimResolution
+  const readMerchantClaims = dependencies.readMerchantClaims ?? listMerchantClaims
   const rpc = dependencies.rpc ?? null
   const purchaseReader: PurchaseTransactionReader = rpc ?? {
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
@@ -687,6 +754,104 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim authorization failed')
       const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/claims/:claimPublicId/resolution', async (request, reply) => {
+    const params = claimParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'RESOLUTION_UNAVAILABLE', message: 'Resolution lookup is temporarily unavailable.' })
+    }
+    try {
+      const resolution = await readResolution(database, params.data.claimPublicId)
+      if (!resolution) return reply.code(404).send({ code: 'RESOLUTION_NOT_FOUND', message: 'No resolution was found.' })
+      return reply.send(resolution)
+    } catch (error) {
+      const response = resolutionError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/merchants/:merchantPublicId/claims', async (request, reply) => {
+    const params = z.object({ merchantPublicId: publicToken }).strict().safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant identifier is invalid.' })
+    }
+    if (!database || !config.SESSION_SECRET) {
+      return reply.code(503).send({ code: 'RESOLUTION_UNAVAILABLE', message: 'The merchant claim queue is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.send({ claims: await readMerchantClaims(database, params.data.merchantPublicId) })
+    } catch (error) {
+      const response = resolutionError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/resolutions/challenges', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = resolutionParamsSchema.safeParse(request.params)
+    const body = resolutionChallengeBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The resolution request is invalid.' })
+    }
+    if (!database || !config.SESSION_SECRET) {
+      return reply.code(503).send({ code: 'RESOLUTION_UNAVAILABLE', message: 'Resolution signing is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.code(201).send(await createResolution(database, {
+        ...body.data,
+        claimPublicId: params.data.claimPublicId,
+        merchantPublicId: params.data.merchantPublicId,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Resolution challenge creation failed')
+      const response = resolutionError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/resolutions/:resolutionPublicId/publish', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = publishResolutionParamsSchema.safeParse(request.params)
+    const body = claimProofBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The resolution proof is invalid.' })
+    }
+    if (!database || !config.SESSION_SECRET) {
+      return reply.code(503).send({ code: 'RESOLUTION_UNAVAILABLE', message: 'Resolution publication is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.send(await publishClaimResolution(database, {
+        claimPublicId: params.data.claimPublicId,
+        merchantPublicId: params.data.merchantPublicId,
+        proof: body.data.proof,
+        resolutionPublicId: params.data.resolutionPublicId,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Resolution publication failed')
+      const response = resolutionError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
   })
