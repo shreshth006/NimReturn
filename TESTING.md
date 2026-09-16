@@ -40,7 +40,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Provider/account
 
-- **T-001 Wallet provider unavailable — OPEN:** init times out; “Open in Nimiq Pay” shown; retry works after injection.
+- **T-001 Wallet provider unavailable — PASS (project lead, Android, 2026-09-16):** the ordinary browser failed safely with “Open this page inside Nimiq Pay and retry”; the same HTTPS staging page reported the injected provider ready inside Nimiq Pay.
 - **T-002 Account permission rejected — OPEN:** normalized cancelled state; no merchant/buyer session or challenge consumed.
 - **T-003 No accounts/returned SDK error value:** actionable state, no unsafe array assumption.
 - **T-004 Multiple accounts:** an expected account can be selected for diagnostics, but cryptographic signer identity comes from the returned public key; listed-membership and expectation-match are reported separately.
@@ -138,7 +138,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 - Server lookup accepts only validated hashes and reports unavailable configuration/failure without fabrication.
 - Lint, typecheck, unit tests, and production build pass.
 
-The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. Phase 0 is still **not complete** until the project lead personally performs and explicitly reports T-001, T-002, and T-020.
+The private checksum-bound Android 16/Nimiq Pay 2.19.1 artifact recorded on 2026-09-14 closes actual-device T-017 and T-035 without placing identifiers in Git. D-016 accepts Android-only Cycle II target-device validation and explicitly leaves iOS untested. T-001 passed by explicit project-lead report on 2026-09-16. Phase 0 is still **not complete** until the project lead personally performs and explicitly reports T-002 and T-020.
 
 D-022 corrects an earlier interpretation of pass-like prompt wording: T-001, T-002, T-020, Phase 1 physical signing/publication, and physical v1→v2 validation remain open/pending. Automated tests, CI, browser checks, code completeness, simulated proofs, and the earlier Android cryptographic evidence do not close them.
 
