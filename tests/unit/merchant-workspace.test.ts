@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  clearMerchantWorkspace,
   loadMerchantWorkspace,
   saveMerchantWorkspace,
   savePendingChallenge,
@@ -61,5 +62,14 @@ describe('merchant workspace recovery', () => {
     expect(loadMerchantWorkspace(storage, new Date('2026-09-15T12:04:59.999Z')))
       .toMatchObject({ pendingChallenge })
     expect(loadMerchantWorkspace(storage, new Date(expiresAt))).toEqual(workspace)
+  })
+
+  it('discards an inaccessible local draft without inventing replacement authorization', () => {
+    const storage = memoryStorage()
+    expect(saveMerchantWorkspace(workspace, storage)).toBe(true)
+
+    expect(clearMerchantWorkspace(storage)).toBe(true)
+    expect(loadMerchantWorkspace(storage)).toBeNull()
+    expect(storage.getItem('nimreturn.phase1.merchant-workspace.v1')).toBeNull()
   })
 })

@@ -31,6 +31,8 @@ Status: **PASS — project lead, Android, 2026-09-16.** The completed run used a
 
 ### C–E. Phase 1 physical signing, publishing, and immutable v2
 
+Create the unpublished draft and finish its first signed publication within the displayed 15-minute bootstrap lifetime. If that authorization expires, confirm the server issues no signing bytes, use **Discard inaccessible draft and start over**, and create a fresh draft; the recovery action clears only the local pointer and is not a publication.
+
 1. Review v1's product, 1,000-Luna price, settlement address, return/warranty terms, version, timestamp, and payload hash; approve `sign()`.
 2. Confirm publication succeeds only after local and server verification. On the public page confirm **Policy verified**, NR1, v1, proof-derived signer, separately signed settlement address, exact terms/timestamps/hash, and exact signed-message evidence.
 3. Change one term, request v2, review the changed canonical bytes/hash, and approve `sign()` with the established policy signer.

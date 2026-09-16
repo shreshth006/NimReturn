@@ -23,6 +23,7 @@ import {
   requestSignature,
 } from '../../lib/nimiq/provider.js'
 import {
+  clearMerchantWorkspace,
   loadMerchantWorkspace,
   saveMerchantWorkspace,
   savePendingChallenge,
@@ -167,6 +168,61 @@ export function MerchantPolicyStudio() {
   const [provider, setProvider] = useState<NimiqProvider | null>(null)
   const [localProof, setLocalProof] = useState<LocalProof | null>(null)
   const [publicationSucceeded, setPublicationSucceeded] = useState(false)
+  const [authorizationLost, setAuthorizationLost] = useState(false)
+
+  function recordMerchantError(error: unknown) {
+    if (
+      error instanceof MerchantApiError
+      && error.status === 401
+      && error.code === 'MERCHANT_AUTH_REQUIRED'
+    ) {
+      if (publicProduct) {
+        setNotice({
+          kind: 'error',
+          message: 'The merchant session expired. The existing public policy remains verified and readable, but this browser can no longer create a new version.',
+        })
+        return
+      }
+      setAuthorizationLost(true)
+      setNotice({
+        kind: 'error',
+        message: 'This draft authorization expired. Discard the inaccessible local draft below and create a fresh protected draft.',
+      })
+      return
+    }
+    setNotice({ kind: 'error', message: friendlyError(error) })
+  }
+
+  function discardInaccessibleDraft() {
+    if (!workspace) return
+    const previousWorkspace = workspace
+    const previousSettlementAddress = termsForm.settlementAddress
+    if (!clearMerchantWorkspace()) {
+      setNotice({
+        kind: 'error',
+        message: 'The browser could not clear the inaccessible draft. Close this page, clear its site data, and reopen NimReturn.',
+      })
+      return
+    }
+    setDraftForm({
+      description: '',
+      displayName: previousWorkspace.displayName,
+      productName: previousWorkspace.productName,
+      settlementAddress: previousSettlementAddress,
+    })
+    setWorkspace(null)
+    setChallenge(null)
+    setPublicProduct(null)
+    setEditingTerms(false)
+    setTermsForm(EMPTY_TERMS)
+    setLocalProof(null)
+    setPublicationSucceeded(false)
+    setAuthorizationLost(false)
+    setNotice({
+      kind: 'info',
+      message: 'The inaccessible local draft was discarded. Review the prefilled details and create a fresh protected draft.',
+    })
+  }
 
   async function loadPublicPolicy(productPublicId: string): Promise<boolean> {
     setBusy('public-read')
@@ -232,12 +288,13 @@ export function MerchantPolicyStudio() {
       setWorkspace(nextWorkspace)
       setTermsForm({ ...EMPTY_TERMS, settlementAddress })
       setEditingTerms(true)
+      setAuthorizationLost(false)
       setNotice({
         kind: 'success',
-        message: 'Product draft created. Its bootstrap authorization stays in a protected browser cookie.',
+        message: `Product draft created. Its protected authorization expires ${formatTimestamp(created.bootstrapExpiresAt)}; finish the first publication before then.`,
       })
     } catch (error) {
-      setNotice({ kind: 'error', message: friendlyError(error) })
+      recordMerchantError(error)
     } finally {
       setBusy(null)
     }
@@ -273,7 +330,7 @@ export function MerchantPolicyStudio() {
         message: `Canonical NR1 policy v${created.payload.version} is ready. Review the exact terms before opening Nimiq Pay.`,
       })
     } catch (error) {
-      setNotice({ kind: 'error', message: friendlyError(error) })
+      recordMerchantError(error)
     } finally {
       setBusy(null)
     }
@@ -345,7 +402,7 @@ export function MerchantPolicyStudio() {
         })
       }
     } catch (error) {
-      setNotice({ kind: 'error', message: friendlyError(error) })
+      recordMerchantError(error)
     } finally {
       setBusy(null)
     }
@@ -404,6 +461,21 @@ export function MerchantPolicyStudio() {
         </div>
       )}
 
+      {authorizationLost && workspace && !publicProduct && (
+        <section className="studio-panel" aria-labelledby="expired-draft-title">
+          <div className="panel-intro">
+            <span className="panel-kicker">Recovery</span>
+            <div>
+              <h2 id="expired-draft-title">Start a fresh protected draft</h2>
+              <p>The server will not accept this expired draft. Starting over removes only its local recovery pointer; it does not approve or publish a policy.</p>
+            </div>
+          </div>
+          <button type="button" onClick={discardInaccessibleDraft} disabled={busy !== null}>
+            Discard inaccessible draft and start over
+          </button>
+        </section>
+      )}
+
       {!workspace && !productToRead && (
         <section className="studio-panel" aria-labelledby="draft-title">
           <div className="panel-intro">
@@ -440,7 +512,7 @@ export function MerchantPolicyStudio() {
         </section>
       )}
 
-      {workspace && editingTerms && !challenge && (
+      {workspace && editingTerms && !challenge && !authorizationLost && (
         <section className="studio-panel" aria-labelledby="terms-title">
           <div className="panel-intro">
             <span className="panel-kicker">Step 2</span>

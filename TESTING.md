@@ -48,6 +48,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Policy signing
 
+- **Bootstrap-expiry recovery — RETEST REQUIRED:** the first Phase 1 Android attempt remained on the terms screen past the unpublished draft's 15-minute authorization lifetime. The server correctly returned `MERCHANT_AUTH_REQUIRED` and issued no signing bytes. The client now hides the unusable form, explicitly discards only the stale local workspace pointer, prefills non-secret product fields for a fresh protected draft, and displays the first-publication deadline. This observed recovery path remains part of the pending Phase 1 physical signing/publication result.
 - **T-010 Policy signature cancelled:** policy remains pending/draft and retry issues or safely reuses challenge per expiry rules.
 - **T-011 Signature invalid:** rejected; policy cannot become active.
 - **T-012 Policy altered after signing:** byte/hash mismatch rejected; stored verified row update denied.
