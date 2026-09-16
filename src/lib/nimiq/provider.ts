@@ -31,29 +31,66 @@ export interface ProviderNetworkSnapshot {
 function isErrorResponse(value: unknown): value is ErrorResponse {
   if (typeof value !== 'object' || value === null || !('error' in value)) return false
   const error = (value as { error?: unknown }).error
-  return typeof error === 'object' && error !== null && 'message' in error
+  return typeof error === 'object'
+    && error !== null
+    && 'message' in error
+    && typeof (error as { message?: unknown }).message === 'string'
 }
 
 function unwrap<T>(value: ErrorResponse | T): T {
   if (isErrorResponse(value)) {
-    const type = value.error.type.toLowerCase()
-    const message = value.error.message
-    const kind = /cancel|denied|permission/u.test(`${type} ${message}`.toLowerCase())
-      ? 'cancelled'
-      : 'unknown'
-    throw new WalletOperationError(kind, message)
+    throw normalizeWalletError(value.error)
   }
   return value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function walletErrorFields(error: unknown): {
+  code: number | string | null
+  message: string
+  normalized: string
+} {
+  const outer = isRecord(error) ? error : null
+  const nested = outer && isRecord(outer.error) ? outer.error : null
+  const records = [outer, nested].filter((value): value is Record<string, unknown> => value !== null)
+  const firstString = (key: string): string | undefined => records
+    .map((record) => record[key])
+    .find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  const firstCode = records
+    .map((record) => record.code)
+    .find((value): value is number | string => typeof value === 'number' || typeof value === 'string')
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'string' && error.trim().length > 0
+      ? error
+      : firstString('message') ?? 'The wallet request failed.'
+  const descriptors = [
+    error instanceof Error ? error.name : undefined,
+    firstString('name'),
+    firstString('type'),
+    message,
+  ].filter((value): value is string => typeof value === 'string')
+
+  return {
+    code: firstCode ?? null,
+    message,
+    normalized: descriptors.join(' ').toLowerCase(),
+  }
 }
 
 export function normalizeWalletError(error: unknown): WalletOperationError {
   if (error instanceof WalletOperationError) return error
 
-  const message = error instanceof Error ? error.message : 'The wallet request failed.'
-  const name = error instanceof Error ? error.name : ''
-  const normalized = `${name} ${message}`.toLowerCase()
+  const { code, message, normalized } = walletErrorFields(error)
 
-  if (/cancel|denied|permission/u.test(normalized)) {
+  if (
+    code === 4001
+    || code === '4001'
+    || /cancel|permission[ _-]*denied|user[ _-]*reject|request[ _-]*reject/u.test(normalized)
+  ) {
     return new WalletOperationError('cancelled', 'The wallet request was cancelled. Nothing was approved.')
   }
   if (/not injected|inside a nimiq app|timed?\s*out|timeout/u.test(normalized)) {

@@ -60,7 +60,7 @@ Test current supported iOS and Android versions on TestAlbatross over HTTPS (loc
 
 ### Payment and transaction verification
 
-- **T-020 Payment cancelled — OPEN:** order not purchased, no passport, safe retry.
+- **T-020 Payment cancelled — OPEN, RETEST REQUIRED:** the first Android attempt rejected the native request, but the client discarded the bridge's non-`Error` rejection and conservatively persisted `submission_outcome_unknown`; reload preserved the lock and wallet history showed no new payment. Regression coverage now accepts documented callback code `4001`, `USER_REJECTED`, permission-denied, and cancel string/object shapes without treating a generic network rejection as cancellation. Physical cancellation plus safe retry still requires an explicit project-lead PASS.
 - **T-021 Payment pending/mempool:** visible `pending-inclusion`; the completed lookup leaves “Check again” enabled; no passport.
 - **T-022 Payment failed/evicted/invalid:** visible failure or exceptional recovery; no passport.
 - **T-023 RPC unavailable/timeout/malformed:** inconclusive and retryable; no client fallback; only an actively running HTTP request disables the retry control.

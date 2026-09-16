@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   assertWalletConsensusForPayment,
+  normalizeWalletError,
   readProviderNetwork,
   requestAccounts,
   sendTransactionWithData,
@@ -26,6 +27,32 @@ describe('Nimiq provider network gate', () => {
     await expect(requestAccounts(provider)).rejects.toMatchObject({ kind: 'cancelled' })
     await expect(requestAccounts(provider)).resolves.toEqual(['NQ07 TEST'])
     expect(listAccounts).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['callback object code', { code: 4001, message: 'The wallet request failed.' }],
+    ['callback object message', { message: 'Permission denied' }],
+    ['mobile string', 'Cancel'],
+  ])('normalizes documented cancellation from a %s', (_label, cancellation) => {
+    expect(normalizeWalletError(cancellation)).toMatchObject({
+      kind: 'cancelled',
+      message: 'The wallet request was cancelled. Nothing was approved.',
+    })
+  })
+
+  it('normalizes a legacy resolved user-rejection response', async () => {
+    const provider = {
+      listAccounts: vi.fn().mockResolvedValue({
+        error: { message: 'User rejected the request', type: 'USER_REJECTED' },
+      }),
+    } as unknown as NimiqProvider
+
+    await expect(requestAccounts(provider)).rejects.toMatchObject({ kind: 'cancelled' })
+  })
+
+  it('keeps an unrecognized callback failure ambiguous', () => {
+    expect(normalizeWalletError({ code: -32603, message: 'Transaction rejected by the network.' }))
+      .toMatchObject({ kind: 'unknown', message: 'Transaction rejected by the network.' })
   })
 
   it('retains a valid head while reporting wallet consensus as false', async () => {

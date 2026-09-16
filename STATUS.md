@@ -85,7 +85,7 @@ Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on 
 
 ## Current blockers
 
-- **Phase 0 exit:** T-001 and T-002 passed on 2026-09-16; T-020 still requires an explicit project-lead result after personal physical Nimiq Pay testing.
+- **Phase 0 exit:** T-001 and T-002 passed on 2026-09-16. The first T-020 cancellation attempt exposed a real bridge-compatibility issue: Nimiq Pay's non-`Error` rejection was discarded by the client normalizer, so the diagnostic correctly preserved an ambiguous lock instead of allowing a second payment. The boundary now recognizes documented `4001`, `USER_REJECTED`, permission-denied, and cancel shapes while leaving every unknown failure ambiguous; T-020 remains open pending a physical retest and explicit project-lead result.
 - **Phase 1 exit:** physical signing/publication and physical v1→v2 validation require explicit project-lead results after personal testing.
 - **Phase 2 exit:** a real low-value buyer payment, independent chain verification, Passport creation, reload/recovery, and first-minute/mobile checks require explicit project-lead results.
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
