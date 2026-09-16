@@ -116,7 +116,7 @@ Derived metrics/views and definitions; final/loading/failure/empty states; acces
 - [ ] Five unbriefed testers understand/reach the core in under 60 seconds; critical findings fixed.
 - [ ] Production deployment, backups/restore, RPC failover, alerts, and incident runbook tested.
 
-Phase 5 is experimental/code-complete at 90%: its read-only evidence projection, public judge surface, state copy, responsive/accessibility implementation, bundle splitting, security controls, and automated reconciliation suite are complete. It cannot formally exit until the manual accessibility/device/first-minute work and production operations criteria above pass. Phase 6 is not authorized or started.
+Phase 5 is experimental/code-complete at 90%: its read-only evidence projection, public judge surface, state copy, responsive/accessibility implementation, bundle splitting, security controls, automated reconciliation suite, and temporary HTTPS staging preflight are complete. It cannot formally exit until the actual-device lifecycle, manual accessibility/first-minute work, and production operations criteria above pass. Phase 6 is not authorized or started.
 
 ## Phase 6 — Real pilot
 

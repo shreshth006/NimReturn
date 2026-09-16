@@ -6,7 +6,7 @@ This single TestAlbatross session covers the deferred Phase 0/1 gates and the Ph
 
 ## Prepare once
 
-1. Deploy the current `main` commit over HTTPS with PostgreSQL migrations applied and a working TestAlbatross RPC. Record the commit SHA, UTC time, phone OS, Nimiq Pay version, SDK version, and core version.
+1. Open the current staging origin, `https://nimreturn-staging-cycle2.onrender.com`, inside Nimiq Pay. HTTPS, migrations, the restricted runtime database login, and TestAlbatross RPC preflight passed on 2026-09-16. Record the deployed commit SHA shown in Render, UTC time, phone OS, Nimiq Pay version, SDK version, and core version. Wait through one free-tier cold start if necessary.
 2. Use low-risk TestAlbatross accounts: one policy signer, one signed merchant settlement address (they may intentionally differ), and one funded buyer. Set a tiny exact price such as **1,000 Luna (0.01 NIM)**.
 3. Keep raw addresses, public keys, signatures, canonical messages, transaction hashes, nonces, tags, JSON, and wallet screenshots outside Git. Repository evidence may contain only outcomes, versions, UTC time, redacted screenshots, and non-identifying checksums.
 

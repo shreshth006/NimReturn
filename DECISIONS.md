@@ -361,3 +361,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** A database-derived projection is reproducible and keeps merchant claims subordinate to cryptographic and chain evidence. Separate exception visibility preserves the difference between an immutable accepted record and the latest independent recheck. Excluding subjective and unsigned inputs keeps the public result factual and privacy-minimal.
 
 **Consequences:** Migrations `0010` and `0011` define read-only Promise Ledger and reconciliation views. Mixed PostgreSQL fixtures must reconcile every category and prove runtime writes fail. The public page explains signatures as attestations and chain transactions as monetary evidence, while policy signer, purchase sender, claim signer, settlement address, and refund sender remain separate roles. Phase 5 automated completion cannot close any Phase 0–4 device gate, and Phase 6 remains unstarted pending explicit authorization and the required testing/deployment work.
+
+## D-031 — 2026-09-16 — Freeze features and use one temporary Render staging origin
+
+**Decision:** Freeze feature expansion and deploy the existing Phase 0–5 lifecycle to one temporary, single-instance Render origin for consolidated device testing. The Render image serves the frontend and API from the same HTTPS origin. A managed PostgreSQL owner runs migrations only; the application uses a separate login inheriting the restricted `nimreturn_runtime` role. A reachable public TestAlbatross development RPC may be used for this staging run, but it is not accepted as a production or pilot-grade verifier.
+
+**Context:** The complete signed policy → payment → Passport → claim → decision → refund → Promise Ledger lifecycle exists in code, while the most consequential remaining uncertainty is actual Nimiq Pay signer/payment routing. Further feature work would not reduce that uncertainty. The immediate need is a real HTTPS environment that a phone can load.
+
+**Alternatives:** continue adding features; wait for production-grade high availability before any device run; build multi-instance orchestration; run the phone against a local or HTTP-only environment.
+
+**Rationale:** One free Docker service and one managed database provide the shortest reversible path to real WebView, native-wallet, chain-read, and finality evidence. Same-origin serving removes an unnecessary proxy boundary while preserving the vendor-neutral Caddy/Compose package. Least-privilege database verification and fail-closed RPC configuration keep staging representative of the security model.
+
+**Consequences:** `https://nimreturn-staging-cycle2.onrender.com` is the current phone-test origin. The free database expires on 2026-10-16 and the service may cold-start. Backup/restore proof, alerting, incident response, an operated primary/failover RPC, and actual Nimiq Pay CSP compatibility remain release blockers. Phase percentages and every physical test stay unchanged until the project lead reports explicit results. Phase 6 remains locked.

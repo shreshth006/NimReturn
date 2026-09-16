@@ -2,6 +2,14 @@
 
 This package runs the existing Phase 5 build without changing its protocol: Caddy terminates HTTPS and serves the Vite assets, `/api/*` and `/health` proxy to one Node API, and PostgreSQL remains external and managed. It is a temporary device-validation environment, not Phase 6.
 
+## Current temporary Render staging
+
+`https://nimreturn-staging-cycle2.onrender.com` is live on one free Singapore Docker service using the repository-root `render.yaml`. The final `render` image serves the Vite build and Fastify API from one origin; Render terminates HTTPS and derives the exact production origin from `RENDER_EXTERNAL_HOSTNAME`. The free managed PostgreSQL database expires on 2026-10-16 and the web service may cold-start after inactivity.
+
+The database owner was used only for migrations. The service receives a separate `nimreturn_app` URL with inherited membership in `nimreturn_runtime`; the preflight verified no public-schema creation, admin attribute, owned relation, or Promise Ledger write privilege. The public development TestAlbatross RPC is adequate for the consolidated device run but has no SLA and must be replaced before a pilot or durable judge deployment.
+
+The 2026-09-16 live preflight returned `ready-for-device-test`. This proves staging infrastructure and independent RPC connectivity, not any physical Nimiq Pay result. All device-gated lines remain open until the project lead reports them explicitly.
+
 ## Required infrastructure
 
 - one Linux host with Docker Compose and inbound TCP 80/443;
@@ -23,8 +31,9 @@ This package runs the existing Phase 5 build without changing its protocol: Cadd
 4. In the provider's protected SQL console, create a dedicated login with no ownership or direct grants, then make it a member of the migration-created group role:
 
    ```sql
-   CREATE ROLE nimreturn_app LOGIN PASSWORD '<unique generated password>';
-   GRANT nimreturn_runtime TO nimreturn_app;
+   CREATE ROLE nimreturn_app LOGIN PASSWORD '<unique generated password>'
+     INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+   GRANT nimreturn_runtime TO nimreturn_app WITH INHERIT TRUE;
    ```
 
 5. Put that login—not the migration owner—in `DATABASE_URL`. Remove the migration URL from the host environment after migrations if the platform allows it.

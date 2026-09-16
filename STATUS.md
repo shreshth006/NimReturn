@@ -64,7 +64,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The configured suite has 167 hermetic plus 26 PostgreSQL tests (193 total with `TEST_DATABASE_URL`). GitHub Actions runs `35013331246` and `35013486794` passed the staging package and documentation heads. The production-only audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The configured suite has 170 hermetic plus 26 PostgreSQL tests (196 total with `TEST_DATABASE_URL`). GitHub Actions runs `35037171956` and `35037762748` passed the Render adapter and managed-PostgreSQL portability fix. The production-only audit reports zero known vulnerabilities.
 
 Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage. Production configuration now also fails closed without RPC, and the staging package has validated API/web image builds, Caddy configuration, headers/cache policy, Compose interpolation, and a local containerized API smoke test.
 
@@ -77,11 +77,11 @@ Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence recon
 - No Phase 2 physical payment, real-chain Passport, WebView reload/recovery, mobile accessibility, or first-minute result is claimed. These remain in the consolidated project-lead checklist.
 - No Phase 3 physical claim signing, distinct-account authorization, merchant resolution signing, WebView reload/recovery, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
 - No Phase 4 physical refund, required settlement-sender routing, real-chain finality, recovery/reload, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
-- No Phase 5 physical/mobile/accessibility, Promise Ledger pilot reconciliation, unbriefed first-minute, or deployment/operations result is claimed. These remain in the consolidated checklist and Phase 5 exit criteria.
+- The temporary Render staging origin loads and hydrates in a normal browser with no captured console warning/error; its HTTPS/API/database/RPC/security-header preflight passes. This is deployment readiness evidence only. No Phase 5 physical/mobile/accessibility, Promise Ledger lifecycle reconciliation, or unbriefed first-minute result is claimed.
 
 ## Deployment and RPC
 
-Not deployed. A vendor-neutral `Dockerfile`, Caddy HTTPS edge, Compose staging definition, ignored environment template, least-privilege database/RPC/HTTPS preflight, and shortened phone runbook are ready. Both container targets build and the local API/static smoke checks pass. Vendor/region/hostname/database credentials remain owner inputs. The ignored local configuration can reach a public TestAlbatross development endpoint, but that source has no SLA and is not an operated production primary/failover verifier.
+Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on one free Render Docker service in Singapore, backed by a free managed PostgreSQL instance that expires on 2026-10-16. Render supplies HTTPS and a generated session secret. Migrations ran with the database owner; the app uses a separate `nimreturn_app` login that inherits only `nimreturn_runtime`, cannot create in `public`, has no admin attributes or owned relations, and cannot mutate either Promise Ledger view. Public checks pass for the app, `/health`, the OG image, a database-backed 404, CSP/HSTS and related headers, and the RPC diagnostic. `server/deploy/preflight.ts` returned `ready-for-device-test` against TestAlbatross head 11,552,625. The configured public development RPC has no SLA and is not an operated production primary/failover verifier; the free service may cold-start after inactivity.
 
 ## Current blockers
 
@@ -91,8 +91,8 @@ Not deployed. A vendor-neutral `Dockerfile`, Caddy HTTPS edge, Compose staging d
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
 - **Phase 4 exit:** an actual low-value refund from the purchase-bound settlement account, independent chain/finality verification, recovery/reload, and mobile checks require explicit project-lead results. If Nimiq Pay cannot route the required sender, that is a FAIL and must not be bypassed.
 - **Phase 5 exit:** the manual WCAG/device matrix, Promise Ledger reconciliation against the real lifecycle, five unbriefed first-minute tests, and production operations criteria remain open.
-- **Deployment:** configuration is ready, but the actual DNS/HTTPS host, managed database and its two credentials, session secret, operated RPC, backup/restore, alerts, and incident runbook are not provisioned. CSP/security headers are prepared but remain unproven inside Nimiq Pay. The current rate limiter is process-local, so staging must remain single-instance and any later multi-instance release needs a shared store.
+- **Deployment:** temporary HTTPS staging, managed database credentials, generated session secret, and a working public TestAlbatross development RPC are provisioned. Remaining release blockers are an operated primary/failover RPC, backup/restore proof, alerts, an incident runbook, and actual Nimiq Pay CSP/WebView validation. The free database expires on 2026-10-16 and the free web service cold-starts after inactivity. The current rate limiter is process-local, so staging must remain single-instance and any later multi-instance release needs a shared store.
 
 ## Next milestone
 
-Run the consolidated physical Nimiq Pay and Phase 5 judge-surface session when the project lead is available. Fix only observed failures, then complete the HTTPS/database/RPC/backup/security-operations deployment gate. Do not begin the Phase 6 real-user pilot without a new explicit instruction.
+Open `https://nimreturn-staging-cycle2.onrender.com` inside Nimiq Pay and run the consolidated physical Phase 0–5 checklist. Fix only observed failures, repeat affected cases, then replace the development RPC and complete backup/alert/runbook proof for the public judge build. Do not begin the Phase 6 real-user pilot without a new explicit instruction.
