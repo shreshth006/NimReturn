@@ -68,6 +68,8 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 - [x] Race/idempotency tests pass and append-only chain reconciliation is operational.
 - [ ] Passport clearly shows purchase-bound policy and first-minute test passes through passport creation.
 
+Physical reload/recovery and mobile/accessibility passed by explicit project-lead reports on 2026-09-16; the other physical Phase 2 results remain open, and the first-minute test is deferred.
+
 Phase 2 cannot formally exit until its automated/code criteria and the consolidated physical-device session pass. D-025 permits Phase 3 implementation without treating that deferral as a Phase 2 exit.
 
 ## Phase 3 — Claims
