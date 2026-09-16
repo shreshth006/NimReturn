@@ -32,6 +32,7 @@ const MERCHANT_ORIGIN = 'https://merchant.example'
 function purchaseOrder(overrides: Partial<PurchaseOrderView> = {}): PurchaseOrderView {
   return {
     buyerAddress: null,
+    claimKey: null,
     createdAt: new Date('2026-09-15T10:30:00.000Z'),
     expiresAt: new Date('2026-09-15T10:50:00.000Z'),
     expectedPayment: {

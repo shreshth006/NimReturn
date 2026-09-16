@@ -5,6 +5,7 @@ import {
   createOrder,
   getPassport,
   PurchaseApiError,
+  submitClaimKey,
 } from '../../src/lib/api/purchase.js'
 
 const PRODUCT_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
@@ -17,6 +18,7 @@ const ADDRESS = 'NQ6616JYYPSEVGXT606D6YKEEURTHE0VARDR'
 function orderResponse() {
   return {
     buyerAddress: null,
+    claimKey: null,
     createdAt: '2026-09-15T12:00:00.000Z',
     expectedPayment: {
       data: `NR1:P:${ORDER_ID}`,
@@ -50,6 +52,37 @@ describe('purchase API client', () => {
     const call = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(call[0]).toMatch(`/api/v1/products/${PRODUCT_ID}/orders`)
     expect(call[1]).toMatchObject({ body: '{}', credentials: 'include', method: 'POST' })
+  })
+
+  it('submits only the claim key nonce and strict proof envelope', async () => {
+    const canonicalMessage = 'NIMRETURN/1/PURCHASE_CLAIM_KEY\n{}'
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ...orderResponse(),
+      claimKey: {
+        canonicalMessage,
+        expiresAt: '2026-09-15T12:10:00.000Z',
+        nonce: POLICY_ID,
+        payloadHash: 'ef'.repeat(32),
+        signerAddress: ADDRESS,
+        status: 'verified',
+        verifiedAt: '2026-09-15T12:01:00.000Z',
+      },
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const proof = {
+      canonicalMessage,
+      payloadHash: 'ef'.repeat(32),
+      publicKey: 'ab'.repeat(32),
+      signature: 'cd'.repeat(64),
+    }
+
+    await expect(submitClaimKey(ORDER_ID, POLICY_ID, proof))
+      .resolves.toMatchObject({ claimKey: { signerAddress: ADDRESS, status: 'verified' } })
+    const call = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(call[0]).toMatch(`/api/v1/orders/${ORDER_ID}/claim-key/submit`)
+    expect(JSON.parse(call[1].body as string)).toEqual({ nonce: POLICY_ID, proof })
+    expect(() => submitClaimKey(ORDER_ID, POLICY_ID, { ...proof, signerAddress: ADDRESS }))
+      .toThrow()
   })
 
   it('attaches only the wallet-returned hash with no sender claim', async () => {

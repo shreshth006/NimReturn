@@ -78,6 +78,27 @@ export const claimAuthorizationPayloadSchema = z.object({
   }
 })
 
+// Signed by the buyer's Nimiq Pay signing key before payment. Nimiq Pay may pay from a
+// different account than it signs with, so this key, not the chain sender, is the
+// claim authority for a purchase that was bound before its payment was requested.
+export const purchaseClaimKeyPayloadSchema = z.object({
+  createdAt: safeTimestampSchema,
+  expiresAt: safeTimestampSchema,
+  network: z.string().min(1).max(24),
+  nonce: publicTokenSchema,
+  orderId: publicTokenSchema,
+  paymentData: z.string().min(1).max(64),
+  policyPayloadHash: z.string().regex(LOWER_HEX_32_PATTERN),
+  protocol: z.literal('NR1'),
+  recipient: canonicalAddressSchema,
+  type: z.literal('PURCHASE_CLAIM_KEY'),
+  valueLuna: z.number().int().safe().positive(),
+}).strict().superRefine((payload, context) => {
+  if (payload.expiresAt <= payload.createdAt) {
+    context.addIssue({ code: 'custom', message: 'Claim key expiry must follow creation.' })
+  }
+})
+
 export const claimProofEnvelopeSchema = z.object({
   canonicalMessage: z.string().min(1).max(4_096),
   payloadHash: z.string().regex(LOWER_HEX_32_PATTERN),
@@ -90,6 +111,12 @@ export type ClaimReasonCode = z.infer<typeof claimReasonCodeSchema>
 export type ClaimPayload = z.infer<typeof claimPayloadSchema>
 export type ClaimAuthorizationPayload = z.infer<typeof claimAuthorizationPayloadSchema>
 export type ClaimProofEnvelope = z.infer<typeof claimProofEnvelopeSchema>
+export type PurchaseClaimKeyPayload = z.infer<typeof purchaseClaimKeyPayloadSchema>
+
+export function buildPurchaseClaimKeyMessage(value: unknown): string {
+  const payload = purchaseClaimKeyPayloadSchema.parse(value)
+  return buildProtocolMessage('PURCHASE_CLAIM_KEY', { ...payload })
+}
 
 export function buildClaimMessage(value: unknown): string {
   const payload = claimPayloadSchema.parse(value)

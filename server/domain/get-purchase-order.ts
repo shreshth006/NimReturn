@@ -15,6 +15,13 @@ interface PurchaseOrderRow {
   block_timestamp_ms: string | null
   buyer_address: string | null
   chain_sender: string | null
+  claim_key_canonical_message: string | null
+  claim_key_expires_at: Date | null
+  claim_key_nonce: string | null
+  claim_key_payload_hash: string | null
+  claim_key_signer_address: string | null
+  claim_key_verified_at: Date | null
+  database_now: Date
   created_at: Date
   execution_result: boolean | null
   expected_data: string
@@ -99,7 +106,14 @@ export async function getPurchaseOrder(
       latest_reconciliation.checked_at as reconciliation_checked_at,
       latest_reconciliation.outcome as reconciliation_outcome,
       latest_reconciliation.reason as reconciliation_reason,
-      purchase_passports.public_id as passport_public_id
+      purchase_passports.public_id as passport_public_id,
+      latest_claim_key.canonical_message as claim_key_canonical_message,
+      latest_claim_key.expires_at as claim_key_expires_at,
+      latest_claim_key.nonce as claim_key_nonce,
+      latest_claim_key.payload_hash as claim_key_payload_hash,
+      latest_claim_key.signer_address as claim_key_signer_address,
+      latest_claim_key.verified_at as claim_key_verified_at,
+      clock_timestamp() as database_now
     from orders
     join products on products.id = orders.product_id
     join merchants on merchants.id = orders.merchant_id
@@ -115,6 +129,13 @@ export async function getPurchaseOrder(
       order by checked_at desc, id desc
       limit 1
     ) latest_reconciliation on true
+    left join lateral (
+      select canonical_message, expires_at, nonce, payload_hash, signer_address, verified_at
+      from purchase_claim_keys
+      where purchase_claim_keys.order_id = orders.id
+      order by (verified_at is not null) desc, created_at desc, id desc
+      limit 1
+    ) latest_claim_key on true
     where orders.public_id = ${orderPublicId.data}
   `
   const row = rows[0]
@@ -155,8 +176,24 @@ export async function getPurchaseOrder(
     throw new PurchaseOrderError('EVIDENCE_INTEGRITY', 'Stored purchase lifecycle is inconsistent.')
   }
 
+  const claimKey = row.claim_key_nonce && row.claim_key_canonical_message
+    && row.claim_key_payload_hash && row.claim_key_expires_at
+    ? {
+        canonicalMessage: row.claim_key_canonical_message,
+        expiresAt: row.claim_key_expires_at,
+        nonce: row.claim_key_nonce,
+        payloadHash: row.claim_key_payload_hash,
+        signerAddress: row.claim_key_signer_address,
+        status: row.claim_key_verified_at
+          ? 'verified' as const
+          : row.claim_key_expires_at <= row.database_now ? 'expired' as const : 'pending' as const,
+        verifiedAt: row.claim_key_verified_at,
+      }
+    : null
+
   return {
     buyerAddress: row.buyer_address,
+    claimKey,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     expectedPayment: {

@@ -69,6 +69,18 @@ export async function recordPurchaseWalletState(
       if (!allowedSourceStates[input.event].includes(order.payment_state)) {
         throw new PurchaseOrderError('STATE_CONFLICT', 'The purchase cannot accept this wallet state.')
       }
+      if (target === 'wallet_request_started') {
+        const keys = await transaction<{ id: string }[]>`
+          select id from purchase_claim_keys
+          where order_id = ${order.id} and verified_at is not null
+        `
+        if (keys.length !== 1) {
+          throw new PurchaseOrderError(
+            'CLAIM_KEY_REQUIRED',
+            'Sign the purchase claim key in Nimiq Pay before paying.',
+          )
+        }
+      }
       await transaction`update orders set payment_state = ${target} where id = ${order.id}`
       await transaction`
         insert into protocol_events (

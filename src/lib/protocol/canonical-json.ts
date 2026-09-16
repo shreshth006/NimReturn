@@ -40,7 +40,12 @@ export function canonicalize(value: CanonicalJson): string {
   return `{${entries.join(',')}}`
 }
 
-export type ProtocolMessageType = 'CLAIM' | 'CLAIM_AUTHORIZATION' | 'POLICY' | 'RESOLUTION'
+export type ProtocolMessageType =
+  | 'CLAIM'
+  | 'CLAIM_AUTHORIZATION'
+  | 'POLICY'
+  | 'PURCHASE_CLAIM_KEY'
+  | 'RESOLUTION'
 
 export function buildProtocolMessage(
   type: ProtocolMessageType,

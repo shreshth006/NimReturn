@@ -10,9 +10,11 @@ import {
 import {
   buildClaimAuthorizationMessage,
   buildClaimMessage,
+  buildPurchaseClaimKeyMessage,
   claimPayloadSchema,
   claimReasonCodeSchema,
   claimTypeSchema,
+  purchaseClaimKeyPayloadSchema,
   type ClaimAuthorizationPayload,
   type ClaimPayload,
   type ClaimProofEnvelope,
@@ -74,7 +76,11 @@ interface ClaimRow {
   authorization_expected_signer: string | null
   authorization_expires_at: Date | null
   authorization_id: string | null
-  authorization_mode: 'delegated' | 'self' | null
+  authorization_mode: 'delegated' | 'purchase_key' | 'self' | null
+  claim_key_canonical_message: string | null
+  claim_key_public_key: string | null
+  claim_key_signature: string | null
+  claim_key_signer_address: string | null
   authorization_nonce: string | null
   authorization_payload: unknown
   authorization_payload_hash: string | null
@@ -139,7 +145,7 @@ export interface ClaimView {
   authorization: null | {
     canonicalMessage: string | null
     expiresAt: Date | null
-    mode: 'delegated' | 'self'
+    mode: 'delegated' | 'purchase_key' | 'self'
     nonce: string | null
     publicId: string
     requiredSignerAddress: string
@@ -277,13 +283,36 @@ function projectClaim(row: ClaimRow): ClaimView {
         }
       }
     }
+    if (row.authorization_mode === 'purchase_key') {
+      if (
+        !row.authorization_consumed_at
+        || !row.claim_key_canonical_message
+        || !row.claim_key_public_key
+        || !row.claim_key_signature
+        || !row.claim_key_signer_address
+        || row.claim_key_signer_address !== row.claim_signer_address
+      ) {
+        fail('EVIDENCE_INTEGRITY', 'Stored purchase claim key authority is incomplete.')
+      }
+      if (!purchaseClaimKeyProofValid({
+        canonicalMessage: row.claim_key_canonical_message,
+        orderPublicId: row.order_public_id,
+        publicKey: row.claim_key_public_key,
+        signature: row.claim_key_signature,
+        signerAddress: row.claim_key_signer_address,
+      })) {
+        fail('EVIDENCE_INTEGRITY', 'Stored purchase claim key proof is invalid.')
+      }
+    }
     authorization = {
       canonicalMessage: row.authorization_canonical_message,
       expiresAt: row.authorization_expires_at,
       mode: row.authorization_mode,
       nonce: row.authorization_nonce,
       publicId: row.authorization_id,
-      requiredSignerAddress: row.purchase_sender_address,
+      requiredSignerAddress: row.authorization_mode === 'purchase_key' && row.claim_signer_address
+        ? row.claim_signer_address
+        : row.purchase_sender_address,
       status: row.authorization_consumed_at ? 'verified' : 'pending',
     }
   }
@@ -372,6 +401,10 @@ async function readClaim(
       latest_authorization.signature as authorization_signature,
       latest_authorization.expires_at as authorization_expires_at,
       latest_authorization.consumed_at as authorization_consumed_at,
+      bound_claim_key.canonical_message as claim_key_canonical_message,
+      bound_claim_key.public_key as claim_key_public_key,
+      bound_claim_key.signature as claim_key_signature,
+      bound_claim_key.signer_address as claim_key_signer_address,
       current_evaluation.evaluator_version as eligibility_evaluator_version,
       current_evaluation.evaluated_at as eligibility_evaluated_at,
       current_evaluation.inputs as eligibility_inputs,
@@ -387,6 +420,10 @@ async function readClaim(
       order by (consumed_at is not null) desc, created_at desc, id desc
       limit 1
     ) latest_authorization on true
+    left join purchase_claim_keys bound_claim_key
+      on bound_claim_key.id = latest_authorization.claim_key_id
+      and bound_claim_key.order_id = claims.order_id
+      and bound_claim_key.verified_at is not null
     left join claim_eligibility_evaluations current_evaluation
       on current_evaluation.claim_id = claims.id
       and current_evaluation.supersedes_id is null
@@ -401,6 +438,7 @@ async function evaluateAndAccept(
   claim: ClaimRow,
   databaseNow: Date,
   resource: ClaimResourceRow,
+  authorizationMode: 'delegated' | 'purchase_key' | 'self',
 ): Promise<void> {
   const eligibility = evaluateClaimEligibility({
     authorizationVerified: true,
@@ -439,14 +477,38 @@ async function evaluateAndAccept(
       'claim', ${claim.id}, 'claim.accepted-and-evaluated', 'NR1', ${databaseNow},
       ${claim.claim_signer_address}, ${randomUUID()}, 'signature', ${claim.id},
       ${transaction.json({
-        authorizationMode: claim.claim_signer_address === claim.purchase_sender_address
-          ? 'self'
-          : 'delegated',
+        authorizationMode,
         eligible: eligibility.eligible,
         evaluatorVersion: eligibility.evaluatorVersion,
       })}
     )
   `
+}
+
+function purchaseClaimKeyProofValid(input: {
+  canonicalMessage: string
+  orderPublicId: string
+  publicKey: string
+  signature: string
+  signerAddress: string
+}): boolean {
+  try {
+    const payload = purchaseClaimKeyPayloadSchema.parse(
+      JSON.parse(input.canonicalMessage.slice(input.canonicalMessage.indexOf('\n') + 1)),
+    )
+    const verified = verifyNimiqMessageSignature({
+      message: input.canonicalMessage,
+      publicKey: input.publicKey,
+      signature: input.signature,
+    })
+    return payload.orderId === input.orderPublicId
+      && buildPurchaseClaimKeyMessage(payload) === input.canonicalMessage
+      && verified.signatureValid
+      && verified.actualSignerAddress !== undefined
+      && normalizeNimiqAddress(verified.actualSignerAddress) === input.signerAddress
+  } catch {
+    return false
+  }
 }
 
 async function claimResource(
@@ -707,6 +769,8 @@ export async function submitClaimProof(
           null::text as authorization_signature,
           null::timestamptz as authorization_expires_at,
           null::timestamptz as authorization_consumed_at,
+          null::text as claim_key_canonical_message, null::text as claim_key_public_key,
+          null::text as claim_key_signature, null::text as claim_key_signer_address,
           null::text as eligibility_evaluator_version,
           null::timestamptz as eligibility_evaluated_at,
           null::jsonb as eligibility_inputs, null::jsonb as eligibility_rules,
@@ -717,6 +781,15 @@ export async function submitClaimProof(
       'The verified claim could not be loaded.',
     )
 
+    const boundKeys = await transaction<{ id: string }[]>`
+      select purchase_claim_keys.id
+      from purchase_claim_keys
+      join claims on claims.order_id = purchase_claim_keys.order_id
+      where claims.id = ${claim.id}
+        and purchase_claim_keys.verified_at is not null
+        and purchase_claim_keys.signer_address = ${proof.actualSignerAddress}
+    `
+    const boundKey = boundKeys[0]
     if (proof.actualSignerAddress === claim.purchase_sender_address) {
       await transaction`
         insert into claim_authorizations (
@@ -728,7 +801,20 @@ export async function submitClaimProof(
           ${databaseNow}
         )
       `
-      await evaluateAndAccept(transaction, verifiedClaim, databaseNow, resource)
+      await evaluateAndAccept(transaction, verifiedClaim, databaseNow, resource, 'self')
+    } else if (boundKey) {
+      await transaction`
+        insert into claim_authorizations (
+          public_id, claim_id, authorization_mode, purchase_sender_address,
+          claim_signer_address, claim_payload_hash, claim_key_id, consumed_at, verified_at,
+          created_at
+        ) values (
+          ${token()}, ${claim.id}, 'purchase_key', ${claim.purchase_sender_address},
+          ${proof.actualSignerAddress}, ${claim.payload_hash}, ${boundKey.id}, ${databaseNow},
+          ${databaseNow}, ${databaseNow}
+        )
+      `
+      await evaluateAndAccept(transaction, verifiedClaim, databaseNow, resource, 'purchase_key')
     } else {
       await insertDelegatedAuthorization(transaction, {
         claimId: claim.id,
@@ -823,7 +909,7 @@ export async function submitClaimAuthorization(
     if (completed.length !== 1) fail('STATE_CONFLICT', 'The authorization lost a concurrent race.')
 
     const resource = await claimResource(transaction, claim.passport_public_id)
-    await evaluateAndAccept(transaction, claim, databaseNow, resource)
+    await evaluateAndAccept(transaction, claim, databaseNow, resource, 'delegated')
     const result = await readClaim(transaction, claim.public_id)
     if (!result) fail('PERSISTENCE_CONFLICT', 'The authorized claim could not be read back.')
     return projectClaim(result)

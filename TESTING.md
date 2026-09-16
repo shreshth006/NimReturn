@@ -153,6 +153,8 @@ Phase 3 self-authorized claim — **RETEST REQUIRED:** the first Android attempt
 
 Phase 3 delegated claim — **RETEST REQUIRED:** on a second Android purchase, the active Nimiq Pay account was the merchant's policy-signing account, so the claim was correctly accepted only as delegated and required purchase-wallet authorization. The authorization attempt was again signed by the merchant account and correctly rejected. The client now names the signing and required accounts before submitting, the signing card tells the buyer which account gives direct acceptance, and a lapsed 10-minute authorization can be renewed (a new challenge for the same verified claim) instead of leaving the claim stuck in `authorization_pending`.
 
+Phase 3 wallet account routing — **observed, design changed (D-035):** the Android diagnostics listed two wallet accounts; payments came from one and every signature (policy, claim, authorization, diagnostic) from the other, with no account selection. Claims now use a purchase claim key signed before payment. A new Phase 2 purchase and Phase 3 claim must be retested physically.
+
 Phase 2 physical results so far: **reload/recovery — PASS** and **mobile/accessibility — PASS** (project lead, Android, 2026-09-16). Real buyer payment, independent chain verification, and Purchase Passport creation await explicit results; the first-minute test is deferred until an unbriefed observer is available.
 
 The Phase 2 automated suite passes T-021 through T-029 and the implementation portions of T-031 through T-033, including a simulated finalized-evidence regression. T-020 is complete; all named Phase 2 actual-device results remain open. The exact consolidated procedure is `docs/evidence/consolidated-device-validation.md`.

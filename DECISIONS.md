@@ -409,3 +409,16 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The explicit reports cover the two remaining Phase 1 exit criteria; all automated and integration gates were already complete.
 
 **Consequences:** Phase 1 is 100% complete. Phase 2–5 physical results remain open, repository evidence stays sanitized, and Phase 6 remains locked.
+
+## D-035 — 2026-09-17 — Bind a purchase claim key before payment
+
+**Decision:** Before payment, the buyer signs a domain-separated `NIMRETURN/1/PURCHASE_CLAIM_KEY` message that binds the exact unpaid order, payment data, recipient, value, network, and policy hash. The derived signer becomes that purchase's claim key. A claim whose proof derives to the claim key is accepted directly with authorization mode `purchase_key`; the existing chain-sender self-authorization and exact-claim delegation remain unchanged.
+
+**Context:** On Android, Nimiq Pay 2.19.1 listed two accounts, paid every purchase from one account, and signed every message with the other; the diagnostic signer check showed the expected account did not match the signer, and the wallet exposes no account switch. Under D-025 a buyer could therefore never self-authorize or approve a claim, so the Phase 3 claim lifecycle was unusable in the target wallet.
+
+**Alternatives:** record the physical result as FAIL and keep the design; trust `listAccounts()` membership as common ownership; accept any claim signer; require an additional on-chain authorization transfer.
+
+**Rationale:** The key is proven by a signature over the exact order before any payment exists, and the server refuses binding once payment was requested (the order must still be `payment_requested`, have no purchase transaction, and have no verified key). An observer who later reads the order tag on chain cannot bind their own key. The payer knowingly pays an order bound to that key, so claim authority follows the payer's own signing key without assuming anything about wallet account ordering.
+
+**Consequences:** Migration 0014 adds immutable `purchase_claim_keys`, the `purchase_key` authorization mode (with a database check that the key is verified and bound to the claim's order), and a database gate that refuses `wallet_request_started` without a verified key. The buyer UI adds a sign-before-pay step; the Passport shows the claim key. Purchases made before this change keep chain-sender-only authority. Settlement-sender routing for Phase 4 refunds is a separate open risk and is not changed here.
+

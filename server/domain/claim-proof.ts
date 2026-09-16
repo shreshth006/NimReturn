@@ -8,9 +8,11 @@ import {
 import {
   buildClaimAuthorizationMessage,
   buildClaimMessage,
+  buildPurchaseClaimKeyMessage,
   claimAuthorizationPayloadSchema,
   claimPayloadSchema,
   claimProofEnvelopeSchema,
+  purchaseClaimKeyPayloadSchema,
 } from '../../src/lib/protocol/claim.js'
 
 export const CLAIM_PROOF_VERIFIER_VERSION = 'nr1-claim-proof-v1'
@@ -32,6 +34,15 @@ const storedChallengeSchema = z.discriminatedUnion('action', [
     expectedSignerAddress: z.string().min(1).max(64),
     expiresAt: z.date(),
     payload: claimAuthorizationPayloadSchema,
+    payloadHash: z.string().regex(/^[0-9a-f]{64}$/u),
+  }).strict(),
+  z.object({
+    action: z.literal('PURCHASE_CLAIM_KEY'),
+    canonicalMessage: z.string().min(1).max(4_096),
+    consumedAt: z.date().nullable(),
+    expectedSignerAddress: z.null(),
+    expiresAt: z.date(),
+    payload: purchaseClaimKeyPayloadSchema,
     payloadHash: z.string().regex(/^[0-9a-f]{64}$/u),
   }).strict(),
 ])
@@ -82,7 +93,9 @@ export function verifyClaimProof(input: {
   try {
     expectedMessage = challenge.action === 'CLAIM'
       ? buildClaimMessage(challenge.payload)
-      : buildClaimAuthorizationMessage(challenge.payload)
+      : challenge.action === 'CLAIM_AUTHORIZATION'
+        ? buildClaimAuthorizationMessage(challenge.payload)
+        : buildPurchaseClaimKeyMessage(challenge.payload)
     if (challenge.expectedSignerAddress) {
       expectedSignerAddress = normalizeNimiqAddress(challenge.expectedSignerAddress)
       if (expectedSignerAddress !== challenge.expectedSignerAddress) {

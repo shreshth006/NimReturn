@@ -261,6 +261,8 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .order-evidence dt { margin-bottom: 5px; color: var(--muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
 .order-evidence dd { margin: 0; overflow-wrap: anywhere; font-size: 0.78rem; font-weight: 750; }
 .ambiguity-lock { display: grid; gap: 6px; margin-top: 20px; padding: 16px; border-left: 3px solid var(--red); color: #6f2b27; background: var(--red-soft); font-size: 0.82rem; line-height: 1.5; }
+.claim-key-step { display: grid; gap: 12px; margin-top: 20px; padding: 16px; border-left: 3px solid var(--green); background: var(--green-soft); font-size: 0.86rem; line-height: 1.5; }
+.claim-key-step p { margin: 0; }
 .passport { margin-top: 44px; border: 1px solid #9dcbb0; background: var(--surface); box-shadow: 0 24px 70px rgb(23 73 54 / 12%); }
 .passport--exception { border-color: #d99d95; box-shadow: 0 24px 70px rgb(126 45 38 / 11%); }
 .passport--exception .passport__hero { background: #762f2a; }

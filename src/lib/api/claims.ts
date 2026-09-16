@@ -23,7 +23,7 @@ const claimSchema = z.object({
   authorization: z.object({
     canonicalMessage: z.string().min(1).nullable(),
     expiresAt: isoDateSchema.nullable(),
-    mode: z.enum(['delegated', 'self']),
+    mode: z.enum(['delegated', 'purchase_key', 'self']),
     nonce: publicTokenSchema.nullable(),
     publicId: publicTokenSchema,
     requiredSignerAddress: addressSchema,

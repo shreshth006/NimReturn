@@ -26,6 +26,10 @@ import { PolicyPublishError, publishVerifiedPolicy } from './domain/publish-poli
 import { createPurchaseOrder, PurchaseOrderError } from './domain/purchase-order.js'
 import { recordPurchaseWalletState } from './domain/purchase-wallet-state.js'
 import {
+  createPurchaseClaimKeyChallenge,
+  submitPurchaseClaimKeyProof,
+} from './domain/purchase-claim-key.js'
+import {
   recheckPurchaseTransaction,
   verifyPurchaseTransaction,
   type PurchaseTransactionReader,
@@ -119,6 +123,7 @@ const createClaimBodySchema = z.object({
   reasonCode: z.enum(['CHANGED_MIND', 'DEFECTIVE', 'NOT_AS_DESCRIBED', 'OTHER']),
 }).strict()
 const claimProofBodySchema = z.object({ proof: policyProofEnvelopeSchema }).strict()
+const claimKeyProofBodySchema = z.object({ nonce: publicToken, proof: policyProofEnvelopeSchema }).strict()
 const resolutionChallengeBodySchema = z.object({
   decision: z.enum(['APPROVED', 'REJECTED']),
   note: z.string().max(2_048).optional(),
@@ -246,6 +251,16 @@ function purchaseError(error: unknown): WriterError {
   if (code === 'STATE_CONFLICT') {
     return { code, message: 'The purchase state conflicts with this action.', statusCode: 409 }
   }
+  if (code === 'CLAIM_KEY_REQUIRED') {
+    return { code, message: 'Sign the purchase claim key in Nimiq Pay before paying.', statusCode: 409 }
+  }
+  if (code === 'CLAIM_KEY_INVALID') {
+    return {
+      code,
+      message: 'The purchase claim key could not be verified or expired. Request a fresh one and sign it.',
+      statusCode: 422,
+    }
+  }
   if (code === 'EVIDENCE_INTEGRITY') {
     return { code, message: 'The purchase evidence could not be verified safely.', statusCode: 503 }
   }
@@ -355,6 +370,8 @@ export interface AppDependencies {
   readPassport?: typeof getPurchasePassport
   readPublicProduct?: PublicProductReader
   recordWalletState?: typeof recordPurchaseWalletState
+  createClaimKey?: typeof createPurchaseClaimKeyChallenge
+  submitClaimKey?: typeof submitPurchaseClaimKeyProof
   rpc?: NimiqRpcClient | null
   verifyPurchase?: typeof verifyPurchaseTransaction
   submitClaim?: typeof submitClaimProof
@@ -425,6 +442,8 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const readPassport = dependencies.readPassport ?? getPurchasePassport
   const readClaim = dependencies.readClaim ?? getClaim
   const updateWalletState = dependencies.recordWalletState ?? recordPurchaseWalletState
+  const issueClaimKey = dependencies.createClaimKey ?? createPurchaseClaimKeyChallenge
+  const verifyClaimKey = dependencies.submitClaimKey ?? submitPurchaseClaimKeyProof
   const verifyPurchase = dependencies.verifyPurchase ?? verifyPurchaseTransaction
   const submitClaim = dependencies.submitClaim ?? submitClaimProof
   const authorizeClaim = dependencies.authorizeClaim ?? submitClaimAuthorization
@@ -802,6 +821,57 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
         orderPublicId: params.data.orderPublicId,
       }))
     } catch (error) {
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/orders/:orderPublicId/claim-key', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = orderParamsSchema.safeParse(request.params)
+    const body = emptyBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim key request is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchases are temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await issueClaimKey(database, params.data.orderPublicId))
+    } catch (error) {
+      const response = purchaseError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/orders/:orderPublicId/claim-key/submit', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = orderParamsSchema.safeParse(request.params)
+    const body = claimKeyProofBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The claim key proof is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchases are temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await verifyClaimKey(database, {
+        nonce: body.data.nonce,
+        orderPublicId: params.data.orderPublicId,
+        proof: body.data.proof,
+      }))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Purchase claim key failed')
       const response = purchaseError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }

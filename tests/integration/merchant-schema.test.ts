@@ -15,6 +15,10 @@ import { publishVerifiedPolicy } from '../../server/domain/publish-policy.js'
 import { createPurchaseOrder } from '../../server/domain/purchase-order.js'
 import { recordPurchaseWalletState } from '../../server/domain/purchase-wallet-state.js'
 import {
+  createPurchaseClaimKeyChallenge,
+  submitPurchaseClaimKeyProof,
+} from '../../server/domain/purchase-claim-key.js'
+import {
   createClaimChallenge,
   getClaim,
   renewClaimAuthorization,
@@ -149,6 +153,16 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
   afterAll(async () => {
     await client.end()
   })
+
+  async function bindClaimKey(sql: postgres.Sql, orderPublicId: string, privateKey: string) {
+    const pending = await createPurchaseClaimKeyChallenge(sql, orderPublicId)
+    if (!pending.claimKey) throw new Error('Expected a purchase claim key challenge.')
+    return submitPurchaseClaimKeyProof(sql, {
+      nonce: pending.claimKey.nonce,
+      orderPublicId,
+      proof: createPolicyProof(privateKey, pending.claimKey.canonicalMessage).proof,
+    })
+  }
 
   async function insertMerchant(publicId: string, settlementAddress = VALID_ADDRESS_B) {
     const rows = await client<{ id: string }[]>`
@@ -1953,6 +1967,11 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       await expect(recordPurchaseWalletState(runtime, {
         event: 'wallet-request-started',
         orderPublicId: order.publicId,
+      })).rejects.toMatchObject({ code: 'CLAIM_KEY_REQUIRED' })
+      await bindClaimKey(runtime, order.publicId, 'a1'.repeat(32))
+      await expect(recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: order.publicId,
       })).resolves.toMatchObject({ paymentState: 'wallet_request_started' })
       await expect(recordPurchaseWalletState(runtime, {
         event: 'wallet-cancelled',
@@ -2108,6 +2127,7 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     })
     try {
       const ambiguous = await makeOrder()
+      await bindClaimKey(runtime, ambiguous.publicId, 'a2'.repeat(32))
       await recordPurchaseWalletState(runtime, {
         event: 'wallet-request-started',
         orderPublicId: ambiguous.publicId,
@@ -2538,6 +2558,166 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       await expect(createClaimChallenge(runtime, claimInput))
         .rejects.toMatchObject({ code: 'CLAIM_ALREADY_OPEN' })
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('accepts claims from the Nimiq Pay signing key bound before payment', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    try {
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: VALID_ADDRESS_C,
+        displayName: 'Claim Key Merchant',
+        productName: 'Claim Key Product',
+      })
+      // As observed on Android, one wallet signs with key K but pays from account P.
+      const walletSigningKey = '5e'.repeat(32)
+      const signer = createPolicyProof(walletSigningKey, 'derive-address-only')
+      const payingAccount = createPolicyProof('5f'.repeat(32), 'derive-address-only')
+      const outsiderKey = '6a'.repeat(32)
+      const policyChallenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 1_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 1_382_400,
+        settlementAddress: VALID_ADDRESS_C,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 31_536_000,
+      })
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: policyChallenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof('6b'.repeat(32), policyChallenge.canonicalMessage).proof,
+      })
+      const order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      expect(order.claimKey).toBeNull()
+
+      const pending = await createPurchaseClaimKeyChallenge(runtime, order.publicId)
+      const challenge = pending.claimKey
+      if (!challenge) throw new Error('Expected a claim key challenge.')
+      expect(challenge).toMatchObject({ signerAddress: null, status: 'pending' })
+      await expect(createPurchaseClaimKeyChallenge(runtime, order.publicId))
+        .resolves.toMatchObject({ claimKey: { nonce: challenge.nonce } })
+      expect(challenge.canonicalMessage).toContain(order.expectedPayment.data)
+      expect(challenge.canonicalMessage).toContain(order.policy.payloadHash)
+
+      await expect(submitPurchaseClaimKeyProof(runtime, {
+        nonce: challenge.nonce,
+        orderPublicId: order.publicId,
+        proof: createPolicyProof(walletSigningKey, `${challenge.canonicalMessage} `).proof,
+      })).rejects.toMatchObject({ code: 'CLAIM_KEY_INVALID' })
+      const bound = await submitPurchaseClaimKeyProof(runtime, {
+        nonce: challenge.nonce,
+        orderPublicId: order.publicId,
+        proof: createPolicyProof(walletSigningKey, challenge.canonicalMessage).proof,
+      })
+      expect(bound.claimKey).toMatchObject({ signerAddress: signer.address, status: 'verified' })
+      await expect(submitPurchaseClaimKeyProof(runtime, {
+        nonce: challenge.nonce,
+        orderPublicId: order.publicId,
+        proof: createPolicyProof(outsiderKey, challenge.canonicalMessage).proof,
+      })).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+      await expect(runtime`
+        update purchase_claim_keys set signer_address = ${payingAccount.address}
+        where nonce = ${challenge.nonce}
+      `).rejects.toThrow(/verified purchase claim key is immutable/u)
+
+      await recordPurchaseWalletState(runtime, {
+        event: 'wallet-request-started',
+        orderPublicId: order.publicId,
+      })
+      // Once payment was requested, nobody can bind another key to this order.
+      await expect(createPurchaseClaimKeyChallenge(runtime, order.publicId))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+
+      const purchaseHash = '9c'.repeat(32)
+      const purchased = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve({
+          blockNumber: 6_000,
+          blockTimestamp: Date.now() - 60_000,
+          data: order.expectedPayment.data,
+          executionResult: true,
+          finality: { finalizingBlockNumber: 6_010, headBlockNumber: 6_011, reached: true },
+          hash: purchaseHash,
+          network: order.expectedPayment.network,
+          recipient: order.expectedPayment.recipient,
+          sender: payingAccount.address,
+          state: 'finalized',
+          valueLuna: order.expectedPayment.valueLuna,
+        } satisfies ObservedTransaction),
+      }, { hash: purchaseHash, orderPublicId: order.publicId })
+      const passportPublicId = purchased.passport?.publicId
+      if (!passportPublicId) throw new Error('Claim key test requires a verified Passport.')
+      expect(purchased.claimKey).toMatchObject({ signerAddress: signer.address, status: 'verified' })
+
+      const outsiderClaim = await createClaimChallenge(runtime, {
+        claimType: 'WARRANTY',
+        note: '',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE',
+      })
+      await expect(submitClaimProof(runtime, {
+        claimPublicId: outsiderClaim.publicId,
+        proof: createPolicyProof(outsiderKey, outsiderClaim.challenge.canonicalMessage).proof,
+      })).resolves.toMatchObject({
+        authorization: { mode: 'delegated', requiredSignerAddress: payingAccount.address },
+        eligibility: null,
+        workflowState: 'authorization_pending',
+      })
+
+      const keyClaim = await createClaimChallenge(runtime, {
+        claimType: 'RETURN',
+        note: '',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE',
+      })
+      const accepted = await submitClaimProof(runtime, {
+        claimPublicId: keyClaim.publicId,
+        proof: createPolicyProof(walletSigningKey, keyClaim.challenge.canonicalMessage).proof,
+      })
+      expect(accepted).toMatchObject({
+        authorization: {
+          mode: 'purchase_key',
+          requiredSignerAddress: signer.address,
+          status: 'verified',
+        },
+        claimSignerAddress: signer.address,
+        eligibility: { eligible: true },
+        purchaseSenderAddress: payingAccount.address,
+        workflowState: 'eligible',
+      })
+      await expect(getClaim(runtime, keyClaim.publicId))
+        .resolves.toMatchObject({ authorization: { mode: 'purchase_key' } })
+
+      // The database refuses a purchase-key authority borrowed from another order.
+      const otherOrder = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      const foreign = await bindClaimKey(runtime, otherOrder.publicId, outsiderKey)
+      if (!foreign.claimKey) throw new Error('Expected a foreign claim key.')
+      const outsider = createPolicyProof(outsiderKey, 'derive-address-only')
+      await expect(client`
+        insert into claim_authorizations (
+          public_id, claim_id, authorization_mode, purchase_sender_address,
+          claim_signer_address, claim_payload_hash, claim_key_id, consumed_at, verified_at
+        )
+        select 'ForeignKeyAuthority001', claims.id, 'purchase_key', claims.purchase_sender_address,
+          ${outsider.address}, claims.payload_hash, keys.id, clock_timestamp(), clock_timestamp()
+        from claims, purchase_claim_keys keys
+        where claims.public_id = ${outsiderClaim.publicId}
+          and keys.nonce = ${foreign.claimKey.nonce}
+      `).rejects.toThrow(/requires the verified key bound to this order/u)
     } finally {
       await runtime.end()
     }

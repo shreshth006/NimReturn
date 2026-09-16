@@ -45,6 +45,15 @@ export type PurchaseOrderState =
 
 export interface PurchaseOrderView {
   buyerAddress: string | null
+  claimKey: null | {
+    canonicalMessage: string
+    expiresAt: Date
+    nonce: string
+    payloadHash: string
+    signerAddress: string | null
+    status: 'expired' | 'pending' | 'verified'
+    verifiedAt: Date | null
+  }
   createdAt: Date
   expiresAt: Date
   expectedPayment: {
@@ -91,6 +100,8 @@ export interface PurchaseOrderView {
 }
 
 export type PurchaseOrderErrorCode =
+  | 'CLAIM_KEY_INVALID'
+  | 'CLAIM_KEY_REQUIRED'
   | 'EVIDENCE_INTEGRITY'
   | 'INVALID_REQUEST'
   | 'ORDER_EXPIRED'
@@ -219,6 +230,7 @@ export async function createPurchaseOrder(
 
     return {
       buyerAddress: null,
+      claimKey: null,
       createdAt: databaseNow,
       expiresAt,
       expectedPayment: {

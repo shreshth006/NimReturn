@@ -99,6 +99,13 @@
       "when": 1789578620561,
       "tag": "0013_expire_unsigned_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789589593033,
+      "tag": "0014_purchase_claim_keys",
+      "breakpoints": true
     }
   ]
 }

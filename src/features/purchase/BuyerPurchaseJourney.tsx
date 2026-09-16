@@ -12,12 +12,15 @@ import {
   type PurchasePassport,
   recheckTransaction,
   recordWalletState,
+  requestClaimKey,
+  submitClaimKey,
 } from '../../lib/api/purchase.js'
 import {
   assertWalletConsensusForPayment,
   initializeNimiqProvider,
   normalizeWalletError,
   readProviderNetwork,
+  requestSignature,
   sendTransactionWithData,
 } from '../../lib/nimiq/provider.js'
 import {
@@ -26,8 +29,9 @@ import {
   savePurchaseSession,
 } from './purchase-session.js'
 import { BuyerClaimJourney } from '../claims/BuyerClaimJourney.js'
+import { buildClaimProof } from '../claims/claim-proof.js'
 
-type BusyAction = 'loading' | 'paying' | 'verifying' | null
+type BusyAction = 'binding' | 'loading' | 'paying' | 'preparing' | 'verifying' | null
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
 
 function formatNim(valueLuna: number): string {
@@ -57,6 +61,15 @@ function short(value: string): string {
 function errorMessage(error: unknown): string {
   if (error instanceof PurchaseApiError) return error.message
   return normalizeWalletError(error).message
+}
+
+function orderReusable(order: PurchaseOrder | null): order is PurchaseOrder {
+  return order !== null && !['expired', 'payment_failed'].includes(order.paymentState)
+}
+
+function claimKeyUsable(order: PurchaseOrder): boolean {
+  return order.claimKey?.status === 'verified'
+    || (order.claimKey?.status === 'pending' && Date.parse(order.claimKey.expiresAt) > Date.now())
 }
 
 function progressIndex(order: PurchaseOrder | null, recoveredHash: string | null): number {
@@ -142,19 +155,65 @@ export function BuyerPurchaseJourney({
     }
   }, [passportPublicId, productPublicId])
 
-  async function pay() {
+  async function preparePurchase() {
     if (!productPublicId || !product) return
-    setBusy('paying')
+    setBusy('preparing')
     setNotice(null)
-    let currentOrder = order
-    let nativeRequestBegan = false
     try {
-      if (!currentOrder || ['expired', 'payment_failed'].includes(currentOrder.paymentState)) {
+      let currentOrder = order
+      if (!orderReusable(currentOrder)) {
         clearPurchaseSession()
         currentOrder = await createOrder(productPublicId)
         savePurchaseSession({ orderPublicId: currentOrder.publicId, productPublicId })
         setOrder(currentOrder)
       }
+      if (!claimKeyUsable(currentOrder)) currentOrder = await requestClaimKey(currentOrder.publicId)
+      setOrder(currentOrder)
+      setNotice({
+        kind: 'info',
+        message: 'Order frozen. Sign the purchase claim key in Nimiq Pay before paying; it is the account that can later file claims.',
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: errorMessage(error) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function signClaimKey() {
+    const claimKey = order?.claimKey
+    if (!order || claimKey?.status !== 'pending') return
+    setBusy('binding')
+    setNotice({ kind: 'info', message: 'Review and sign the purchase claim key in Nimiq Pay. This is a signature, not a payment.' })
+    try {
+      const activeProvider = provider ?? await initializeNimiqProvider()
+      setProvider(activeProvider)
+      const walletResult = await requestSignature(activeProvider, claimKey.canonicalMessage)
+      const { proof, signerAddress } = buildClaimProof(claimKey.canonicalMessage, walletResult)
+      const next = await submitClaimKey(order.publicId, claimKey.nonce, proof)
+      setOrder(next)
+      setNotice({
+        kind: 'success',
+        message: `Claim key ${short(signerAddress)} is bound to this order. Claims signed by it are accepted directly. You can pay now.`,
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: errorMessage(error) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function pay() {
+    if (!productPublicId || !product || !orderReusable(order)) return
+    if (order.claimKey?.status !== 'verified') {
+      setNotice({ kind: 'error', message: 'This order has no verified claim key. Start a new purchase and sign its claim key first.' })
+      return
+    }
+    setBusy('paying')
+    setNotice(null)
+    let currentOrder: PurchaseOrder = order
+    let nativeRequestBegan = false
+    try {
 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
@@ -283,7 +342,11 @@ export function BuyerPurchaseJourney({
   const { payload } = product.policy
   const progress = progressIndex(order, recoveryHash)
   const isAmbiguous = order?.paymentState === 'submission_outcome_unknown'
-  const canPay = !isAmbiguous && (!order || ['payment_requested', 'payment_cancelled', 'expired', 'payment_failed'].includes(order.paymentState))
+  const orderOpen = orderReusable(order)
+  const needsClaimKey = !orderOpen || (order.paymentState === 'payment_requested' && order.claimKey?.status !== 'verified')
+  const claimKeyReady = orderOpen && order.claimKey?.status === 'pending' && claimKeyUsable(order)
+  const canPay = !isAmbiguous && !needsClaimKey && orderOpen
+    && ['payment_requested', 'payment_cancelled'].includes(order.paymentState)
   const canVerify = Boolean(order?.transaction || recoveryHash)
 
   return (
@@ -330,6 +393,29 @@ export function BuyerPurchaseJourney({
           <p>{order ? purchaseExplanation(order) : 'The server freezes these exact signed terms, then NIM moves directly from your wallet to the merchant settlement address.'}</p>
         </div>
         {order && <OrderEvidence order={order} />}
+        {needsClaimKey && !isAmbiguous && (
+          <div className="claim-key-step">
+            <p className="eyebrow">Before paying · purchase claim key</p>
+            <p>Nimiq Pay may pay from one account and sign from another. Signing this short message records which account can later file return or warranty claims for this purchase. It moves no funds.</p>
+            {claimKeyReady && order.claimKey && (
+              <details className="evidence-details canonical-preview">
+                <summary>Inspect exact claim key message</summary>
+                <pre>{order.claimKey.canonicalMessage}</pre>
+              </details>
+            )}
+            {claimKeyReady
+              ? (
+                  <button type="button" disabled={busy !== null} onClick={() => void signClaimKey()}>
+                    {busy === 'binding' ? 'Waiting for Nimiq Pay…' : 'Sign claim key with Nimiq Pay'}
+                  </button>
+                )
+              : (
+                  <button type="button" disabled={busy !== null} onClick={() => void preparePurchase()}>
+                    {busy === 'preparing' ? 'Preparing order…' : 'Start purchase'}
+                  </button>
+                )}
+          </div>
+        )}
         {canPay && (
           <button type="button" disabled={busy !== null} onClick={() => void pay()}>
             {busy === 'paying' ? 'Waiting for Nimiq Pay…' : `${order?.paymentState === 'payment_cancelled' ? 'Retry' : 'Pay'} ${formatNim(payload.priceLuna)} NIM with Nimiq Pay`}
@@ -372,6 +458,7 @@ function OrderEvidence({ order }: { order: PurchaseOrder }) {
       <div><dt>Order</dt><dd><code>{order.publicId}</code></dd></div>
       <div><dt>Policy frozen</dt><dd>v{order.policy.version} · <code>{short(order.policy.payloadHash)}</code></dd></div>
       <div><dt>Recipient</dt><dd><code>{short(order.expectedPayment.recipient)}</code></dd></div>
+      {order.claimKey?.status === 'verified' && order.claimKey.signerAddress && <div><dt>Claim key</dt><dd><code>{short(order.claimKey.signerAddress)}</code></dd></div>}
       <div><dt>NR1 data</dt><dd><code>{order.expectedPayment.data}</code></dd></div>
       {order.transaction && <div><dt>Transaction</dt><dd><code>{short(order.transaction.hash)}</code></dd></div>}
       {order.transaction && <div><dt>Observed</dt><dd>{order.transaction.observedState}</dd></div>}
@@ -405,6 +492,7 @@ function PassportPanel({
         <PassportFact label="Product" value={passport.product.name} />
         <PassportFact label="Paid" value={`${formatNim(passport.payment.valueLuna)} NIM`} detail={`${passport.payment.valueLuna.toLocaleString()} Luna`} />
         <PassportFact label="Buyer · chain sender" value={short(passport.payment.buyerAddress)} mono />
+        <PassportFact label="Claim key · signed before payment" value={passport.claimKeySignerAddress ? short(passport.claimKeySignerAddress) : 'Not bound · chain sender only'} mono={Boolean(passport.claimKeySignerAddress)} />
         <PassportFact label="Merchant" value={passport.merchant.displayName} detail={short(passport.payment.recipient)} />
         <PassportFact label="Policy at purchase" value={`v${passport.policy.version}`} detail={short(passport.policy.payloadHash)} />
         <PassportFact label="Return window" value={formatDuration(payload.returnWindowSeconds)} {...(passport.deadlines.return ? { detail: `Until ${formatDate(passport.deadlines.return)}` } : {})} />

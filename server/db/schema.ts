@@ -6,6 +6,7 @@ import type {
 } from '../../src/lib/protocol/claim.js'
 import type { ClaimEligibilityEvaluation } from '../../src/lib/protocol/claim-eligibility.js'
 import type { ResolutionPayload } from '../../src/lib/protocol/resolution.js'
+import type { PurchaseClaimKeyPayload } from '../../src/lib/protocol/claim.js'
 import type { MerchantSessionPayload } from '../../src/lib/protocol/merchant-session.js'
 import type {
   ObservedTransaction,
@@ -89,7 +90,7 @@ export const claimWorkflowState = pgEnum('claim_workflow_state', [
   'approved',
   'rejected',
 ])
-export const claimAuthorizationMode = pgEnum('claim_authorization_mode', ['self', 'delegated'])
+export const claimAuthorizationMode = pgEnum('claim_authorization_mode', ['self', 'delegated', 'purchase_key'])
 export const resolutionDecision = pgEnum('resolution_decision', ['APPROVED', 'REJECTED'])
 export const resolutionReasonCode = pgEnum('resolution_reason_code', [
   'INSUFFICIENT_INFORMATION',
@@ -461,6 +462,47 @@ export const orders = pgTable('orders', {
   ),
 ])
 
+export const purchaseClaimKeys = pgTable('purchase_claim_keys', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'restrict' }),
+  nonce: char('nonce', { length: 22 }).notNull(),
+  payload: jsonb('payload').$type<PurchaseClaimKeyPayload>().notNull(),
+  canonicalMessage: text('canonical_message').notNull(),
+  payloadHash: char('payload_hash', { length: 64 }).notNull(),
+  signerAddress: varchar('signer_address', { length: 36 }),
+  publicKey: char('public_key', { length: 64 }),
+  signature: char('signature', { length: 128 }),
+  verifierVersion: varchar('verifier_version', { length: 40 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+}, (table) => [
+  unique('purchase_claim_keys_nonce_unique').on(table.nonce),
+  uniqueIndex('purchase_claim_keys_one_verified_per_order')
+    .on(table.orderId)
+    .where(sql`${table.verifiedAt} is not null`),
+  index('purchase_claim_keys_order_created_index').on(table.orderId, table.createdAt),
+  check('purchase_claim_keys_nonce_format', sql`${table.nonce} ~ '^[A-Za-z0-9_-]{22}$'`),
+  check('purchase_claim_keys_payload_hash_format', sql`${table.payloadHash} ~ '^[0-9a-f]{64}$'`),
+  check(
+    'purchase_claim_keys_payload_binding',
+    sql`jsonb_typeof(${table.payload}) = 'object' and ${table.payload}->>'nonce' = ${table.nonce} and ${table.payload}->>'type' = 'PURCHASE_CLAIM_KEY' and ${table.payload}->>'protocol' = 'NR1'`,
+  ),
+  check(
+    'purchase_claim_keys_canonical_message_domain',
+    sql`${table.canonicalMessage} like 'NIMRETURN/1/PURCHASE_CLAIM_KEY' || chr(10) || '%'`,
+  ),
+  check(
+    'purchase_claim_keys_signer_format',
+    sql`${table.signerAddress} is null or ${table.signerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check('purchase_claim_keys_valid_times', sql`${table.expiresAt} > ${table.createdAt}`),
+  check(
+    'purchase_claim_keys_proof_shape',
+    sql`(${table.verifiedAt} is null and ${table.signerAddress} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.verifierVersion} is null) or (${table.verifiedAt} is not null and ${table.signerAddress} is not null and ${table.publicKey} ~ '^[0-9a-f]{64}$' and ${table.signature} ~ '^[0-9a-f]{128}$' and ${table.verifierVersion} is not null and ${table.verifiedAt} >= ${table.createdAt} and ${table.verifiedAt} < ${table.expiresAt})`,
+  ),
+])
+
 export const chainTransactions = pgTable('chain_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
   network: varchar('network', { length: 24 }).notNull(),
@@ -738,6 +780,7 @@ export const claimAuthorizations = pgTable('claim_authorizations', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  claimKeyId: uuid('claim_key_id').references(() => purchaseClaimKeys.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   unique('claim_authorizations_public_id_unique').on(table.publicId),
@@ -766,7 +809,11 @@ export const claimAuthorizations = pgTable('claim_authorizations', {
   ),
   check(
     'claim_authorizations_mode_shape',
-    sql`(${table.mode} = 'self' and ${table.purchaseSenderAddress} = ${table.claimSignerAddress} and ${table.challengeNonce} is null and ${table.payload} is null and ${table.canonicalMessage} is null and ${table.payloadHash} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.authorizationSignerAddress} is null and ${table.expiresAt} is null and ${table.consumedAt} is not null and ${table.verifiedAt} is not null) or (${table.mode} = 'delegated' and ${table.purchaseSenderAddress} <> ${table.claimSignerAddress} and ${table.challengeNonce} is not null and ${table.payload} is not null and ${table.canonicalMessage} like 'NIMRETURN/1/CLAIM_AUTHORIZATION' || chr(10) || '%' and ${table.payloadHash} is not null and ${table.expiresAt} is not null and ${table.expiresAt} > ${table.createdAt})`,
+    sql`(${table.mode} = 'self' and ${table.purchaseSenderAddress} = ${table.claimSignerAddress} and ${table.challengeNonce} is null and ${table.payload} is null and ${table.canonicalMessage} is null and ${table.payloadHash} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.authorizationSignerAddress} is null and ${table.expiresAt} is null and ${table.consumedAt} is not null and ${table.verifiedAt} is not null) or (${table.mode} = 'delegated' and ${table.purchaseSenderAddress} <> ${table.claimSignerAddress} and ${table.challengeNonce} is not null and ${table.payload} is not null and ${table.canonicalMessage} like 'NIMRETURN/1/CLAIM_AUTHORIZATION' || chr(10) || '%' and ${table.payloadHash} is not null and ${table.expiresAt} is not null and ${table.expiresAt} > ${table.createdAt}) or (${table.mode}::text = 'purchase_key' and ${table.purchaseSenderAddress} <> ${table.claimSignerAddress} and ${table.challengeNonce} is null and ${table.payload} is null and ${table.canonicalMessage} is null and ${table.payloadHash} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.authorizationSignerAddress} is null and ${table.expiresAt} is null and ${table.consumedAt} is not null and ${table.verifiedAt} is not null)`,
+  ),
+  check(
+    'claim_authorizations_claim_key_mode',
+    sql`(${table.mode}::text = 'purchase_key') = (${table.claimKeyId} is not null)`,
   ),
   check(
     'claim_authorizations_delegated_proof_complete',

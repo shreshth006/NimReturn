@@ -235,7 +235,11 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       {claim && claim.workflowState === 'signature_requested' && !unsignedClaimExpired(claim) && (
         <div className="claim-signing-card">
           <div className="claim-facts"><span>{claim.claimType}</span><strong>{claim.reasonCode.replaceAll('_', ' ')}</strong><small>Policy v{claim.policyVersion} · buyer copied from verified chain evidence</small></div>
-          <p className="claim-boundary">For direct acceptance, sign with the purchase account <code>{short(claim.purchaseSenderAddress)}</code>. Another account needs a second approval from it.</p>
+          <p className="claim-boundary">
+            {passport.claimKeySignerAddress
+              ? <>Accepted directly when signed by this purchase&apos;s claim key <code>{short(passport.claimKeySignerAddress)}</code> or the paying account <code>{short(claim.purchaseSenderAddress)}</code>.</>
+              : <>Accepted directly when signed by the paying account <code>{short(claim.purchaseSenderAddress)}</code>. Another account needs a second approval from it.</>}
+          </p>
           <details className="evidence-details canonical-preview"><summary>Inspect exact claim bytes</summary><pre>{claim.challenge.canonicalMessage}</pre></details>
           <div className="hash-callout"><span>Claim payload hash</span><code>{claim.payloadHash}</code></div>
           <button type="button" disabled={busy !== null} onClick={() => void sign()}>{busy === 'sign' ? 'Waiting for Nimiq Pay…' : 'Sign claim with Nimiq Pay'}</button>
@@ -256,7 +260,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       {claim?.eligibility && (
         <div className={claim.eligibility.eligible ? 'eligibility-card eligibility-card--yes' : 'eligibility-card eligibility-card--no'}>
           <span>{claim.eligibility.eligible ? '✓' : '—'}</span><div><p className="eyebrow">Deterministic NR1 result</p><h3>Policy {claim.eligibility.eligible ? 'eligible' : 'ineligible'}</h3><p>{claim.eligibility.eligible ? 'The signed policy window includes this claim time. This does not guarantee a remedy.' : 'The signed policy rules do not include this claim time. Physical or legal rights are not inferred.'}</p></div>
-          <dl><div><dt>Authorization</dt><dd>{claim.authorization?.mode === 'self' ? 'Signer = chain purchaser' : 'Purchase-sender delegation verified'}</dd></div><div><dt>Evaluator</dt><dd>{claim.eligibility.evaluatorVersion}</dd></div><div><dt>Inclusive deadline</dt><dd>{claim.eligibility.deadlineMs ? new Date(claim.eligibility.deadlineMs).toLocaleString() : 'Unavailable'}</dd></div><div><dt>Status</dt><dd>{claim.workflowState.replaceAll('_', ' ')}</dd></div></dl>
+          <dl><div><dt>Authorization</dt><dd>{claim.authorization?.mode === 'self' ? 'Signer = chain purchaser' : claim.authorization?.mode === 'purchase_key' ? 'Signer = purchase claim key' : 'Purchase-sender delegation verified'}</dd></div><div><dt>Evaluator</dt><dd>{claim.eligibility.evaluatorVersion}</dd></div><div><dt>Inclusive deadline</dt><dd>{claim.eligibility.deadlineMs ? new Date(claim.eligibility.deadlineMs).toLocaleString() : 'Unavailable'}</dd></div><div><dt>Status</dt><dd>{claim.workflowState.replaceAll('_', ' ')}</dd></div></dl>
         </div>
       )}
 

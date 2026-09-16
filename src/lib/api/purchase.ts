@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { claimProofEnvelopeSchema } from '../protocol/claim.js'
 import { policyPayloadSchema } from '../protocol/policy.js'
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/u, '') ?? ''
@@ -26,6 +27,15 @@ const orderStateSchema = z.enum([
 
 const purchaseOrderSchema = z.object({
   buyerAddress: z.string().min(1).max(64).nullable(),
+  claimKey: z.object({
+    canonicalMessage: z.string().startsWith('NIMRETURN/1/PURCHASE_CLAIM_KEY\n').max(4_096),
+    expiresAt: isoDateSchema,
+    nonce: publicTokenSchema,
+    payloadHash: z.string().regex(/^[0-9a-f]{64}$/u),
+    signerAddress: z.string().min(1).max(64).nullable(),
+    status: z.enum(['expired', 'pending', 'verified']),
+    verifiedAt: isoDateSchema.nullable(),
+  }).strict().nullable(),
   createdAt: isoDateSchema,
   expiresAt: isoDateSchema,
   expectedPayment: z.object({
@@ -72,6 +82,7 @@ const purchaseOrderSchema = z.object({
 }).strict()
 
 const purchasePassportSchema = z.object({
+  claimKeySignerAddress: z.string().min(1).max(64).nullable(),
   createdAt: isoDateSchema,
   deadlines: z.object({
     return: isoDateSchema.nullable(),
@@ -196,6 +207,27 @@ export function recordWalletState(
 ): Promise<PurchaseOrder> {
   return requestJson(`/api/v1/orders/${publicTokenSchema.parse(orderPublicId)}/wallet-state`, purchaseOrderSchema, {
     body: JSON.stringify({ event: walletEventSchema.parse(event) }),
+    method: 'POST',
+  })
+}
+
+export function requestClaimKey(orderPublicId: string): Promise<PurchaseOrder> {
+  return requestJson(`/api/v1/orders/${publicTokenSchema.parse(orderPublicId)}/claim-key`, purchaseOrderSchema, {
+    body: '{}',
+    method: 'POST',
+  })
+}
+
+export function submitClaimKey(
+  orderPublicId: string,
+  nonce: string,
+  proof: unknown,
+): Promise<PurchaseOrder> {
+  return requestJson(`/api/v1/orders/${publicTokenSchema.parse(orderPublicId)}/claim-key/submit`, purchaseOrderSchema, {
+    body: JSON.stringify({
+      nonce: publicTokenSchema.parse(nonce),
+      proof: claimProofEnvelopeSchema.parse(proof),
+    }),
     method: 'POST',
   })
 }

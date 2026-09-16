@@ -1,0 +1,4381 @@
+{
+  "id": "49f2178a-93c5-4b47-a2b5-2f75fb2ae965",
+  "prevId": "7adc4e80-b4cd-4457-85a0-26fb2ac87e45",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.chain_reconciliations": {
+      "name": "chain_reconciliations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chain_transaction_id": {
+          "name": "chain_transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "chain_reconciliation_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normalized_evidence": {
+          "name": "normalized_evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "chain_reconciliations_chain_checked_index": {
+          "name": "chain_reconciliations_chain_checked_index",
+          "columns": [
+            {
+              "expression": "chain_transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "chain_reconciliations_chain_transaction_id_chain_transactions_id_fk": {
+          "name": "chain_reconciliations_chain_transaction_id_chain_transactions_id_fk",
+          "tableFrom": "chain_reconciliations",
+          "tableTo": "chain_transactions",
+          "columnsFrom": [
+            "chain_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chain_reconciliations_reason_not_blank": {
+          "name": "chain_reconciliations_reason_not_blank",
+          "value": "btrim(\"chain_reconciliations\".\"reason\") <> ''"
+        },
+        "chain_reconciliations_evidence_object": {
+          "name": "chain_reconciliations_evidence_object",
+          "value": "\"chain_reconciliations\".\"normalized_evidence\" is null or jsonb_typeof(\"chain_reconciliations\".\"normalized_evidence\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.chain_transactions": {
+      "name": "chain_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "network": {
+          "name": "network",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "chain_transaction_purpose",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_state": {
+          "name": "observed_state",
+          "type": "chain_observed_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'inconclusive'"
+        },
+        "normalized_evidence": {
+          "name": "normalized_evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_number": {
+          "name": "block_number",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "block_timestamp_ms": {
+          "name": "block_timestamp_ms",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finalizing_block_number": {
+          "name": "finalizing_block_number",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "head_block_number": {
+          "name": "head_block_number",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmations": {
+          "name": "confirmations",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_result": {
+          "name": "execution_result",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sender": {
+          "name": "sender",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recipient": {
+          "name": "recipient",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "value_luna": {
+          "name": "value_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_text": {
+          "name": "data_text",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_checks": {
+          "name": "verification_checks",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_reason": {
+          "name": "verification_reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "chain_transactions_state_updated_index": {
+          "name": "chain_transactions_state_updated_index",
+          "columns": [
+            {
+              "expression": "observed_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "chain_transactions_network_hash_unique": {
+          "name": "chain_transactions_network_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "network",
+            "transaction_hash"
+          ]
+        },
+        "chain_transactions_purpose_resource_unique": {
+          "name": "chain_transactions_purpose_resource_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "purpose",
+            "resource_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "chain_transactions_hash_format": {
+          "name": "chain_transactions_hash_format",
+          "value": "\"chain_transactions\".\"transaction_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "chain_transactions_network_not_blank": {
+          "name": "chain_transactions_network_not_blank",
+          "value": "btrim(\"chain_transactions\".\"network\") <> ''"
+        },
+        "chain_transactions_provider_not_blank": {
+          "name": "chain_transactions_provider_not_blank",
+          "value": "btrim(\"chain_transactions\".\"provider_id\") <> ''"
+        },
+        "chain_transactions_reason_not_blank": {
+          "name": "chain_transactions_reason_not_blank",
+          "value": "btrim(\"chain_transactions\".\"verification_reason\") <> ''"
+        },
+        "chain_transactions_sender_format": {
+          "name": "chain_transactions_sender_format",
+          "value": "\"chain_transactions\".\"sender\" is null or \"chain_transactions\".\"sender\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "chain_transactions_recipient_format": {
+          "name": "chain_transactions_recipient_format",
+          "value": "\"chain_transactions\".\"recipient\" is null or \"chain_transactions\".\"recipient\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "chain_transactions_value_range": {
+          "name": "chain_transactions_value_range",
+          "value": "\"chain_transactions\".\"value_luna\" is null or (\"chain_transactions\".\"value_luna\" >= 0 and \"chain_transactions\".\"value_luna\" <= 9007199254740991)"
+        },
+        "chain_transactions_block_ranges": {
+          "name": "chain_transactions_block_ranges",
+          "value": "(\"chain_transactions\".\"block_number\" is null or \"chain_transactions\".\"block_number\" >= 0) and (\"chain_transactions\".\"block_timestamp_ms\" is null or (\"chain_transactions\".\"block_timestamp_ms\" >= 0 and \"chain_transactions\".\"block_timestamp_ms\" <= 9007199254740991)) and (\"chain_transactions\".\"finalizing_block_number\" is null or \"chain_transactions\".\"finalizing_block_number\" >= 0) and (\"chain_transactions\".\"head_block_number\" is null or \"chain_transactions\".\"head_block_number\" >= 0) and (\"chain_transactions\".\"confirmations\" is null or \"chain_transactions\".\"confirmations\" >= 0)"
+        },
+        "chain_transactions_normalized_evidence_object": {
+          "name": "chain_transactions_normalized_evidence_object",
+          "value": "\"chain_transactions\".\"normalized_evidence\" is null or jsonb_typeof(\"chain_transactions\".\"normalized_evidence\") = 'object'"
+        },
+        "chain_transactions_verification_checks_object": {
+          "name": "chain_transactions_verification_checks_object",
+          "value": "\"chain_transactions\".\"verification_checks\" is null or jsonb_typeof(\"chain_transactions\".\"verification_checks\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.claim_authorizations": {
+      "name": "claim_authorizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorization_mode": {
+          "name": "authorization_mode",
+          "type": "claim_authorization_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchase_sender_address": {
+          "name": "purchase_sender_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_signer_address": {
+          "name": "claim_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_payload_hash": {
+          "name": "claim_payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challenge_nonce": {
+          "name": "challenge_nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "char(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "authorization_signer_address": {
+          "name": "authorization_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claim_key_id": {
+          "name": "claim_key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "claim_authorizations_one_consumed_per_claim": {
+          "name": "claim_authorizations_one_consumed_per_claim",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"claim_authorizations\".\"consumed_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claim_authorizations_claim_created_index": {
+          "name": "claim_authorizations_claim_created_index",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "claim_authorizations_claim_id_claims_id_fk": {
+          "name": "claim_authorizations_claim_id_claims_id_fk",
+          "tableFrom": "claim_authorizations",
+          "tableTo": "claims",
+          "columnsFrom": [
+            "claim_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "claim_authorizations_claim_key_id_purchase_claim_keys_id_fk": {
+          "name": "claim_authorizations_claim_key_id_purchase_claim_keys_id_fk",
+          "tableFrom": "claim_authorizations",
+          "tableTo": "purchase_claim_keys",
+          "columnsFrom": [
+            "claim_key_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "claim_authorizations_public_id_unique": {
+          "name": "claim_authorizations_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "claim_authorizations_nonce_unique": {
+          "name": "claim_authorizations_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "challenge_nonce"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "claim_authorizations_public_id_format": {
+          "name": "claim_authorizations_public_id_format",
+          "value": "\"claim_authorizations\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claim_authorizations_nonce_format": {
+          "name": "claim_authorizations_nonce_format",
+          "value": "\"claim_authorizations\".\"challenge_nonce\" is null or \"claim_authorizations\".\"challenge_nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claim_authorizations_address_format": {
+          "name": "claim_authorizations_address_format",
+          "value": "\"claim_authorizations\".\"purchase_sender_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and \"claim_authorizations\".\"claim_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and (\"claim_authorizations\".\"authorization_signer_address\" is null or \"claim_authorizations\".\"authorization_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$')"
+        },
+        "claim_authorizations_claim_hash_format": {
+          "name": "claim_authorizations_claim_hash_format",
+          "value": "\"claim_authorizations\".\"claim_payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "claim_authorizations_payload_hash_format": {
+          "name": "claim_authorizations_payload_hash_format",
+          "value": "\"claim_authorizations\".\"payload_hash\" is null or \"claim_authorizations\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "claim_authorizations_payload_object": {
+          "name": "claim_authorizations_payload_object",
+          "value": "\"claim_authorizations\".\"payload\" is null or jsonb_typeof(\"claim_authorizations\".\"payload\") = 'object'"
+        },
+        "claim_authorizations_mode_shape": {
+          "name": "claim_authorizations_mode_shape",
+          "value": "(\"claim_authorizations\".\"authorization_mode\" = 'self' and \"claim_authorizations\".\"purchase_sender_address\" = \"claim_authorizations\".\"claim_signer_address\" and \"claim_authorizations\".\"challenge_nonce\" is null and \"claim_authorizations\".\"payload\" is null and \"claim_authorizations\".\"canonical_message\" is null and \"claim_authorizations\".\"payload_hash\" is null and \"claim_authorizations\".\"public_key\" is null and \"claim_authorizations\".\"signature\" is null and \"claim_authorizations\".\"authorization_signer_address\" is null and \"claim_authorizations\".\"expires_at\" is null and \"claim_authorizations\".\"consumed_at\" is not null and \"claim_authorizations\".\"verified_at\" is not null) or (\"claim_authorizations\".\"authorization_mode\" = 'delegated' and \"claim_authorizations\".\"purchase_sender_address\" <> \"claim_authorizations\".\"claim_signer_address\" and \"claim_authorizations\".\"challenge_nonce\" is not null and \"claim_authorizations\".\"payload\" is not null and \"claim_authorizations\".\"canonical_message\" like 'NIMRETURN/1/CLAIM_AUTHORIZATION' || chr(10) || '%' and \"claim_authorizations\".\"payload_hash\" is not null and \"claim_authorizations\".\"expires_at\" is not null and \"claim_authorizations\".\"expires_at\" > \"claim_authorizations\".\"created_at\") or (\"claim_authorizations\".\"authorization_mode\"::text = 'purchase_key' and \"claim_authorizations\".\"purchase_sender_address\" <> \"claim_authorizations\".\"claim_signer_address\" and \"claim_authorizations\".\"challenge_nonce\" is null and \"claim_authorizations\".\"payload\" is null and \"claim_authorizations\".\"canonical_message\" is null and \"claim_authorizations\".\"payload_hash\" is null and \"claim_authorizations\".\"public_key\" is null and \"claim_authorizations\".\"signature\" is null and \"claim_authorizations\".\"authorization_signer_address\" is null and \"claim_authorizations\".\"expires_at\" is null and \"claim_authorizations\".\"consumed_at\" is not null and \"claim_authorizations\".\"verified_at\" is not null)"
+        },
+        "claim_authorizations_claim_key_mode": {
+          "name": "claim_authorizations_claim_key_mode",
+          "value": "(\"claim_authorizations\".\"authorization_mode\"::text = 'purchase_key') = (\"claim_authorizations\".\"claim_key_id\" is not null)"
+        },
+        "claim_authorizations_delegated_proof_complete": {
+          "name": "claim_authorizations_delegated_proof_complete",
+          "value": "\"claim_authorizations\".\"authorization_mode\" <> 'delegated' or \"claim_authorizations\".\"consumed_at\" is null or (\"claim_authorizations\".\"public_key\" is not null and \"claim_authorizations\".\"signature\" is not null and \"claim_authorizations\".\"authorization_signer_address\" = \"claim_authorizations\".\"purchase_sender_address\" and \"claim_authorizations\".\"verifier_version\" is not null and \"claim_authorizations\".\"verified_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.claim_eligibility_evaluations": {
+      "name": "claim_eligibility_evaluations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evaluator_version": {
+          "name": "evaluator_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evaluated_at": {
+          "name": "evaluated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inputs": {
+          "name": "inputs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rule_results": {
+          "name": "rule_results",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eligible": {
+          "name": "eligible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "supersedes_id": {
+          "name": "supersedes_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "claim_eligibility_one_current_per_claim": {
+          "name": "claim_eligibility_one_current_per_claim",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"claim_eligibility_evaluations\".\"supersedes_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claim_eligibility_claim_evaluated_index": {
+          "name": "claim_eligibility_claim_evaluated_index",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "evaluated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "claim_eligibility_evaluations_claim_id_claims_id_fk": {
+          "name": "claim_eligibility_evaluations_claim_id_claims_id_fk",
+          "tableFrom": "claim_eligibility_evaluations",
+          "tableTo": "claims",
+          "columnsFrom": [
+            "claim_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "claim_eligibility_supersedes_fk": {
+          "name": "claim_eligibility_supersedes_fk",
+          "tableFrom": "claim_eligibility_evaluations",
+          "tableTo": "claim_eligibility_evaluations",
+          "columnsFrom": [
+            "supersedes_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "claim_eligibility_inputs_object": {
+          "name": "claim_eligibility_inputs_object",
+          "value": "jsonb_typeof(\"claim_eligibility_evaluations\".\"inputs\") = 'object'"
+        },
+        "claim_eligibility_rules_object": {
+          "name": "claim_eligibility_rules_object",
+          "value": "jsonb_typeof(\"claim_eligibility_evaluations\".\"rule_results\") = 'object'"
+        },
+        "claim_eligibility_evaluator_not_blank": {
+          "name": "claim_eligibility_evaluator_not_blank",
+          "value": "btrim(\"claim_eligibility_evaluations\".\"evaluator_version\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.claim_resolutions": {
+      "name": "claim_resolutions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_signer_address": {
+          "name": "policy_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision": {
+          "name": "decision",
+          "type": "resolution_decision",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "resolution_reason_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "approved_refund_luna": {
+          "name": "approved_refund_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolution_time": {
+          "name": "resolution_time",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challenge_nonce": {
+          "name": "challenge_nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "char(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signer_address": {
+          "name": "signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_status": {
+          "name": "verification_status",
+          "type": "resolution_verification_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "claim_resolutions_one_pending_per_claim": {
+          "name": "claim_resolutions_one_pending_per_claim",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"claim_resolutions\".\"verification_status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claim_resolutions_one_verified_per_claim": {
+          "name": "claim_resolutions_one_verified_per_claim",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"claim_resolutions\".\"verification_status\" = 'verified'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claim_resolutions_merchant_created_index": {
+          "name": "claim_resolutions_merchant_created_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "claim_resolutions_claim_merchant_fk": {
+          "name": "claim_resolutions_claim_merchant_fk",
+          "tableFrom": "claim_resolutions",
+          "tableTo": "claims",
+          "columnsFrom": [
+            "claim_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "claim_resolutions_public_id_unique": {
+          "name": "claim_resolutions_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "claim_resolutions_challenge_nonce_unique": {
+          "name": "claim_resolutions_challenge_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "challenge_nonce"
+          ]
+        },
+        "claim_resolutions_id_claim_unique": {
+          "name": "claim_resolutions_id_claim_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "claim_id"
+          ]
+        },
+        "claim_resolutions_id_merchant_unique": {
+          "name": "claim_resolutions_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "claim_resolutions_public_id_format": {
+          "name": "claim_resolutions_public_id_format",
+          "value": "\"claim_resolutions\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claim_resolutions_nonce_format": {
+          "name": "claim_resolutions_nonce_format",
+          "value": "\"claim_resolutions\".\"challenge_nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claim_resolutions_payload_object": {
+          "name": "claim_resolutions_payload_object",
+          "value": "jsonb_typeof(\"claim_resolutions\".\"payload\") = 'object'"
+        },
+        "claim_resolutions_canonical_message_domain": {
+          "name": "claim_resolutions_canonical_message_domain",
+          "value": "\"claim_resolutions\".\"canonical_message\" like 'NIMRETURN/1/RESOLUTION' || chr(10) || '%'"
+        },
+        "claim_resolutions_payload_hash_format": {
+          "name": "claim_resolutions_payload_hash_format",
+          "value": "\"claim_resolutions\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "claim_resolutions_policy_signer_format": {
+          "name": "claim_resolutions_policy_signer_format",
+          "value": "\"claim_resolutions\".\"policy_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "claim_resolutions_signer_format": {
+          "name": "claim_resolutions_signer_format",
+          "value": "\"claim_resolutions\".\"signer_address\" is null or \"claim_resolutions\".\"signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "claim_resolutions_note_format": {
+          "name": "claim_resolutions_note_format",
+          "value": "btrim(\"claim_resolutions\".\"note\") = \"claim_resolutions\".\"note\" and \"claim_resolutions\".\"note\" !~ '[[:cntrl:]]'"
+        },
+        "claim_resolutions_amount_shape": {
+          "name": "claim_resolutions_amount_shape",
+          "value": "(\"claim_resolutions\".\"decision\" = 'APPROVED' and \"claim_resolutions\".\"approved_refund_luna\" > 0 and \"claim_resolutions\".\"approved_refund_luna\" <= 9007199254740991) or (\"claim_resolutions\".\"decision\" = 'REJECTED' and \"claim_resolutions\".\"approved_refund_luna\" = 0)"
+        },
+        "claim_resolutions_valid_expiry": {
+          "name": "claim_resolutions_valid_expiry",
+          "value": "\"claim_resolutions\".\"expires_at\" > \"claim_resolutions\".\"created_at\""
+        },
+        "claim_resolutions_verified_proof_complete": {
+          "name": "claim_resolutions_verified_proof_complete",
+          "value": "\"claim_resolutions\".\"verification_status\" <> 'verified' or (\"claim_resolutions\".\"public_key\" is not null and \"claim_resolutions\".\"signature\" is not null and \"claim_resolutions\".\"signer_address\" = \"claim_resolutions\".\"policy_signer_address\" and \"claim_resolutions\".\"verifier_version\" is not null and \"claim_resolutions\".\"verified_at\" is not null)"
+        },
+        "claim_resolutions_pending_proof_empty": {
+          "name": "claim_resolutions_pending_proof_empty",
+          "value": "\"claim_resolutions\".\"verification_status\" <> 'pending' or (\"claim_resolutions\".\"public_key\" is null and \"claim_resolutions\".\"signature\" is null and \"claim_resolutions\".\"signer_address\" is null and \"claim_resolutions\".\"verifier_version\" is null and \"claim_resolutions\".\"verified_at\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.claims": {
+      "name": "claims",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passport_id": {
+          "name": "passport_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchase_sender_address": {
+          "name": "purchase_sender_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_signer_address": {
+          "name": "claim_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claim_type": {
+          "name": "claim_type",
+          "type": "claim_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "claim_reason_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "claim_time": {
+          "name": "claim_time",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challenge_nonce": {
+          "name": "challenge_nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "char(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature_status": {
+          "name": "signature_status",
+          "type": "claim_signature_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "workflow_state": {
+          "name": "workflow_state",
+          "type": "claim_workflow_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'signature_requested'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "claims_one_active_type_per_passport": {
+          "name": "claims_one_active_type_per_passport",
+          "columns": [
+            {
+              "expression": "passport_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "claim_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"claims\".\"workflow_state\" <> 'rejected' and \"claims\".\"signature_status\" <> 'expired'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claims_merchant_queue_index": {
+          "name": "claims_merchant_queue_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workflow_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "claims_sender_created_index": {
+          "name": "claims_sender_created_index",
+          "columns": [
+            {
+              "expression": "purchase_sender_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "claims_passport_order_fk": {
+          "name": "claims_passport_order_fk",
+          "tableFrom": "claims",
+          "tableTo": "purchase_passports",
+          "columnsFrom": [
+            "passport_id",
+            "order_id"
+          ],
+          "columnsTo": [
+            "id",
+            "order_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "claims_passport_policy_fk": {
+          "name": "claims_passport_policy_fk",
+          "tableFrom": "claims",
+          "tableTo": "purchase_passports",
+          "columnsFrom": [
+            "passport_id",
+            "policy_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "policy_version_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "claims_passport_merchant_fk": {
+          "name": "claims_passport_merchant_fk",
+          "tableFrom": "claims",
+          "tableTo": "purchase_passports",
+          "columnsFrom": [
+            "passport_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "claims_public_id_unique": {
+          "name": "claims_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "claims_challenge_nonce_unique": {
+          "name": "claims_challenge_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "challenge_nonce"
+          ]
+        },
+        "claims_id_passport_unique": {
+          "name": "claims_id_passport_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "passport_id"
+          ]
+        },
+        "claims_id_merchant_unique": {
+          "name": "claims_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "claims_public_id_format": {
+          "name": "claims_public_id_format",
+          "value": "\"claims\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claims_nonce_format": {
+          "name": "claims_nonce_format",
+          "value": "\"claims\".\"challenge_nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "claims_payload_hash_format": {
+          "name": "claims_payload_hash_format",
+          "value": "\"claims\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "claims_payload_object": {
+          "name": "claims_payload_object",
+          "value": "jsonb_typeof(\"claims\".\"payload\") = 'object'"
+        },
+        "claims_canonical_message_domain": {
+          "name": "claims_canonical_message_domain",
+          "value": "\"claims\".\"canonical_message\" like 'NIMRETURN/1/CLAIM' || chr(10) || '%'"
+        },
+        "claims_purchase_sender_format": {
+          "name": "claims_purchase_sender_format",
+          "value": "\"claims\".\"purchase_sender_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "claims_signer_format": {
+          "name": "claims_signer_format",
+          "value": "\"claims\".\"claim_signer_address\" is null or \"claims\".\"claim_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "claims_note_format": {
+          "name": "claims_note_format",
+          "value": "btrim(\"claims\".\"note\") = \"claims\".\"note\" and \"claims\".\"note\" !~ '[[:cntrl:]]'"
+        },
+        "claims_valid_expiry": {
+          "name": "claims_valid_expiry",
+          "value": "\"claims\".\"expires_at\" > \"claims\".\"created_at\""
+        },
+        "claims_verified_proof_complete": {
+          "name": "claims_verified_proof_complete",
+          "value": "\"claims\".\"signature_status\" <> 'verified' or (\"claims\".\"claim_signer_address\" is not null and \"claims\".\"public_key\" is not null and \"claims\".\"signature\" is not null and \"claims\".\"verifier_version\" is not null and \"claims\".\"verified_at\" is not null)"
+        },
+        "claims_expired_proof_empty": {
+          "name": "claims_expired_proof_empty",
+          "value": "\"claims\".\"signature_status\" <> 'expired' or (\"claims\".\"claim_signer_address\" is null and \"claims\".\"public_key\" is null and \"claims\".\"signature\" is null and \"claims\".\"verifier_version\" is null and \"claims\".\"verified_at\" is null and \"claims\".\"workflow_state\" = 'signature_requested')"
+        },
+        "claims_pending_proof_empty": {
+          "name": "claims_pending_proof_empty",
+          "value": "\"claims\".\"signature_status\" <> 'pending' or (\"claims\".\"claim_signer_address\" is null and \"claims\".\"public_key\" is null and \"claims\".\"signature\" is null and \"claims\".\"verifier_version\" is null and \"claims\".\"verified_at\" is null and \"claims\".\"workflow_state\" = 'signature_requested')"
+        },
+        "claims_authorization_state_requires_proof": {
+          "name": "claims_authorization_state_requires_proof",
+          "value": "\"claims\".\"workflow_state\" = 'signature_requested' or \"claims\".\"signature_status\" = 'verified'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.merchant_bootstrap_sessions": {
+      "name": "merchant_bootstrap_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_hash": {
+          "name": "capability_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "merchant_bootstrap_sessions_one_unconsumed_per_merchant": {
+          "name": "merchant_bootstrap_sessions_one_unconsumed_per_merchant",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"merchant_bootstrap_sessions\".\"consumed_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "merchant_bootstrap_sessions_expires_at_index": {
+          "name": "merchant_bootstrap_sessions_expires_at_index",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "merchant_bootstrap_sessions_merchant_id_merchants_id_fk": {
+          "name": "merchant_bootstrap_sessions_merchant_id_merchants_id_fk",
+          "tableFrom": "merchant_bootstrap_sessions",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "merchant_bootstrap_sessions_capability_hash_unique": {
+          "name": "merchant_bootstrap_sessions_capability_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "capability_hash"
+          ]
+        },
+        "merchant_bootstrap_sessions_id_merchant_unique": {
+          "name": "merchant_bootstrap_sessions_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "merchant_bootstrap_sessions_capability_hash_format": {
+          "name": "merchant_bootstrap_sessions_capability_hash_format",
+          "value": "\"merchant_bootstrap_sessions\".\"capability_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "merchant_bootstrap_sessions_valid_times": {
+          "name": "merchant_bootstrap_sessions_valid_times",
+          "value": "\"merchant_bootstrap_sessions\".\"expires_at\" > \"merchant_bootstrap_sessions\".\"created_at\" and (\"merchant_bootstrap_sessions\".\"consumed_at\" is null or (\"merchant_bootstrap_sessions\".\"consumed_at\" >= \"merchant_bootstrap_sessions\".\"created_at\" and \"merchant_bootstrap_sessions\".\"consumed_at\" <= \"merchant_bootstrap_sessions\".\"expires_at\"))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.merchant_session_challenges": {
+      "name": "merchant_session_challenges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_signer_address": {
+          "name": "expected_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "merchant_session_challenges_merchant_expiry_index": {
+          "name": "merchant_session_challenges_merchant_expiry_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "merchant_session_challenges_expiry_index": {
+          "name": "merchant_session_challenges_expiry_index",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "merchant_session_challenges_merchant_id_merchants_id_fk": {
+          "name": "merchant_session_challenges_merchant_id_merchants_id_fk",
+          "tableFrom": "merchant_session_challenges",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "merchant_session_challenges_nonce_unique": {
+          "name": "merchant_session_challenges_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nonce"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "merchant_session_challenges_nonce_format": {
+          "name": "merchant_session_challenges_nonce_format",
+          "value": "\"merchant_session_challenges\".\"nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "merchant_session_challenges_expected_signer_format": {
+          "name": "merchant_session_challenges_expected_signer_format",
+          "value": "\"merchant_session_challenges\".\"expected_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "merchant_session_challenges_audience_format": {
+          "name": "merchant_session_challenges_audience_format",
+          "value": "btrim(\"merchant_session_challenges\".\"audience\") = \"merchant_session_challenges\".\"audience\" and \"merchant_session_challenges\".\"audience\" ~ '^https?://' and \"merchant_session_challenges\".\"audience\" !~ '[[:cntrl:]]'"
+        },
+        "merchant_session_challenges_payload_object": {
+          "name": "merchant_session_challenges_payload_object",
+          "value": "jsonb_typeof(\"merchant_session_challenges\".\"payload\") = 'object'"
+        },
+        "merchant_session_challenges_payload_binding": {
+          "name": "merchant_session_challenges_payload_binding",
+          "value": "\"merchant_session_challenges\".\"payload\"->>'nonce' = \"merchant_session_challenges\".\"nonce\" and \"merchant_session_challenges\".\"payload\"->>'audience' = \"merchant_session_challenges\".\"audience\" and \"merchant_session_challenges\".\"payload\"->>'policySignerAddress' = \"merchant_session_challenges\".\"expected_signer_address\" and \"merchant_session_challenges\".\"payload\"->>'type' = 'MERCHANT_SESSION' and \"merchant_session_challenges\".\"payload\"->>'version' = '1'"
+        },
+        "merchant_session_challenges_canonical_message_domain": {
+          "name": "merchant_session_challenges_canonical_message_domain",
+          "value": "\"merchant_session_challenges\".\"canonical_message\" like 'NIMRETURN/AUTH/1/MERCHANT_SESSION' || chr(10) || '%'"
+        },
+        "merchant_session_challenges_payload_hash_format": {
+          "name": "merchant_session_challenges_payload_hash_format",
+          "value": "\"merchant_session_challenges\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "merchant_session_challenges_valid_times": {
+          "name": "merchant_session_challenges_valid_times",
+          "value": "\"merchant_session_challenges\".\"expires_at\" > \"merchant_session_challenges\".\"created_at\" and \"merchant_session_challenges\".\"expires_at\" <= \"merchant_session_challenges\".\"created_at\" + interval '5 minutes' and (\"merchant_session_challenges\".\"consumed_at\" is null or (\"merchant_session_challenges\".\"consumed_at\" >= \"merchant_session_challenges\".\"created_at\" and \"merchant_session_challenges\".\"consumed_at\" < \"merchant_session_challenges\".\"expires_at\"))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.merchants": {
+      "name": "merchants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_signer_address": {
+          "name": "policy_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_settlement_address": {
+          "name": "default_settlement_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "merchant_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "merchants_policy_signer_address_unique": {
+          "name": "merchants_policy_signer_address_unique",
+          "columns": [
+            {
+              "expression": "policy_signer_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"merchants\".\"policy_signer_address\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "merchants_status_created_at_index": {
+          "name": "merchants_status_created_at_index",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "merchants_public_id_unique": {
+          "name": "merchants_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "merchants_public_id_format": {
+          "name": "merchants_public_id_format",
+          "value": "\"merchants\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "merchants_policy_signer_address_format": {
+          "name": "merchants_policy_signer_address_format",
+          "value": "\"merchants\".\"policy_signer_address\" is null or \"merchants\".\"policy_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "merchants_default_settlement_address_format": {
+          "name": "merchants_default_settlement_address_format",
+          "value": "\"merchants\".\"default_settlement_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "merchants_display_name_not_blank": {
+          "name": "merchants_display_name_not_blank",
+          "value": "btrim(\"merchants\".\"display_name\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.orders": {
+      "name": "orders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_name": {
+          "name": "product_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_description": {
+          "name": "product_description",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "merchant_display_name": {
+          "name": "merchant_display_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_payload_hash": {
+          "name": "policy_payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protocol_version": {
+          "name": "protocol_version",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_recipient": {
+          "name": "expected_recipient",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_value_luna": {
+          "name": "expected_value_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_data": {
+          "name": "expected_data",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "network": {
+          "name": "network",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "buyer_address": {
+          "name": "buyer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_state": {
+          "name": "payment_state",
+          "type": "order_payment_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'payment_requested'"
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_version": {
+          "name": "row_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "orders_merchant_state_created_index": {
+          "name": "orders_merchant_state_created_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "payment_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_state_updated_index": {
+          "name": "orders_state_updated_index",
+          "columns": [
+            {
+              "expression": "payment_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "orders_buyer_created_index": {
+          "name": "orders_buyer_created_index",
+          "columns": [
+            {
+              "expression": "buyer_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "orders_product_merchant_fk": {
+          "name": "orders_product_merchant_fk",
+          "tableFrom": "orders",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "orders_policy_product_fk": {
+          "name": "orders_policy_product_fk",
+          "tableFrom": "orders",
+          "tableTo": "policy_versions",
+          "columnsFrom": [
+            "policy_version_id",
+            "product_id"
+          ],
+          "columnsTo": [
+            "id",
+            "product_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "orders_policy_merchant_fk": {
+          "name": "orders_policy_merchant_fk",
+          "tableFrom": "orders",
+          "tableTo": "policy_versions",
+          "columnsFrom": [
+            "policy_version_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "orders_public_id_unique": {
+          "name": "orders_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "orders_id_product_unique": {
+          "name": "orders_id_product_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "product_id"
+          ]
+        },
+        "orders_id_policy_unique": {
+          "name": "orders_id_policy_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "policy_version_id"
+          ]
+        },
+        "orders_id_merchant_unique": {
+          "name": "orders_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "orders_public_id_format": {
+          "name": "orders_public_id_format",
+          "value": "\"orders\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "orders_policy_payload_hash_format": {
+          "name": "orders_policy_payload_hash_format",
+          "value": "\"orders\".\"policy_payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "orders_policy_version_positive": {
+          "name": "orders_policy_version_positive",
+          "value": "\"orders\".\"policy_version\" > 0"
+        },
+        "orders_protocol": {
+          "name": "orders_protocol",
+          "value": "\"orders\".\"protocol_version\" = 'NR1'"
+        },
+        "orders_expected_recipient_format": {
+          "name": "orders_expected_recipient_format",
+          "value": "\"orders\".\"expected_recipient\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "orders_buyer_address_format": {
+          "name": "orders_buyer_address_format",
+          "value": "\"orders\".\"buyer_address\" is null or \"orders\".\"buyer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "orders_expected_value_range": {
+          "name": "orders_expected_value_range",
+          "value": "\"orders\".\"expected_value_luna\" > 0 and \"orders\".\"expected_value_luna\" <= 9007199254740991"
+        },
+        "orders_expected_data_binding": {
+          "name": "orders_expected_data_binding",
+          "value": "\"orders\".\"expected_data\" = 'NR1:P:' || \"orders\".\"public_id\""
+        },
+        "orders_valid_expiry": {
+          "name": "orders_valid_expiry",
+          "value": "\"orders\".\"expires_at\" > \"orders\".\"created_at\""
+        },
+        "orders_row_version_positive": {
+          "name": "orders_row_version_positive",
+          "value": "\"orders\".\"row_version\" > 0"
+        },
+        "orders_buyer_only_when_purchased": {
+          "name": "orders_buyer_only_when_purchased",
+          "value": "(\"orders\".\"payment_state\" = 'purchased' and \"orders\".\"buyer_address\" is not null) or (\"orders\".\"payment_state\" <> 'purchased' and \"orders\".\"buyer_address\" is null)"
+        },
+        "orders_failure_code_state": {
+          "name": "orders_failure_code_state",
+          "value": "(\"orders\".\"payment_state\" = 'payment_failed' and \"orders\".\"failure_code\" is not null) or (\"orders\".\"payment_state\" <> 'payment_failed' and \"orders\".\"failure_code\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.policy_versions": {
+      "name": "policy_versions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_name": {
+          "name": "product_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_luna": {
+          "name": "price_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "return_window_seconds": {
+          "name": "return_window_seconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "warranty_window_seconds": {
+          "name": "warranty_window_seconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "warranty_transfer_allowed": {
+          "name": "warranty_transfer_allowed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protocol_version": {
+          "name": "protocol_version",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "challenge_nonce": {
+          "name": "challenge_nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settlement_address": {
+          "name": "settlement_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signer_address": {
+          "name": "signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "char(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_status": {
+          "name": "verification_status",
+          "type": "policy_verification_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "policy_versions_product_version_index": {
+          "name": "policy_versions_product_version_index",
+          "columns": [
+            {
+              "expression": "product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "policy_versions_merchant_status_index": {
+          "name": "policy_versions_merchant_status_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "verification_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "policy_versions_product_merchant_fk": {
+          "name": "policy_versions_product_merchant_fk",
+          "tableFrom": "policy_versions",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_versions_public_id_unique": {
+          "name": "policy_versions_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "policy_versions_product_version_unique": {
+          "name": "policy_versions_product_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "product_id",
+            "version"
+          ]
+        },
+        "policy_versions_challenge_nonce_unique": {
+          "name": "policy_versions_challenge_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "challenge_nonce"
+          ]
+        },
+        "policy_versions_id_product_unique": {
+          "name": "policy_versions_id_product_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "product_id"
+          ]
+        },
+        "policy_versions_id_merchant_unique": {
+          "name": "policy_versions_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "policy_versions_public_id_format": {
+          "name": "policy_versions_public_id_format",
+          "value": "\"policy_versions\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "policy_versions_version_positive": {
+          "name": "policy_versions_version_positive",
+          "value": "\"policy_versions\".\"version\" > 0"
+        },
+        "policy_versions_price_luna_range": {
+          "name": "policy_versions_price_luna_range",
+          "value": "\"policy_versions\".\"price_luna\" > 0 and \"policy_versions\".\"price_luna\" <= 9007199254740991"
+        },
+        "policy_versions_return_window_range": {
+          "name": "policy_versions_return_window_range",
+          "value": "\"policy_versions\".\"return_window_seconds\" >= 0 and \"policy_versions\".\"return_window_seconds\" <= 157680000"
+        },
+        "policy_versions_warranty_window_range": {
+          "name": "policy_versions_warranty_window_range",
+          "value": "\"policy_versions\".\"warranty_window_seconds\" >= 0 and \"policy_versions\".\"warranty_window_seconds\" <= 157680000"
+        },
+        "policy_versions_protocol": {
+          "name": "policy_versions_protocol",
+          "value": "\"policy_versions\".\"protocol_version\" = 'NR1'"
+        },
+        "policy_versions_challenge_nonce_format": {
+          "name": "policy_versions_challenge_nonce_format",
+          "value": "\"policy_versions\".\"challenge_nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "policy_versions_payload_object": {
+          "name": "policy_versions_payload_object",
+          "value": "jsonb_typeof(\"policy_versions\".\"payload\") = 'object'"
+        },
+        "policy_versions_canonical_message_domain": {
+          "name": "policy_versions_canonical_message_domain",
+          "value": "\"policy_versions\".\"canonical_message\" like 'NIMRETURN/1/POLICY' || chr(10) || '%'"
+        },
+        "policy_versions_payload_hash_format": {
+          "name": "policy_versions_payload_hash_format",
+          "value": "\"policy_versions\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "policy_versions_settlement_address_format": {
+          "name": "policy_versions_settlement_address_format",
+          "value": "\"policy_versions\".\"settlement_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "policy_versions_signer_address_format": {
+          "name": "policy_versions_signer_address_format",
+          "value": "\"policy_versions\".\"signer_address\" is null or \"policy_versions\".\"signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "policy_versions_public_key_format": {
+          "name": "policy_versions_public_key_format",
+          "value": "\"policy_versions\".\"public_key\" is null or \"policy_versions\".\"public_key\" ~ '^[0-9a-f]{64}$'"
+        },
+        "policy_versions_signature_format": {
+          "name": "policy_versions_signature_format",
+          "value": "\"policy_versions\".\"signature\" is null or \"policy_versions\".\"signature\" ~ '^[0-9a-f]{128}$'"
+        },
+        "policy_versions_verified_proof_complete": {
+          "name": "policy_versions_verified_proof_complete",
+          "value": "\"policy_versions\".\"verification_status\" <> 'verified' or (\"policy_versions\".\"signer_address\" is not null and \"policy_versions\".\"public_key\" is not null and \"policy_versions\".\"signature\" is not null and \"policy_versions\".\"verified_at\" is not null and \"policy_versions\".\"verifier_version\" is not null)"
+        },
+        "policy_versions_unverified_has_no_verified_at": {
+          "name": "policy_versions_unverified_has_no_verified_at",
+          "value": "\"policy_versions\".\"verification_status\" = 'verified' or \"policy_versions\".\"verified_at\" is null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.products": {
+      "name": "products",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "status": {
+          "name": "status",
+          "type": "product_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "active_policy_version_id": {
+          "name": "active_policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "row_version": {
+          "name": "row_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "products_merchant_status_index": {
+          "name": "products_merchant_status_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "products_merchant_id_merchants_id_fk": {
+          "name": "products_merchant_id_merchants_id_fk",
+          "tableFrom": "products",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "products_active_policy_version_id_policy_versions_id_fk": {
+          "name": "products_active_policy_version_id_policy_versions_id_fk",
+          "tableFrom": "products",
+          "tableTo": "policy_versions",
+          "columnsFrom": [
+            "active_policy_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "products_public_id_unique": {
+          "name": "products_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "products_id_merchant_unique": {
+          "name": "products_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "products_public_id_format": {
+          "name": "products_public_id_format",
+          "value": "\"products\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "products_name_format": {
+          "name": "products_name_format",
+          "value": "btrim(\"products\".\"name\") = \"products\".\"name\" and \"products\".\"name\" <> '' and \"products\".\"name\" !~ '[[:cntrl:]]'"
+        },
+        "products_description_format": {
+          "name": "products_description_format",
+          "value": "btrim(\"products\".\"description\") = \"products\".\"description\" and \"products\".\"description\" !~ '[[:cntrl:]]'"
+        },
+        "products_row_version_positive": {
+          "name": "products_row_version_positive",
+          "value": "\"products\".\"row_version\" > 0"
+        },
+        "products_active_requires_policy": {
+          "name": "products_active_requires_policy",
+          "value": "\"products\".\"status\" <> 'active' or \"products\".\"active_policy_version_id\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.protocol_events": {
+      "name": "protocol_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigserial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "aggregate_type": {
+          "name": "aggregate_type",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aggregate_id": {
+          "name": "aggregate_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protocol_version": {
+          "name": "protocol_version",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_address": {
+          "name": "actor_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "causation_id": {
+          "name": "causation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_type": {
+          "name": "evidence_type",
+          "type": "evidence_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_id": {
+          "name": "evidence_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "protocol_events_aggregate_index": {
+          "name": "protocol_events_aggregate_index",
+          "columns": [
+            {
+              "expression": "aggregate_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "aggregate_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "protocol_events_type_occurred_at_index": {
+          "name": "protocol_events_type_occurred_at_index",
+          "columns": [
+            {
+              "expression": "event_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "protocol_events_event_id_unique": {
+          "name": "protocol_events_event_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "protocol_events_protocol": {
+          "name": "protocol_events_protocol",
+          "value": "\"protocol_events\".\"protocol_version\" = 'NR1'"
+        },
+        "protocol_events_actor_address_format": {
+          "name": "protocol_events_actor_address_format",
+          "value": "\"protocol_events\".\"actor_address\" is null or \"protocol_events\".\"actor_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "protocol_events_payload_object": {
+          "name": "protocol_events_payload_object",
+          "value": "jsonb_typeof(\"protocol_events\".\"payload\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.purchase_claim_keys": {
+      "name": "purchase_claim_keys",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signer_address": {
+          "name": "signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "char(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifier_version": {
+          "name": "verifier_version",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "purchase_claim_keys_one_verified_per_order": {
+          "name": "purchase_claim_keys_one_verified_per_order",
+          "columns": [
+            {
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"purchase_claim_keys\".\"verified_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchase_claim_keys_order_created_index": {
+          "name": "purchase_claim_keys_order_created_index",
+          "columns": [
+            {
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "purchase_claim_keys_order_id_orders_id_fk": {
+          "name": "purchase_claim_keys_order_id_orders_id_fk",
+          "tableFrom": "purchase_claim_keys",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "purchase_claim_keys_nonce_unique": {
+          "name": "purchase_claim_keys_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nonce"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "purchase_claim_keys_nonce_format": {
+          "name": "purchase_claim_keys_nonce_format",
+          "value": "\"purchase_claim_keys\".\"nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "purchase_claim_keys_payload_hash_format": {
+          "name": "purchase_claim_keys_payload_hash_format",
+          "value": "\"purchase_claim_keys\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "purchase_claim_keys_payload_binding": {
+          "name": "purchase_claim_keys_payload_binding",
+          "value": "jsonb_typeof(\"purchase_claim_keys\".\"payload\") = 'object' and \"purchase_claim_keys\".\"payload\"->>'nonce' = \"purchase_claim_keys\".\"nonce\" and \"purchase_claim_keys\".\"payload\"->>'type' = 'PURCHASE_CLAIM_KEY' and \"purchase_claim_keys\".\"payload\"->>'protocol' = 'NR1'"
+        },
+        "purchase_claim_keys_canonical_message_domain": {
+          "name": "purchase_claim_keys_canonical_message_domain",
+          "value": "\"purchase_claim_keys\".\"canonical_message\" like 'NIMRETURN/1/PURCHASE_CLAIM_KEY' || chr(10) || '%'"
+        },
+        "purchase_claim_keys_signer_format": {
+          "name": "purchase_claim_keys_signer_format",
+          "value": "\"purchase_claim_keys\".\"signer_address\" is null or \"purchase_claim_keys\".\"signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "purchase_claim_keys_valid_times": {
+          "name": "purchase_claim_keys_valid_times",
+          "value": "\"purchase_claim_keys\".\"expires_at\" > \"purchase_claim_keys\".\"created_at\""
+        },
+        "purchase_claim_keys_proof_shape": {
+          "name": "purchase_claim_keys_proof_shape",
+          "value": "(\"purchase_claim_keys\".\"verified_at\" is null and \"purchase_claim_keys\".\"signer_address\" is null and \"purchase_claim_keys\".\"public_key\" is null and \"purchase_claim_keys\".\"signature\" is null and \"purchase_claim_keys\".\"verifier_version\" is null) or (\"purchase_claim_keys\".\"verified_at\" is not null and \"purchase_claim_keys\".\"signer_address\" is not null and \"purchase_claim_keys\".\"public_key\" ~ '^[0-9a-f]{64}$' and \"purchase_claim_keys\".\"signature\" ~ '^[0-9a-f]{128}$' and \"purchase_claim_keys\".\"verifier_version\" is not null and \"purchase_claim_keys\".\"verified_at\" >= \"purchase_claim_keys\".\"created_at\" and \"purchase_claim_keys\".\"verified_at\" < \"purchase_claim_keys\".\"expires_at\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.purchase_passports": {
+      "name": "purchase_passports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchase_transaction_id": {
+          "name": "purchase_transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_buyer_address": {
+          "name": "original_buyer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_name": {
+          "name": "product_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_description": {
+          "name": "product_description",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "merchant_display_name": {
+          "name": "merchant_display_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_payload_hash": {
+          "name": "policy_payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protocol_version": {
+          "name": "protocol_version",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_luna": {
+          "name": "price_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "settlement_recipient": {
+          "name": "settlement_recipient",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purchase_time": {
+          "name": "purchase_time",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "return_deadline": {
+          "name": "return_deadline",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warranty_deadline": {
+          "name": "warranty_deadline",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "passport_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "purchase_passports_buyer_created_index": {
+          "name": "purchase_passports_buyer_created_index",
+          "columns": [
+            {
+              "expression": "original_buyer_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "purchase_passports_merchant_created_index": {
+          "name": "purchase_passports_merchant_created_index",
+          "columns": [
+            {
+              "expression": "merchant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "purchase_passports_order_id_orders_id_fk": {
+          "name": "purchase_passports_order_id_orders_id_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_purchase_transaction_id_purchase_transactions_id_fk": {
+          "name": "purchase_passports_purchase_transaction_id_purchase_transactions_id_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "purchase_transactions",
+          "columnsFrom": [
+            "purchase_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_policy_version_id_policy_versions_id_fk": {
+          "name": "purchase_passports_policy_version_id_policy_versions_id_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "policy_versions",
+          "columnsFrom": [
+            "policy_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_product_id_products_id_fk": {
+          "name": "purchase_passports_product_id_products_id_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_merchant_id_merchants_id_fk": {
+          "name": "purchase_passports_merchant_id_merchants_id_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "merchants",
+          "columnsFrom": [
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_order_product_fk": {
+          "name": "purchase_passports_order_product_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id",
+            "product_id"
+          ],
+          "columnsTo": [
+            "id",
+            "product_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_order_policy_fk": {
+          "name": "purchase_passports_order_policy_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id",
+            "policy_version_id"
+          ],
+          "columnsTo": [
+            "id",
+            "policy_version_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_passports_order_merchant_fk": {
+          "name": "purchase_passports_order_merchant_fk",
+          "tableFrom": "purchase_passports",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "purchase_passports_public_id_unique": {
+          "name": "purchase_passports_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "purchase_passports_order_unique": {
+          "name": "purchase_passports_order_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "order_id"
+          ]
+        },
+        "purchase_passports_purchase_transaction_unique": {
+          "name": "purchase_passports_purchase_transaction_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "purchase_transaction_id"
+          ]
+        },
+        "purchase_passports_id_order_unique": {
+          "name": "purchase_passports_id_order_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "order_id"
+          ]
+        },
+        "purchase_passports_id_policy_unique": {
+          "name": "purchase_passports_id_policy_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "policy_version_id"
+          ]
+        },
+        "purchase_passports_id_merchant_unique": {
+          "name": "purchase_passports_id_merchant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "merchant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "purchase_passports_public_id_format": {
+          "name": "purchase_passports_public_id_format",
+          "value": "\"purchase_passports\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "purchase_passports_buyer_address_format": {
+          "name": "purchase_passports_buyer_address_format",
+          "value": "\"purchase_passports\".\"original_buyer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "purchase_passports_settlement_address_format": {
+          "name": "purchase_passports_settlement_address_format",
+          "value": "\"purchase_passports\".\"settlement_recipient\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "purchase_passports_policy_hash_format": {
+          "name": "purchase_passports_policy_hash_format",
+          "value": "\"purchase_passports\".\"policy_payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "purchase_passports_policy_version_positive": {
+          "name": "purchase_passports_policy_version_positive",
+          "value": "\"purchase_passports\".\"policy_version\" > 0"
+        },
+        "purchase_passports_protocol": {
+          "name": "purchase_passports_protocol",
+          "value": "\"purchase_passports\".\"protocol_version\" = 'NR1'"
+        },
+        "purchase_passports_price_range": {
+          "name": "purchase_passports_price_range",
+          "value": "\"purchase_passports\".\"price_luna\" > 0 and \"purchase_passports\".\"price_luna\" <= 9007199254740991"
+        },
+        "purchase_passports_deadline_order": {
+          "name": "purchase_passports_deadline_order",
+          "value": "(\"purchase_passports\".\"return_deadline\" is null or \"purchase_passports\".\"return_deadline\" >= \"purchase_passports\".\"purchase_time\") and (\"purchase_passports\".\"warranty_deadline\" is null or \"purchase_passports\".\"warranty_deadline\" >= \"purchase_passports\".\"purchase_time\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.purchase_transactions": {
+      "name": "purchase_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chain_transaction_id": {
+          "name": "chain_transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmation_policy": {
+          "name": "confirmation_policy",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "purchase_transactions_order_id_orders_id_fk": {
+          "name": "purchase_transactions_order_id_orders_id_fk",
+          "tableFrom": "purchase_transactions",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "purchase_transactions_chain_transaction_id_chain_transactions_id_fk": {
+          "name": "purchase_transactions_chain_transaction_id_chain_transactions_id_fk",
+          "tableFrom": "purchase_transactions",
+          "tableTo": "chain_transactions",
+          "columnsFrom": [
+            "chain_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "purchase_transactions_order_unique": {
+          "name": "purchase_transactions_order_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "order_id"
+          ]
+        },
+        "purchase_transactions_chain_unique": {
+          "name": "purchase_transactions_chain_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "chain_transaction_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "purchase_transactions_confirmation_policy": {
+          "name": "purchase_transactions_confirmation_policy",
+          "value": "\"purchase_transactions\".\"confirmation_policy\" = 'albatross-next-macro-v1'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.refund_attempts": {
+      "name": "refund_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_public_id": {
+          "name": "claim_public_id",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolution_id": {
+          "name": "resolution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passport_id": {
+          "name": "passport_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "network": {
+          "name": "network",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_sender": {
+          "name": "expected_sender",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_recipient": {
+          "name": "expected_recipient",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_value_luna": {
+          "name": "expected_value_luna",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_data": {
+          "name": "expected_data",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_state": {
+          "name": "wallet_state",
+          "type": "refund_attempt_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'payment_requested'"
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "row_version": {
+          "name": "row_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "refund_attempts_one_open_per_claim": {
+          "name": "refund_attempts_one_open_per_claim",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"refund_attempts\".\"wallet_state\" in ('payment_requested', 'wallet_request_started', 'submission_outcome_unknown', 'payment_verifying', 'payment_pending')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "refund_attempts_claim_created_index": {
+          "name": "refund_attempts_claim_created_index",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "refund_attempts_state_updated_index": {
+          "name": "refund_attempts_state_updated_index",
+          "columns": [
+            {
+              "expression": "wallet_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "refund_attempts_claim_passport_fk": {
+          "name": "refund_attempts_claim_passport_fk",
+          "tableFrom": "refund_attempts",
+          "tableTo": "claims",
+          "columnsFrom": [
+            "claim_id",
+            "passport_id"
+          ],
+          "columnsTo": [
+            "id",
+            "passport_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_attempts_resolution_claim_fk": {
+          "name": "refund_attempts_resolution_claim_fk",
+          "tableFrom": "refund_attempts",
+          "tableTo": "claim_resolutions",
+          "columnsFrom": [
+            "resolution_id",
+            "claim_id"
+          ],
+          "columnsTo": [
+            "id",
+            "claim_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_attempts_resolution_merchant_fk": {
+          "name": "refund_attempts_resolution_merchant_fk",
+          "tableFrom": "refund_attempts",
+          "tableTo": "claim_resolutions",
+          "columnsFrom": [
+            "resolution_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_attempts_passport_merchant_fk": {
+          "name": "refund_attempts_passport_merchant_fk",
+          "tableFrom": "refund_attempts",
+          "tableTo": "purchase_passports",
+          "columnsFrom": [
+            "passport_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "refund_attempts_public_id_unique": {
+          "name": "refund_attempts_public_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "public_id"
+          ]
+        },
+        "refund_attempts_id_claim_unique": {
+          "name": "refund_attempts_id_claim_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "claim_id"
+          ]
+        },
+        "refund_attempts_id_resolution_unique": {
+          "name": "refund_attempts_id_resolution_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "resolution_id"
+          ]
+        },
+        "refund_attempts_id_passport_unique": {
+          "name": "refund_attempts_id_passport_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "passport_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "refund_attempts_public_id_format": {
+          "name": "refund_attempts_public_id_format",
+          "value": "\"refund_attempts\".\"public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "refund_attempts_claim_public_id_format": {
+          "name": "refund_attempts_claim_public_id_format",
+          "value": "\"refund_attempts\".\"claim_public_id\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "refund_attempts_network_not_blank": {
+          "name": "refund_attempts_network_not_blank",
+          "value": "btrim(\"refund_attempts\".\"network\") <> ''"
+        },
+        "refund_attempts_address_format": {
+          "name": "refund_attempts_address_format",
+          "value": "\"refund_attempts\".\"expected_sender\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$' and \"refund_attempts\".\"expected_recipient\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "refund_attempts_value_range": {
+          "name": "refund_attempts_value_range",
+          "value": "\"refund_attempts\".\"expected_value_luna\" > 0 and \"refund_attempts\".\"expected_value_luna\" <= 9007199254740991"
+        },
+        "refund_attempts_data_binding": {
+          "name": "refund_attempts_data_binding",
+          "value": "\"refund_attempts\".\"expected_data\" = 'NR1:R:' || \"refund_attempts\".\"claim_public_id\""
+        },
+        "refund_attempts_hash_state": {
+          "name": "refund_attempts_hash_state",
+          "value": "(\"refund_attempts\".\"transaction_hash\" is null and \"refund_attempts\".\"wallet_state\" in ('payment_requested', 'wallet_request_started', 'payment_cancelled', 'submission_outcome_unknown')) or (\"refund_attempts\".\"transaction_hash\" is not null and \"refund_attempts\".\"wallet_state\" in ('payment_verifying', 'payment_pending', 'payment_failed', 'refunded'))"
+        },
+        "refund_attempts_hash_format": {
+          "name": "refund_attempts_hash_format",
+          "value": "\"refund_attempts\".\"transaction_hash\" is null or \"refund_attempts\".\"transaction_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "refund_attempts_failure_state": {
+          "name": "refund_attempts_failure_state",
+          "value": "(\"refund_attempts\".\"wallet_state\" = 'payment_failed' and \"refund_attempts\".\"failure_code\" is not null) or (\"refund_attempts\".\"wallet_state\" <> 'payment_failed' and \"refund_attempts\".\"failure_code\" is null)"
+        },
+        "refund_attempts_row_version_positive": {
+          "name": "refund_attempts_row_version_positive",
+          "value": "\"refund_attempts\".\"row_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.refund_transactions": {
+      "name": "refund_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolution_id": {
+          "name": "resolution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passport_id": {
+          "name": "passport_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chain_transaction_id": {
+          "name": "chain_transaction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmation_policy": {
+          "name": "confirmation_policy",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "refund_transactions_chain_transaction_id_chain_transactions_id_fk": {
+          "name": "refund_transactions_chain_transaction_id_chain_transactions_id_fk",
+          "tableFrom": "refund_transactions",
+          "tableTo": "chain_transactions",
+          "columnsFrom": [
+            "chain_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_transactions_attempt_claim_fk": {
+          "name": "refund_transactions_attempt_claim_fk",
+          "tableFrom": "refund_transactions",
+          "tableTo": "refund_attempts",
+          "columnsFrom": [
+            "attempt_id",
+            "claim_id"
+          ],
+          "columnsTo": [
+            "id",
+            "claim_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_transactions_attempt_resolution_fk": {
+          "name": "refund_transactions_attempt_resolution_fk",
+          "tableFrom": "refund_transactions",
+          "tableTo": "refund_attempts",
+          "columnsFrom": [
+            "attempt_id",
+            "resolution_id"
+          ],
+          "columnsTo": [
+            "id",
+            "resolution_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "refund_transactions_attempt_passport_fk": {
+          "name": "refund_transactions_attempt_passport_fk",
+          "tableFrom": "refund_transactions",
+          "tableTo": "refund_attempts",
+          "columnsFrom": [
+            "attempt_id",
+            "passport_id"
+          ],
+          "columnsTo": [
+            "id",
+            "passport_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "refund_transactions_attempt_unique": {
+          "name": "refund_transactions_attempt_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "attempt_id"
+          ]
+        },
+        "refund_transactions_claim_unique": {
+          "name": "refund_transactions_claim_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "claim_id"
+          ]
+        },
+        "refund_transactions_resolution_unique": {
+          "name": "refund_transactions_resolution_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "resolution_id"
+          ]
+        },
+        "refund_transactions_passport_unique": {
+          "name": "refund_transactions_passport_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "passport_id"
+          ]
+        },
+        "refund_transactions_chain_unique": {
+          "name": "refund_transactions_chain_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "chain_transaction_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "refund_transactions_confirmation_policy": {
+          "name": "refund_transactions_confirmation_policy",
+          "value": "\"refund_transactions\".\"confirmation_policy\" = 'albatross-next-macro-v1'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.signing_challenges": {
+      "name": "signing_challenges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "char(22)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "signing_challenge_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bootstrap_session_id": {
+          "name": "bootstrap_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_signer_address": {
+          "name": "expected_signer_address",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "canonical_message": {
+          "name": "canonical_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "signing_challenges_expires_at_index": {
+          "name": "signing_challenges_expires_at_index",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "signing_challenges_policy_merchant_fk": {
+          "name": "signing_challenges_policy_merchant_fk",
+          "tableFrom": "signing_challenges",
+          "tableTo": "policy_versions",
+          "columnsFrom": [
+            "policy_version_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "signing_challenges_bootstrap_merchant_fk": {
+          "name": "signing_challenges_bootstrap_merchant_fk",
+          "tableFrom": "signing_challenges",
+          "tableTo": "merchant_bootstrap_sessions",
+          "columnsFrom": [
+            "bootstrap_session_id",
+            "merchant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "merchant_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "signing_challenges_nonce_unique": {
+          "name": "signing_challenges_nonce_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nonce"
+          ]
+        },
+        "signing_challenges_policy_version_unique": {
+          "name": "signing_challenges_policy_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "policy_version_id"
+          ]
+        },
+        "signing_challenges_bootstrap_session_unique": {
+          "name": "signing_challenges_bootstrap_session_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "bootstrap_session_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "signing_challenges_nonce_format": {
+          "name": "signing_challenges_nonce_format",
+          "value": "\"signing_challenges\".\"nonce\" ~ '^[A-Za-z0-9_-]{22}$'"
+        },
+        "signing_challenges_expected_signer_format": {
+          "name": "signing_challenges_expected_signer_format",
+          "value": "\"signing_challenges\".\"expected_signer_address\" is null or \"signing_challenges\".\"expected_signer_address\" ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'"
+        },
+        "signing_challenges_bootstrap_or_established_signer": {
+          "name": "signing_challenges_bootstrap_or_established_signer",
+          "value": "(\"signing_challenges\".\"expected_signer_address\" is null and \"signing_challenges\".\"bootstrap_session_id\" is not null) or (\"signing_challenges\".\"expected_signer_address\" is not null and \"signing_challenges\".\"bootstrap_session_id\" is null)"
+        },
+        "signing_challenges_canonical_message_domain": {
+          "name": "signing_challenges_canonical_message_domain",
+          "value": "\"signing_challenges\".\"canonical_message\" like 'NIMRETURN/1/POLICY' || chr(10) || '%'"
+        },
+        "signing_challenges_payload_hash_format": {
+          "name": "signing_challenges_payload_hash_format",
+          "value": "\"signing_challenges\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "signing_challenges_valid_times": {
+          "name": "signing_challenges_valid_times",
+          "value": "\"signing_challenges\".\"expires_at\" > \"signing_challenges\".\"created_at\" and (\"signing_challenges\".\"consumed_at\" is null or (\"signing_challenges\".\"consumed_at\" >= \"signing_challenges\".\"created_at\" and \"signing_challenges\".\"consumed_at\" <= \"signing_challenges\".\"expires_at\"))"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.chain_observed_state": {
+      "name": "chain_observed_state",
+      "schema": "public",
+      "values": [
+        "absent",
+        "mempool",
+        "included",
+        "finalized",
+        "invalid",
+        "inconclusive"
+      ]
+    },
+    "public.chain_reconciliation_outcome": {
+      "name": "chain_reconciliation_outcome",
+      "schema": "public",
+      "values": [
+        "confirmed",
+        "inconclusive",
+        "exception"
+      ]
+    },
+    "public.chain_transaction_purpose": {
+      "name": "chain_transaction_purpose",
+      "schema": "public",
+      "values": [
+        "purchase",
+        "refund"
+      ]
+    },
+    "public.claim_authorization_mode": {
+      "name": "claim_authorization_mode",
+      "schema": "public",
+      "values": [
+        "self",
+        "delegated",
+        "purchase_key"
+      ]
+    },
+    "public.claim_reason_code": {
+      "name": "claim_reason_code",
+      "schema": "public",
+      "values": [
+        "CHANGED_MIND",
+        "DEFECTIVE",
+        "NOT_AS_DESCRIBED",
+        "OTHER"
+      ]
+    },
+    "public.claim_signature_status": {
+      "name": "claim_signature_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "verified",
+        "expired"
+      ]
+    },
+    "public.claim_type": {
+      "name": "claim_type",
+      "schema": "public",
+      "values": [
+        "RETURN",
+        "WARRANTY"
+      ]
+    },
+    "public.claim_workflow_state": {
+      "name": "claim_workflow_state",
+      "schema": "public",
+      "values": [
+        "signature_requested",
+        "authorization_pending",
+        "eligible",
+        "ineligible",
+        "decision_pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "public.evidence_type": {
+      "name": "evidence_type",
+      "schema": "public",
+      "values": [
+        "signature",
+        "chain",
+        "backend"
+      ]
+    },
+    "public.merchant_status": {
+      "name": "merchant_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "disabled"
+      ]
+    },
+    "public.order_payment_state": {
+      "name": "order_payment_state",
+      "schema": "public",
+      "values": [
+        "payment_requested",
+        "wallet_request_started",
+        "payment_cancelled",
+        "submission_outcome_unknown",
+        "payment_verifying",
+        "payment_pending",
+        "payment_failed",
+        "expired",
+        "purchased"
+      ]
+    },
+    "public.passport_status": {
+      "name": "passport_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "refunded"
+      ]
+    },
+    "public.policy_verification_status": {
+      "name": "policy_verification_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "verified",
+        "invalid",
+        "expired"
+      ]
+    },
+    "public.product_status": {
+      "name": "product_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "active",
+        "archived"
+      ]
+    },
+    "public.refund_attempt_state": {
+      "name": "refund_attempt_state",
+      "schema": "public",
+      "values": [
+        "payment_requested",
+        "wallet_request_started",
+        "payment_cancelled",
+        "submission_outcome_unknown",
+        "payment_verifying",
+        "payment_pending",
+        "payment_failed",
+        "refunded"
+      ]
+    },
+    "public.resolution_decision": {
+      "name": "resolution_decision",
+      "schema": "public",
+      "values": [
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    "public.resolution_reason_code": {
+      "name": "resolution_reason_code",
+      "schema": "public",
+      "values": [
+        "INSUFFICIENT_INFORMATION",
+        "POLICY_ACCEPTED",
+        "POLICY_NOT_APPLICABLE",
+        "OTHER"
+      ]
+    },
+    "public.resolution_verification_status": {
+      "name": "resolution_verification_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "verified",
+        "expired"
+      ]
+    },
+    "public.signing_challenge_action": {
+      "name": "signing_challenge_action",
+      "schema": "public",
+      "values": [
+        "POLICY"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

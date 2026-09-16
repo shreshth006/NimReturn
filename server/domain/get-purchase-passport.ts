@@ -47,6 +47,7 @@ interface PurchasePassportRow extends PublicProductRow {
   chain_sender: string
   chain_transaction_hash: string
   chain_value_luna: string
+  claim_key_signer_address: string | null
   confirmation_policy: string
   order_expected_data: string
   order_public_id: string
@@ -72,6 +73,7 @@ interface PurchasePassportRow extends PublicProductRow {
 }
 
 export interface PurchasePassportView {
+  claimKeySignerAddress: string | null
   createdAt: Date
   deadlines: {
     return: Date | null
@@ -210,7 +212,11 @@ export async function getPurchasePassport(
       chain_transactions.data_text as chain_data_text,
       latest_reconciliation.checked_at as reconciliation_checked_at,
       latest_reconciliation.outcome as reconciliation_outcome,
-      latest_reconciliation.reason as reconciliation_reason
+      latest_reconciliation.reason as reconciliation_reason,
+      (
+        select signer_address from purchase_claim_keys
+        where purchase_claim_keys.order_id = orders.id and verified_at is not null
+      ) as claim_key_signer_address
     from purchase_passports
     join orders on orders.id = purchase_passports.order_id
     join products on products.id = purchase_passports.product_id
@@ -293,6 +299,7 @@ export async function getPurchasePassport(
   }
 
   return {
+    claimKeySignerAddress: row.claim_key_signer_address,
     createdAt: row.passport_created_at,
     deadlines: {
       return: row.passport_return_deadline,
