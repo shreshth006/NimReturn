@@ -23,7 +23,7 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 ### Exit criteria
 
 - [x] App loads in current Nimiq Pay on Android and iOS, or a documented target-device exception is accepted by the project lead. Android 16/Nimiq Pay 2.19.1 is evidenced; D-016 accepts Android-only Cycle II validation and explicitly defers iOS.
-- [ ] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled. T-001 provider failure/recovery passed by explicit project-lead report on 2026-09-16; T-002 remains open.
+- [x] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled. T-001 provider failure/recovery and T-002 account-permission cancellation/recovery passed by explicit project-lead reports on 2026-09-16.
 - [x] Actual `sign()` output verifies over exactly one documented byte sequence, derives the actual signer, and proves wallet-list membership; expected-account mismatch remains diagnostic metadata.
 - [x] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
 - [ ] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. Approval and verified finality are evidenced; T-020 remains open.
@@ -33,7 +33,7 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 
 If sign preprocessing differs from the NR1 candidate, change it once with captured evidence and a decision before any product signature exists.
 
-D-022 restores T-001, T-002, and T-020 to open. Only the project lead's explicit result after personally performing each test can close it.
+D-022 restored T-001, T-002, and T-020 to open. Only the project lead's explicit result after personally performing each test can close it; T-001 and T-002 were subsequently reported PASS on 2026-09-16, while T-020 remains open.
 
 ## Phase 1 — Policy + Merchant
 
@@ -48,7 +48,7 @@ Database migrations/constraints; first-proof-derived merchant policy signer; sep
 - [x] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
 - [x] Product cannot activate without verified policy.
 - [ ] API/database integration tests, mobile accessibility, and full gate pass. Automated integration/full gates pass; the physical mobile exit remains pending.
-- [ ] Deferred T-001/T-002 actual-device cases pass during the Phase 1 signing run. T-001 passed on 2026-09-16; T-002 remains required and blocks this phase exit.
+- [x] Deferred T-001/T-002 actual-device cases pass during the consolidated device run. Both passed by explicit project-lead reports on 2026-09-16.
 
 Phase 1 remains open. Physical signing/publication and physical v1→v2 validation require the project lead's explicit personal results.
 

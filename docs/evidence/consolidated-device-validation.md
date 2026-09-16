@@ -1,6 +1,6 @@
 # Consolidated Nimiq Pay device validation
 
-Status: **PENDING — no item in this document is a PASS until the project lead personally performs it and explicitly reports the result.**
+Status: **PARTIAL — T-001 and T-002 passed by explicit project-lead reports on 2026-09-16. Every other item remains pending until personally performed and explicitly reported.**
 
 This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–5 physical/manual boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
@@ -14,12 +14,16 @@ This single TestAlbatross session covers the deferred Phase 0/1 gates and the Ph
 
 ### A. T-001 — provider unavailable and recovery
 
+Status: **PASS — project lead, Android, 2026-09-16.**
+
 1. Open the merchant page in the phone's ordinary browser and reach the wallet action.
 2. Trigger it and wait for provider initialization to fail/timeout.
 3. Confirm the UI says to open in Nimiq Pay, shows no success, and offers retry.
 4. Open the same URL inside Nimiq Pay and retry. Confirm provider initialization succeeds without reloading fake state.
 
 ### B. T-002 — account permission cancellation and recovery
+
+Status: **PASS — project lead, Android, 2026-09-16.** The completed run used a fresh isolated HTTPS origin so an earlier permission grant could not suppress the native first-access prompt.
 
 1. Create the tiny product and request its canonical v1 policy challenge.
 2. Tap **Sign with Nimiq Pay & publish**, cancel the native account-permission dialog, and confirm no policy is published/consumed.

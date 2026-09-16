@@ -17,3 +17,7 @@ Automated tests, CI, browser checks, implementation completeness, simulated proo
 ## Scope
 
 The earlier checksum-bound Phase 0 chain/signature artifact remains truthful and unchanged. D-022 supersedes the closeout decision made from the misinterpreted wording. Phase 0 and Phase 1 remain open, Phase 2 is not authorized to begin, D-016's iOS exception remains in force, and D-018 still blocks claim writers.
+
+## Subsequent results
+
+This file preserves the correction as it stood on 2026-09-15. On 2026-09-16, the project lead separately performed and explicitly reported T-001 and T-002 PASS. Their sanitized current evidence is recorded in `consolidated-device-results-2026-09-16.md`. T-020 and both Phase 1 physical validations remain open.
