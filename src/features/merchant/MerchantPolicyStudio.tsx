@@ -831,12 +831,15 @@ function VerifiedPolicyPanel({
   product: PublicVerifiedProduct
 }) {
   const { payload, proof } = product.policy
+  const [copied, setCopied] = useState(false)
+  const purchaseLink = new URL(`/?product=${product.product.publicId}`, globalThis.location.origin).href
 
   async function copyPublicLink() {
     try {
-      await navigator.clipboard.writeText(globalThis.location.href)
+      await navigator.clipboard.writeText(purchaseLink)
+      setCopied(true)
     } catch {
-      // The visible URL remains available when clipboard permission is unavailable.
+      // The visible purchase link below remains available when clipboard permission is unavailable.
     }
   }
 
@@ -857,6 +860,12 @@ function VerifiedPolicyPanel({
         <span>The server rebuilt the canonical payload, verified the Nimiq signature, derived the signer from its public key, and matched every stored field before returning this page.</span>
       </div>
 
+      <a className="public-ledger-link" href={purchaseLink}>
+        <span>Public buyer page</span>
+        <strong>Open the purchase page for {payload.productName}</strong>
+        <small className="mono">{purchaseLink}</small>
+      </a>
+
       <a className="public-ledger-link" href={`/?merchant=${product.merchant.publicId}`}>
         <span>Public merchant proof</span>
         <strong>Open {product.merchant.displayName}&apos;s Promise Ledger</strong>
@@ -868,7 +877,7 @@ function VerifiedPolicyPanel({
       <div className="evidence-section">
         <div className="evidence-heading">
           <div><span>Verification receipt</span><h3>Public proof</h3></div>
-          <button className="text-button" type="button" onClick={() => void copyPublicLink()}>Copy public link</button>
+          <button className="text-button" type="button" onClick={() => void copyPublicLink()}>{copied ? 'Purchase link copied' : 'Copy purchase link'}</button>
         </div>
         <dl className="proof-grid">
           <ProofItem label="Status" value="Verified" accent />
