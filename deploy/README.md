@@ -54,9 +54,9 @@ Do not begin device testing unless preflight returns `ready-for-device-test`. Do
 
 Use one merchant signer, one intentionally distinct settlement account, and one buyer on tiny TestAlbatross amounts. Keep identifiers and screenshots private.
 
-1. T-001 provider failure/recovery and T-002 account-permission cancellation/recovery passed on Android by explicit project-lead reports on 2026-09-16; do not repeat them unless a regression appears.
+1. Phase 0 is complete: T-001, T-002, and T-020 passed on Android by explicit project-lead reports on 2026-09-16; do not repeat them unless a regression appears.
 2. Merchant v1: sign/publish v1, change one term, publish v2, and confirm v1 remains immutable.
-3. Purchase: cancel once for T-020, retry once, verify exact recipient/value/tag, wait for macro finality, and confirm one independently verified Passport. Reload once before finality to prove safe recovery.
+3. Purchase: make one new tiny buyer payment, verify exact recipient/value/tag, wait for macro finality, and confirm one independently verified Passport. Reload once before finality to prove safe recovery. T-020 cancellation is already complete and need not be repeated.
 4. Claims: file one self-signed claim. On a second Passport, sign with a different claim key and then complete the exact authorization with the chain-derived buyer. Treat inability to route the buyer signer as FAIL.
 5. Decision/refund: sign approval with the policy signer, cancel one refund, then pay from the policy-bound settlement account to the original buyer. Treat inability to route that sender or any mismatched observed sender as FAIL. Wait for independent macro finality.
 6. Promise Ledger: reconcile every count to those records, confirm approved/pending becomes verified exactly once, and verify all signer/sender roles remain distinct.

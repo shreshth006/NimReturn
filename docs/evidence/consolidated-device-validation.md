@@ -1,6 +1,6 @@
 # Consolidated Nimiq Pay device validation
 
-Status: **PARTIAL — T-001 and T-002 passed by explicit project-lead reports on 2026-09-16. Every other item remains pending until personally performed and explicitly reported.**
+Status: **PARTIAL — Phase 0 is complete after T-001, T-002, and T-020 passed by explicit project-lead reports on 2026-09-16. Phase 1 and every later named item remain pending until personally performed and explicitly reported.**
 
 This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–5 physical/manual boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
@@ -37,6 +37,8 @@ Status: **PASS — project lead, Android, 2026-09-16.** The completed run used a
 4. Confirm v2 is active and v1 remains readable with its original terms/hash/signature. Confirm v1 was not overwritten.
 
 ### F. T-020 — native payment cancellation and safe retry
+
+Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a bridge-normalization bug; after the focused fix, rejecting the native payment produced a cancelled/non-approved state with safe retry. The one approved retry was independently verified through execution and following-macro finality. This closes only T-020; named Phase 2 results remain independently open.
 
 1. Open the public v2 buyer link and tap **Pay 0.01 NIM with Nimiq Pay**.
 2. In the native dialog verify the exact merchant settlement recipient, **1,000 Luna / 0.01 NIM**, and exact `NR1:P:<22-character-order-id>` data; confirm no sender field was invented by NimReturn.

@@ -26,14 +26,14 @@ Phases are sequential security gates, not themes running in parallel. A later ph
 - [x] `init()` success/timeout and `listAccounts()` approval/cancellation behave as handled. T-001 provider failure/recovery and T-002 account-permission cancellation/recovery passed by explicit project-lead reports on 2026-09-16.
 - [x] Actual `sign()` output verifies over exactly one documented byte sequence, derives the actual signer, and proves wallet-list membership; expected-account mismatch remains diagnostic metadata.
 - [x] Known-good, tampered message/signature, malformed key, and wrong-address tests pass.
-- [ ] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. Approval and verified finality are evidenced; T-020 remains open.
+- [x] `sendBasicTransactionWithData()` approval/cancellation works on TestAlbatross with exact recipient, Luna, and tag. Approval and verified finality are evidenced; the patched native-cancellation retest passed by explicit project-lead report as T-020 on 2026-09-16.
 - [x] Returned hash is independently retrieved; network, sender, normalized recipient, value, data, successful execution, and macro finality match.
 - [x] SDK/core versions and observed host differences are documented in architecture/protocol/decisions.
 - [x] Lint, typecheck, tests, and build pass.
 
 If sign preprocessing differs from the NR1 candidate, change it once with captured evidence and a decision before any product signature exists.
 
-D-022 restored T-001, T-002, and T-020 to open. Only the project lead's explicit result after personally performing each test can close it; T-001 and T-002 were subsequently reported PASS on 2026-09-16, while T-020 remains open.
+D-022 restored T-001, T-002, and T-020 to open. Only the project lead's explicit result after personally performing each test can close it. All three were subsequently performed and explicitly reported PASS on 2026-09-16; D-032 records the formal Phase 0 closeout.
 
 ## Phase 1 — Policy + Merchant
 

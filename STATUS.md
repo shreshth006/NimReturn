@@ -4,11 +4,11 @@ Last updated: 2026-09-16 (IST)
 
 ## Current phase
 
-**Phase 5 — Promise Ledger + polish: experimental/code-complete at the manual and deployment boundary.** D-030 records the project lead's explicit Phase 5 instruction. Its verified-evidence projection, judge-facing lifecycle, reconciliation visibility, responsive/accessibility implementation, frontend splitting, and automated security controls are complete. Phases 0–4 remain open at their recorded physical boundaries. No physical, accessibility, first-minute, or deployment result is inferred from code, automation, or prior prompts. Phase 6 has not started.
+**Phase 5 — Promise Ledger + polish: experimental/code-complete at the manual and deployment boundary.** D-030 records the project lead's explicit Phase 5 instruction. Its verified-evidence projection, judge-facing lifecycle, reconciliation visibility, responsive/accessibility implementation, frontend splitting, and automated security controls are complete. Phase 0 is complete; Phases 1–4 remain open at their recorded physical boundaries. No later physical, accessibility, first-minute, or deployment result is inferred from code, automation, or prior prompts. Phase 6 has not started.
 
 ## Completion by phase
 
-- Phase 0 — Technical proof: **98%** (prior Android chain/signature proof plus T-001 provider recovery and T-002 account-permission cancellation/recovery pass; T-020 remains open).
+- Phase 0 — Technical proof: **100% complete** (prior Android signing and independent chain/finality proof plus explicit project-lead PASS reports for T-001, T-002, and T-020).
 - Phase 1 — Policy + Merchant: **92%** (implementation, automated integration, and responsive browser checks complete; physical policy and v1→v2 validation remain pending).
 - Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical purchase/Passport, reload, mobile/accessibility, and first-minute validation pending).
 - Phase 3 — Claims: **90% experimental/code-complete** (protocol, implementation, UI, and automated gates complete; signer-routing usability, actual-device claim/resolution, reload, and mobile validation pending).
@@ -64,7 +64,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The configured suite has 170 hermetic plus 26 PostgreSQL tests (196 total with `TEST_DATABASE_URL`). GitHub Actions runs `35037171956` and `35037762748` passed the Render adapter and managed-PostgreSQL portability fix. The production-only audit reports zero known vulnerabilities.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-16: `npm run lint`, `npm run typecheck`, all PostgreSQL-backed tests, and `npm run build`. The configured suite has 175 hermetic plus 26 PostgreSQL tests (201 total with `TEST_DATABASE_URL`). GitHub Actions runs `35037171956` and `35037762748` passed the Render adapter and managed-PostgreSQL portability fix. The production-only audit reports zero known vulnerabilities.
 
 Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage. Production configuration now also fails closed without RPC, and the staging package has validated API/web image builds, Caddy configuration, headers/cache policy, Compose interpolation, and a local containerized API smoke test.
 
@@ -73,7 +73,7 @@ Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence recon
 - In the local in-app browser, the real API/PostgreSQL path created a merchant/product and issued an exact v1 canonical challenge. A normal browser correctly stopped at “Open this page inside Nimiq Pay” and did not fabricate publication.
 - A deterministic test-only proof produced public v1 and v2 records. The frontend independently read them through the fail-closed API and visibly showed v2 active plus v1 preserved, with distinct hashes and terms.
 - Desktop and 375 CSS-pixel mobile layouts were inspected; the mobile document had no horizontal overflow and the tested page emitted no console warning/error. This is not a substitute for Nimiq Pay or full accessibility evidence.
-- The project lead explicitly reported **T-001 PASS** after an ordinary-browser provider failure recovered on the same staging page inside Nimiq Pay. The project lead separately reported **T-002 PASS** after cancelling the native first-access account-permission request on a fresh HTTPS origin, observing a safe retryable failure state, then approving the retry and recovering the account list. No personal PASS confirmation exists for T-020, Phase 1 physical signing/publication, or physical v1→v2 validation. Automated, CI, browser, code-completeness, simulated, and earlier cryptographic results are not substitutes.
+- The project lead explicitly reported **T-001 PASS** after an ordinary-browser provider failure recovered on the same staging page inside Nimiq Pay, **T-002 PASS** after cancelling and safely recovering the native first-access account-permission request on a fresh HTTPS origin, and **T-020 PASS** after the patched staging build surfaced native payment rejection as cancelled with no approval and kept a deliberate retry available. Phase 1 physical signing/publication and physical v1→v2 validation remain pending. Automated, CI, browser, code-completeness, simulated, and earlier cryptographic results are not substitutes for those later gates.
 - No Phase 2 physical payment, real-chain Passport, WebView reload/recovery, mobile accessibility, or first-minute result is claimed. These remain in the consolidated project-lead checklist.
 - No Phase 3 physical claim signing, distinct-account authorization, merchant resolution signing, WebView reload/recovery, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
 - No Phase 4 physical refund, required settlement-sender routing, real-chain finality, recovery/reload, or mobile/accessibility result is claimed. These remain in the expanded consolidated checklist.
@@ -85,7 +85,7 @@ Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on 
 
 ## Current blockers
 
-- **Phase 0 exit:** T-001 and T-002 passed on 2026-09-16. The first T-020 cancellation attempt exposed a real bridge-compatibility issue: Nimiq Pay's non-`Error` rejection was discarded by the client normalizer, so the diagnostic correctly preserved an ambiguous lock instead of allowing a second payment. The boundary now recognizes documented `4001`, `USER_REJECTED`, permission-denied, and cancel shapes while leaving every unknown failure ambiguous; T-020 remains open pending a physical retest and explicit project-lead result.
+- **Phase 0 closed:** T-001, T-002, and T-020 passed by explicit project-lead reports on 2026-09-16. The first T-020 attempt exposed a non-`Error` rejection compatibility bug; after the focused normalizer fix, the physical retest showed the native rejection as cancelled with nothing approved and a safe retry available. The prior private Android artifact already proves exact signing bytes/address binding and one independently retrieved matching transaction with successful execution and following-macro finality. No private wallet or proof material is stored in Git.
 - **Phase 1 exit:** physical signing/publication and physical v1→v2 validation require explicit project-lead results after personal testing.
 - **Phase 2 exit:** a real low-value buyer payment, independent chain verification, Passport creation, reload/recovery, and first-minute/mobile checks require explicit project-lead results.
 - **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
@@ -95,4 +95,4 @@ Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on 
 
 ## Next milestone
 
-Open `https://nimreturn-staging-cycle2.onrender.com` inside Nimiq Pay and run the consolidated physical Phase 0–5 checklist. Fix only observed failures, repeat affected cases, then replace the development RPC and complete backup/alert/runbook proof for the public judge build. Do not begin the Phase 6 real-user pilot without a new explicit instruction.
+Resume at Phase 1 on `https://nimreturn-staging-cycle2.onrender.com` inside Nimiq Pay: physically sign/publish policy v1, publish a changed v2 with the established signer, and prove v1 remains immutable. Then continue the still-open Phase 2–5 checklist, fixing only observed failures. Replace the development RPC and complete backup/alert/runbook proof before the public judge build. Do not begin the Phase 6 real-user pilot without a new explicit instruction.

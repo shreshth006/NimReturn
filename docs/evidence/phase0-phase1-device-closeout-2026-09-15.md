@@ -20,4 +20,4 @@ The earlier checksum-bound Phase 0 chain/signature artifact remains truthful and
 
 ## Subsequent results
 
-This file preserves the correction as it stood on 2026-09-15. On 2026-09-16, the project lead separately performed and explicitly reported T-001 and T-002 PASS. Their sanitized current evidence is recorded in `consolidated-device-results-2026-09-16.md`. T-020 and both Phase 1 physical validations remain open.
+This file preserves the correction as it stood on 2026-09-15. On 2026-09-16, the project lead separately performed and explicitly reported T-001, T-002, and—after a focused compatibility fix and physical retest—T-020 PASS. Their sanitized current evidence is recorded in `consolidated-device-results-2026-09-16.md`. Those later explicit reports close Phase 0 without rewriting this historical correction. Both Phase 1 physical validations remain open.

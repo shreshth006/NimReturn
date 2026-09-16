@@ -373,3 +373,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** One free Docker service and one managed database provide the shortest reversible path to real WebView, native-wallet, chain-read, and finality evidence. Same-origin serving removes an unnecessary proxy boundary while preserving the vendor-neutral Caddy/Compose package. Least-privilege database verification and fail-closed RPC configuration keep staging representative of the security model.
 
 **Consequences:** `https://nimreturn-staging-cycle2.onrender.com` is the current phone-test origin. The free database expires on 2026-10-16 and the service may cold-start. Backup/restore proof, alerting, incident response, an operated primary/failover RPC, and actual Nimiq Pay CSP compatibility remain release blockers. Phase percentages and every physical test stay unchanged until the project lead reports explicit results. Phase 6 remains locked.
+
+## D-032 — 2026-09-16 — Close Phase 0 from explicit physical results
+
+**Decision:** Mark T-001, T-002, and T-020 PASS and formally close Phase 0. This closeout uses only the project lead's explicit personal results reported on 2026-09-16 plus the previously preserved checksum-bound Android signing/address-binding and independent transaction/finality artifact. It does not close Phase 1 or any named Phase 2–5 physical result.
+
+**Context:** T-001 proved provider failure and recovery inside Nimiq Pay. T-002 proved native account-permission cancellation and recovery on a fresh HTTPS origin. The first T-020 run exposed a real callback normalization defect and correctly stayed ambiguous; after the focused fix, the physical retest produced a cancelled/non-approved state with safe retry, followed by one approved transaction that the server independently verified through successful execution and following-macro finality. The project lead then explicitly reported `T-020 PASS`.
+
+**Alternatives:** leave Phase 0 artificially open after all recorded exits passed; infer later Phase 2 results from the same approved retry; store raw screenshots, wallet identifiers, transaction identifiers, or proof material in Git.
+
+**Rationale:** The explicit physical reports satisfy the remaining human-gated scenarios, while the preserved artifact supplies the required exact-byte/address-binding and independent-chain evidence. Keeping later named results open preserves the rule that a physical observation changes only the result the project lead explicitly reports.
+
+**Consequences:** Phase 0 is 100% complete. Phase 1 stays at 92% pending physical signing/publication and v1→v2 validation. All Phase 2–5 device, routing, reload, accessibility, reconciliation, and first-minute results remain open. Repository evidence remains sanitized, and Phase 6 remains locked.
