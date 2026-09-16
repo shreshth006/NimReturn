@@ -266,7 +266,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
 
       {resolution && (
         <div className={resolution.decision === 'APPROVED' ? 'resolution-card resolution-card--approved' : 'resolution-card'}>
-          <p className="eyebrow">Merchant-signed decision</p><h3>{resolution.decision === 'APPROVED' ? 'Approved · refund not yet paid' : 'Rejected'}</h3><p>{resolution.note || resolution.reasonCode.replaceAll('_', ' ')}</p>
+          <p className="eyebrow">Merchant-signed decision</p><h3>{resolution.decision !== 'APPROVED' ? 'Rejected' : refund?.refund ? 'Approved · refund verified' : 'Approved · refund not yet paid'}</h3><p>{resolution.note || resolution.reasonCode.replaceAll('_', ' ')}</p>
           <dl><div><dt>Signer</dt><dd><code>{resolution.policySignerAddress}</code></dd></div><div><dt>Proof</dt><dd>{resolution.status}</dd></div><div><dt>Expected refund</dt><dd>{resolution.approvedRefundLuna.toLocaleString()} Luna</dd></div><div><dt>Payload hash</dt><dd><code>{short(resolution.payloadHash)}</code></dd></div></dl>
         </div>
       )}

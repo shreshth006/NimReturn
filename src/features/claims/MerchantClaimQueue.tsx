@@ -269,7 +269,7 @@ export function MerchantClaimQueue({
       {verified && (
         <div className="resolution-card resolution-card--approved">
           <p className="eyebrow">Verified merchant signature</p>
-          <h3>{verified.decision === 'APPROVED' ? 'Approved · refund not yet paid' : 'Rejected'}</h3>
+          <h3>{verified.decision === 'APPROVED' ? 'Approved · payment is tracked in the refund section' : 'Rejected'}</h3>
           <dl><div><dt>Signer</dt><dd><code>{verified.signerAddress}</code></dd></div><div><dt>Resolution ID</dt><dd><code>{verified.publicId}</code></dd></div><div><dt>Payload hash</dt><dd><code>{verified.payloadHash}</code></dd></div><div><dt>Server verification</dt><dd>{verified.verifiedAt ? formatTime(verified.verifiedAt) : verified.status}</dd></div></dl>
         </div>
       )}
