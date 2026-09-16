@@ -1,5 +1,5 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
@@ -29,6 +29,7 @@ import {
   savePendingChallenge,
   type MerchantWorkspace,
 } from './merchant-workspace.js'
+import { revealVersionEditor } from './version-editor.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
 type BusyAction = 'challenge' | 'draft' | 'public-read' | 'sign' | null
@@ -169,6 +170,7 @@ export function MerchantPolicyStudio() {
   const [localProof, setLocalProof] = useState<LocalProof | null>(null)
   const [publicationSucceeded, setPublicationSucceeded] = useState(false)
   const [authorizationLost, setAuthorizationLost] = useState(false)
+  const termsTitleRef = useRef<HTMLHeadingElement | null>(null)
 
   function recordMerchantError(error: unknown) {
     if (
@@ -265,6 +267,11 @@ export function MerchantPolicyStudio() {
       active = false
     }
   }, [initialWorkspace, productToRead])
+
+  useEffect(() => {
+    if (!editingTerms || !publicProduct || challenge || authorizationLost) return
+    revealVersionEditor(termsTitleRef.current)
+  }, [authorizationLost, challenge, editingTerms, publicProduct])
 
   async function submitDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -517,7 +524,7 @@ export function MerchantPolicyStudio() {
           <div className="panel-intro">
             <span className="panel-kicker">Step 2</span>
             <div>
-              <h2 id="terms-title">Set the promise</h2>
+              <h2 id="terms-title" ref={termsTitleRef} tabIndex={-1}>Set the promise</h2>
               <p>{workspace.productName} · {workspace.displayName}</p>
             </div>
           </div>
