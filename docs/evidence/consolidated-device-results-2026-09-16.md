@@ -16,4 +16,17 @@ Phase 1 is formally closed (D-034).
 - **Phase 2 reload/recovery — PASS:** on Android inside Nimiq Pay, after a real low-value TestAlbatross purchase produced a verified Purchase Passport bound to the active policy, refreshing the page restored the same public order and Passport without opening another native payment request. The project lead explicitly reported `Phase 2 reload/recovery PASS` on 2026-09-16.
 - **Phase 2 mobile/accessibility — PASS:** with enlarged system text on the Android phone, the Passport's price, purchase-bound policy, deadlines, finality, and chain evidence stayed readable without horizontal clipping, and its actions remained usable. The project lead explicitly reported `Phase 2 mobile/accessibility PASS` on 2026-09-16.
 
-Phase 2 real buyer payment, independent chain verification, Purchase Passport creation, and the first-minute test remain open until explicitly reported; the project lead deferred the first-minute test because no unbriefed observer was available. Phase 3–5 physical results remain open.
+## 2026-09-17 — claim-key lifecycle run (Android, Nimiq Pay 2.19.1, TestAlbatross)
+
+After D-035 and D-036 were deployed, the project lead ran a fresh low-value purchase through the full lifecycle and explicitly reported the following results. Identifiers, signatures, and transaction hashes remain outside Git.
+
+- **Phase 2 real buyer payment — PASS:** the buyer signed the pre-payment purchase claim key, then approved one 1,000-Luna payment in Nimiq Pay.
+- **Phase 2 independent chain verification — PASS:** NimReturn's RPC matched recipient, value, NR1 tag, successful execution, and following-macro finality; a separate public TestAlbatross explorer showed the same sender, recipient, value, message, and block for an earlier purchase.
+- **Phase 2 Purchase Passport creation — PASS:** exactly one Passport appeared, bound to the active policy version, showing the chain sender and the claim key separately.
+- **Phase 3 self-authorized claim — PASS:** the claim signed by the purchase claim key was accepted directly as policy eligible (authorization mode `purchase_key`).
+- **Phase 3 distinct-signer authorization — PASS:** the claim signer differed from the chain sender (Nimiq Pay pays from a hashed-timelock contract and signs with its owner account), and the pre-payment claim key authorized it. The separate exact-claim delegation path cannot be completed in this wallet because it signs only with one account; that limitation is recorded, not bypassed.
+- **Phase 3 merchant resolution — PASS:** the merchant restored access with the policy signer, signed an approval, and the server verified it.
+- **Phase 4 independent refund verification — PASS:** one 1,000-Luna refund carrying the claim's NR1 refund tag was paid to the purchase claim key, independently verified through execution and macro finality, and the Passport was marked refunded. The observed sender (the wallet's contract account) was recorded as evidence.
+- **Phase 4 settlement-sender routing — superseded (D-036):** Nimiq Pay never sends from the signed settlement address, so refunds for claim-key purchases no longer require it; the observed sender is shown instead.
+
+Still open: Phase 2 first-minute test (deferred), Phase 3 claim/resolution reload and mobile/accessibility, Phase 4 native refund cancellation, refund reload/recovery (including ruling out the earlier unknown-outcome attempt), and mobile/accessibility, and every Phase 5 result. Phase 6 remains locked.

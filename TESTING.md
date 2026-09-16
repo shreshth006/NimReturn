@@ -157,7 +157,11 @@ Phase 3 wallet account routing — **observed, design changed (D-035):** the And
 
 Phase 4 refund routing — **observed, design changed (D-036):** the first physical refund request returned no hash and nothing reached the chain. Chain history showed Nimiq Pay pays from a hashed-timelock contract owned by the signing account, so a refund can never come from the signed settlement address. Claim-key purchases are now refunded to the claim key with the sender recorded as evidence, and an unknown refund outcome can be recovered from chain history or ruled out after the validity window. PostgreSQL tests cover wrong recipient, amount, and tag, reused hashes, forged recipients, early or evidence-backed rule-outs, incomplete history, RPC failure, and recovery. A physical refund retest is required.
 
-Phase 2 physical results so far: **reload/recovery — PASS** and **mobile/accessibility — PASS** (project lead, Android, 2026-09-16). Real buyer payment, independent chain verification, and Purchase Passport creation await explicit results; the first-minute test is deferred until an unbriefed observer is available.
+Phase 2 physical results: **real buyer payment, independent chain verification, Purchase Passport creation, reload/recovery, and mobile/accessibility — PASS** (project lead, Android, 2026-09-16/17). The first-minute test is deferred until an unbriefed observer is available.
+
+Phase 3 physical results: **self-authorized claim, distinct-signer authorization (via the purchase claim key), and merchant resolution — PASS** (project lead, Android, 2026-09-17). Claim/resolution reload and mobile/accessibility remain open.
+
+Phase 4 physical results: **independent refund verification — PASS** (project lead, Android, 2026-09-17), paid to the purchase claim key with the observed sender recorded. Settlement-sender routing is superseded by D-036. Native refund cancellation, refund reload/recovery, and mobile/accessibility remain open.
 
 The Phase 2 automated suite passes T-021 through T-029 and the implementation portions of T-031 through T-033, including a simulated finalized-evidence regression. T-020 is complete; all named Phase 2 actual-device results remain open. The exact consolidated procedure is `docs/evidence/consolidated-device-validation.md`.
 
