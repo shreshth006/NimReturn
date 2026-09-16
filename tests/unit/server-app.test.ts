@@ -277,6 +277,13 @@ describe('server app', () => {
       merchantPublicId: MERCHANT_PUBLIC_ID,
       productPublicId: PRODUCT_PUBLIC_ID,
     })
+    const publishCookies = Array.isArray(publishResponse.headers['set-cookie'])
+      ? publishResponse.headers['set-cookie']
+      : [publishResponse.headers['set-cookie']]
+    expect(publishCookies).toHaveLength(1)
+    expect(String(publishCookies[0])).not.toContain(
+      'nimreturn_merchant_bootstrap=',
+    )
     const merchantSessionCookie = cookiePair(
       publishResponse.headers['set-cookie'],
       'nimreturn_merchant_session',

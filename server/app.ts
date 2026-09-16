@@ -525,7 +525,9 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
           merchantPublicId: params.data.merchantPublicId,
           secret: config.SESSION_SECRET,
         })
-        reply.clearCookie(BOOTSTRAP_COOKIE, cookieOptions)
+        // The bootstrap capability is already consumed transactionally. Leaving its
+        // short-lived cookie to expire avoids a two-Set-Cookie rotation response,
+        // which some Android WebViews have been observed to persist incompletely.
         reply.setCookie(MERCHANT_SESSION_COOKIE, session.token, {
           ...cookieOptions,
           expires: session.expiresAt,
