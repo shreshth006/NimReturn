@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../../server/app.js'
 import type { ServerConfig } from '../../server/config.js'
-import type { ClaimView } from '../../server/domain/claim-lifecycle.js'
+import { ClaimLifecycleError, type ClaimView } from '../../server/domain/claim-lifecycle.js'
 import type {
   MerchantClaimQueueItem,
   ResolutionView,
@@ -123,6 +123,25 @@ describe('claim routes', () => {
       url: `/api/v1/passports/${PASSPORT_ID}/claims/challenges`,
     })
     expect(rejected.statusCode).toBe(400)
+  })
+
+  it('reports an already open claim of the same type as a recoverable conflict', async () => {
+    const app = await buildApp(config, {
+      createClaim: () => Promise.reject(new ClaimLifecycleError('CLAIM_ALREADY_OPEN', 'open')),
+      database: {} as postgres.Sql,
+    })
+    apps.push(app)
+
+    const response = await app.inject({
+      method: 'POST',
+      payload: { claimType: 'RETURN', reasonCode: 'DEFECTIVE' },
+      url: `/api/v1/passports/${PASSPORT_ID}/claims/challenges`,
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toMatchObject({
+      code: 'CLAIM_ALREADY_OPEN',
+      message: expect.stringContaining('10-minute signing window') as unknown,
+    })
   })
 
   it('passes only the strict proof envelope to claim submission', async () => {

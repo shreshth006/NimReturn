@@ -149,6 +149,8 @@ D-022 corrects an earlier interpretation of pass-like prompt wording: T-001, T-0
 
 D-023 permits Phase 2 implementation and batches the open Phase 0/1 checks with the later Phase 2 physical purchase/Passport suite. This scheduling deferral does not change any scenario outcome; only the project lead's explicit result after personally performing each device test may do so.
 
+Phase 3 self-authorized claim — **RETEST REQUIRED:** the first Android attempt created the exact claim challenge and the wallet signed it, but the client added a display-only `signerAddress` to the strict four-field proof envelope, so local validation failed before submission and nothing reached the server. The envelope builder is now separate and regression-tested against the real submit call and server verifier. The unsigned challenge then expired and blocked a new claim of the same type through `claims_one_active_type_per_passport`; migration 0013 lets only an unsigned claim past its expiry move to `expired`, excludes it from that index, and the buyer UI offers **Start a new claim**.
+
 Phase 2 physical results so far: **reload/recovery — PASS** and **mobile/accessibility — PASS** (project lead, Android, 2026-09-16). Real buyer payment, independent chain verification, and Purchase Passport creation await explicit results; the first-minute test is deferred until an unbriefed observer is available.
 
 The Phase 2 automated suite passes T-021 through T-029 and the implementation portions of T-031 through T-033, including a simulated finalized-evidence regression. T-020 is complete; all named Phase 2 actual-device results remain open. The exact consolidated procedure is `docs/evidence/consolidated-device-validation.md`.

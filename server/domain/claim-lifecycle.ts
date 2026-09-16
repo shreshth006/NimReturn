@@ -116,6 +116,7 @@ interface DatabaseNowRow { now: Date }
 export type ClaimLifecycleErrorCode =
   | ClaimProofFailureCode
   | 'AUTHORIZATION_NOT_FOUND'
+  | 'CLAIM_ALREADY_OPEN'
   | 'CLAIM_NOT_FOUND'
   | 'CLAIM_TYPE_UNAVAILABLE'
   | 'EVIDENCE_INTEGRITY'
@@ -498,6 +499,34 @@ export async function createClaimChallenge(
       'PERSISTENCE_CONFLICT',
       'The database clock was unavailable.',
     ).now
+
+    // An unsigned challenge past its expiry must not block a fresh claim of the same type.
+    const blocking = await transaction<{
+      expires_at: Date
+      id: string
+      signature_status: 'expired' | 'pending' | 'verified'
+    }[]>`
+      select id, signature_status, expires_at
+      from claims
+      where passport_id = ${resource.passport_id}
+        and claim_type = ${input.claimType}
+        and workflow_state <> 'rejected'
+        and signature_status <> 'expired'
+      for update
+    `
+    for (const existing of blocking) {
+      if (existing.signature_status !== 'pending' || existing.expires_at > databaseNow) {
+        fail('CLAIM_ALREADY_OPEN', 'A claim of this type is already open for this Purchase Passport.')
+      }
+      await transaction`
+        update claims
+        set signature_status = 'expired'
+        where id = ${existing.id}
+          and signature_status = 'pending'
+          and workflow_state = 'signature_requested'
+      `
+    }
+
     let createdId: string | undefined
     for (let attempt = 0; attempt < 3 && !createdId; attempt += 1) {
       const claimPublicId = token()

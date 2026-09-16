@@ -1,10 +1,12 @@
 import { Hash, KeyPair, PrivateKey } from '@nimiq/core'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   CLAIM_PROOF_VERIFIER_VERSION,
   verifyClaimProof,
 } from '../../server/domain/claim-proof.js'
+import { buildClaimProof } from '../../src/features/claims/claim-proof.js'
+import { submitClaim } from '../../src/lib/api/claims.js'
 import { hashProtocolPayload } from '../../src/lib/crypto/nimiq-signature.js'
 import {
   buildClaimAuthorizationMessage,
@@ -160,5 +162,57 @@ describe('claim proof verification', () => {
       now: NOW,
       proof: { ...proof(message), signature: '00' },
     })).toMatchObject({ code: 'INVALID_PROOF', valid: false })
+  })
+})
+
+describe('client claim proof envelope', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('submits only the strict four-field envelope and keeps the signer for display', async () => {
+    const message = buildClaimMessage(claimPayload)
+    const built = buildClaimProof(message, {
+      publicKey: buyer.publicKey.toUpperCase(),
+      signature: buyer.sign(message).toUpperCase(),
+    })
+    expect(built.signerAddress).toBe(buyer.address)
+    expect(Object.keys(built.proof).sort()).toEqual([
+      'canonicalMessage',
+      'payloadHash',
+      'publicKey',
+      'signature',
+    ])
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(submitClaim(claimPayload.claimId, built.proof)).rejects.toMatchObject({
+      name: 'ClaimApiError',
+    })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({ proof: built.proof })
+
+    expect(verifyClaimProof({
+      challenge: {
+        action: 'CLAIM',
+        canonicalMessage: message,
+        consumedAt: null,
+        expectedSignerAddress: null,
+        expiresAt: new Date(NOW.getTime() + 60_000),
+        payload: claimPayload,
+        payloadHash: hashProtocolPayload(message),
+      },
+      now: NOW,
+      proof: built.proof,
+    })).toMatchObject({ actualSignerAddress: buyer.address, valid: true })
+  })
+
+  it('rejects a wallet result that does not sign the exact claim bytes', () => {
+    const message = buildClaimMessage(claimPayload)
+    expect(() => buildClaimProof(message, {
+      publicKey: buyer.publicKey,
+      signature: buyer.sign(`${message} `),
+    })).toThrow()
   })
 })

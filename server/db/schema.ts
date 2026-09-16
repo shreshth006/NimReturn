@@ -677,7 +677,7 @@ export const claims = pgTable('claims', {
   }).onDelete('restrict'),
   uniqueIndex('claims_one_active_type_per_passport')
     .on(table.passportId, table.claimType)
-    .where(sql`${table.workflowState} <> 'rejected'`),
+    .where(sql`${table.workflowState} <> 'rejected' and ${table.signatureStatus} <> 'expired'`),
   index('claims_merchant_queue_index').on(table.merchantId, table.workflowState, table.createdAt),
   index('claims_sender_created_index').on(table.purchaseSenderAddress, table.createdAt),
   check('claims_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
@@ -704,6 +704,10 @@ export const claims = pgTable('claims', {
   check(
     'claims_verified_proof_complete',
     sql`${table.signatureStatus} <> 'verified' or (${table.claimSignerAddress} is not null and ${table.publicKey} is not null and ${table.signature} is not null and ${table.verifierVersion} is not null and ${table.verifiedAt} is not null)`,
+  ),
+  check(
+    'claims_expired_proof_empty',
+    sql`${table.signatureStatus} <> 'expired' or (${table.claimSignerAddress} is null and ${table.publicKey} is null and ${table.signature} is null and ${table.verifierVersion} is null and ${table.verifiedAt} is null and ${table.workflowState} = 'signature_requested')`,
   ),
   check(
     'claims_pending_proof_empty',

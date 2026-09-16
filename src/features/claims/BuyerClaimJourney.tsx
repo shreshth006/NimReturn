@@ -11,10 +11,10 @@ import {
   type Claim,
   type ClaimResolution,
 } from '../../lib/api/claims.js'
-import { hashProtocolPayload, normalizeNimiqAddress, verifyNimiqMessageSignature } from '../../lib/crypto/nimiq-signature.js'
 import { initializeNimiqProvider, normalizeWalletError, requestSignature } from '../../lib/nimiq/provider.js'
 import type { PurchasePassport } from '../../lib/api/purchase.js'
 import { getRefund, RefundApiError, type Refund } from '../../lib/api/refunds.js'
+import { buildClaimProof } from './claim-proof.js'
 import { clearClaimSession, loadClaimSession, saveClaimSession } from './claim-session.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
@@ -29,22 +29,8 @@ function errorMessage(error: unknown): string {
   return normalizeWalletError(error).message
 }
 
-function proofFor(message: string, result: { publicKey: string; signature: string }) {
-  const publicKey = result.publicKey.toLowerCase()
-  const signature = result.signature.toLowerCase()
-  const verified = verifyNimiqMessageSignature({ message, publicKey, signature })
-  if (!verified.signatureValid || !verified.actualSignerAddress) {
-    throw new Error(verified.error ?? 'The wallet signature did not verify locally.')
-  }
-  const payloadHash = hashProtocolPayload(message)
-  if (verified.payloadHash !== payloadHash) throw new Error('The wallet proof did not bind the exact claim bytes.')
-  return {
-    canonicalMessage: message,
-    payloadHash,
-    publicKey,
-    signature,
-    signerAddress: normalizeNimiqAddress(verified.actualSignerAddress),
-  }
+function unsignedClaimExpired(claim: Claim): boolean {
+  return claim.signatureStatus === 'expired' || Date.parse(claim.challenge.expiresAt) <= Date.now()
 }
 
 export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) {
@@ -122,13 +108,13 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
       const walletResult = await requestSignature(activeProvider, claim.challenge.canonicalMessage)
-      const proof = proofFor(claim.challenge.canonicalMessage, walletResult)
+      const { proof, signerAddress } = buildClaimProof(claim.challenge.canonicalMessage, walletResult)
       const next = await submitClaim(claim.publicId, proof)
       setClaim(next)
       if (next.workflowState === 'authorization_pending') {
         setNotice({
           kind: 'info',
-          message: `Claim signer ${short(proof.signerAddress)} differs from the chain purchaser. The purchase wallet must approve this exact one-claim delegation.`,
+          message: `Claim signer ${short(signerAddress)} differs from the chain purchaser. The purchase wallet must approve this exact one-claim delegation.`,
         })
       } else {
         setNotice({
@@ -155,7 +141,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
       const walletResult = await requestSignature(activeProvider, authorization.canonicalMessage)
-      const proof = proofFor(authorization.canonicalMessage, walletResult)
+      const { proof } = buildClaimProof(authorization.canonicalMessage, walletResult)
       const next = await authorizeClaim(claim.publicId, authorization.publicId, proof)
       setClaim(next)
       setNotice({
@@ -215,7 +201,14 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
         </form>
       )}
 
-      {claim && claim.workflowState === 'signature_requested' && (
+      {claim && claim.workflowState === 'signature_requested' && unsignedClaimExpired(claim) && (
+        <div className="claim-signing-card">
+          <div className="claim-facts"><span>{claim.claimType}</span><strong>Signing window ended</strong><small>This unsigned claim expired before a verified signature reached NimReturn. Nothing was submitted to the merchant.</small></div>
+          <button type="button" disabled={busy !== null} onClick={startOver}>Start a new claim</button>
+        </div>
+      )}
+
+      {claim && claim.workflowState === 'signature_requested' && !unsignedClaimExpired(claim) && (
         <div className="claim-signing-card">
           <div className="claim-facts"><span>{claim.claimType}</span><strong>{claim.reasonCode.replaceAll('_', ' ')}</strong><small>Policy v{claim.policyVersion} · buyer copied from verified chain evidence</small></div>
           <details className="evidence-details canonical-preview"><summary>Inspect exact claim bytes</summary><pre>{claim.challenge.canonicalMessage}</pre></details>

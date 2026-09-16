@@ -2434,6 +2434,114 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     })
   })
 
+  it('lets a fresh claim replace only an unsigned claim challenge past its expiry', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    try {
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: VALID_ADDRESS_E,
+        displayName: 'Expired Claim Merchant',
+        productName: 'Expired Claim Product',
+      })
+      const policyChallenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 1_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 1_382_400,
+        settlementAddress: VALID_ADDRESS_E,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 31_536_000,
+      })
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: policyChallenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof('5a'.repeat(32), policyChallenge.canonicalMessage).proof,
+      })
+      const order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      const buyerKey = '5b'.repeat(32)
+      const buyer = createPolicyProof(buyerKey, 'derive-address-only')
+      const purchaseHash = '9a'.repeat(32)
+      const purchaseTime = Date.now() - 60_000
+      const purchased = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve({
+          blockNumber: 4_000,
+          blockTimestamp: purchaseTime,
+          data: order.expectedPayment.data,
+          executionResult: true,
+          finality: { finalizingBlockNumber: 4_010, headBlockNumber: 4_011, reached: true },
+          hash: purchaseHash,
+          network: order.expectedPayment.network,
+          recipient: order.expectedPayment.recipient,
+          sender: buyer.address,
+          state: 'finalized',
+          valueLuna: order.expectedPayment.valueLuna,
+        } satisfies ObservedTransaction),
+      }, { hash: purchaseHash, orderPublicId: order.publicId })
+      const passportPublicId = purchased.passport?.publicId
+      if (!passportPublicId) throw new Error('Expired-claim test requires a verified Passport.')
+      const claimInput = {
+        claimType: 'RETURN' as const,
+        note: '',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE' as const,
+      }
+
+      const stale = await createClaimChallenge(runtime, claimInput)
+      await expect(createClaimChallenge(runtime, claimInput))
+        .rejects.toMatchObject({ code: 'CLAIM_ALREADY_OPEN' })
+      await expect(runtime`
+        update claims set signature_status = 'expired' where public_id = ${stale.publicId}
+      `).rejects.toThrow(/past its expiry/u)
+
+      // Simulate the ten-minute signing window elapsing without a submitted proof.
+      await client.begin(async (admin) => {
+        await admin`alter table claims disable trigger claims_lifecycle_guard`
+        await admin`
+          update claims
+          set created_at = claim_time - interval '20 minutes',
+            expires_at = clock_timestamp() - interval '1 second'
+          where public_id = ${stale.publicId}
+        `
+        await admin`alter table claims enable trigger claims_lifecycle_guard`
+      })
+
+      const fresh = await createClaimChallenge(runtime, claimInput)
+      expect(fresh.publicId).not.toBe(stale.publicId)
+      await expect(getClaim(runtime, stale.publicId)).resolves.toMatchObject({
+        signatureStatus: 'expired',
+        workflowState: 'signature_requested',
+      })
+      await expect(runtime`
+        update claims set signature_status = 'pending' where public_id = ${stale.publicId}
+      `).rejects.toThrow(/expired claim challenge is immutable/u)
+      await expect(submitClaimProof(runtime, {
+        claimPublicId: stale.publicId,
+        proof: createPolicyProof(buyerKey, stale.challenge.canonicalMessage).proof,
+      })).rejects.toMatchObject({ code: 'CHALLENGE_EXPIRED' })
+
+      await expect(submitClaimProof(runtime, {
+        claimPublicId: fresh.publicId,
+        proof: createPolicyProof(buyerKey, fresh.challenge.canonicalMessage).proof,
+      })).resolves.toMatchObject({
+        authorization: { mode: 'self', status: 'verified' },
+        eligibility: { eligible: true },
+        workflowState: 'eligible',
+      })
+      await expect(createClaimChallenge(runtime, claimInput))
+        .rejects.toMatchObject({ code: 'CLAIM_ALREADY_OPEN' })
+    } finally {
+      await runtime.end()
+    }
+  })
+
   it('accepts self and exact delegated claim authorization while rejecting an unrelated signer', async () => {
     const runtime = postgres(requireSafeTestDatabaseUrl(), {
       connection: { options: '-c role=nimreturn_runtime' },

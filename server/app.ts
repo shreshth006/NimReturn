@@ -278,6 +278,13 @@ function claimError(error: unknown): WriterError {
   ) {
     return { code, message: 'The submitted claim proof did not verify.', statusCode: 422 }
   }
+  if (code === 'CLAIM_ALREADY_OPEN') {
+    return {
+      code,
+      message: 'A claim of this type is already open or awaiting signature for this Passport. Continue it, or retry after its 10-minute signing window ends.',
+      statusCode: 409,
+    }
+  }
   if (code === 'CHALLENGE_CONSUMED' || code === 'STATE_CONFLICT') {
     return { code, message: 'The claim state conflicts with this action.', statusCode: 409 }
   }
