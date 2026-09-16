@@ -34,7 +34,9 @@ function refundView(overrides: Partial<RefundView> = {}): RefundView {
         valueLuna: 1_000,
       },
       failureCode: null,
+      outcome: { referenceHeight: null, ruledOutAt: null, ruledOutHeight: null, safeAfterHeight: null },
       publicId: ATTEMPT_ID,
+      recipientRule: 'purchase-sender-v1',
       rowVersion: 1,
       state: 'payment_requested',
       transaction: null,
@@ -115,6 +117,60 @@ describe('refund routes', () => {
       claimPublicId: CLAIM_ID,
       merchantPublicId: MERCHANT_ID,
     }])
+  })
+
+  it('reconciles unknown outcomes only for the merchant session with server-read chain height', async () => {
+    const reconcileInputs: unknown[] = []
+    const stateInputs: unknown[] = []
+    const search = {
+      getHead: () => Promise.resolve({ blockNumber: 12_345, network: 'TestAlbatross' }),
+      listTransactionsByAddress: () => Promise.resolve([]),
+    }
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      reconcileRefund: (_database, _reader, _search, input) => {
+        reconcileInputs.push(input)
+        return Promise.resolve({ headBlockNumber: 12_345, refund: refundView(), result: 'waiting', safeAfterHeight: 20_145 })
+      },
+      recordRefundState: (_database, input) => { stateInputs.push(input); return Promise.resolve(refundView()) },
+      refundSearch: search,
+    })
+    apps.push(app)
+    const base = `/api/v1/merchants/${MERCHANT_ID}/claims/${CLAIM_ID}/refunds/${ATTEMPT_ID}`
+    expect((await app.inject({ method: 'POST', url: `${base}/reconcile` })).statusCode).toBe(401)
+
+    const token = createMerchantSessionToken({ merchantPublicId: MERCHANT_ID, secret: config.SESSION_SECRET ?? '' }).token
+    const cookies = { nimreturn_merchant_session: token }
+    const response = await app.inject({ cookies, method: 'POST', url: `${base}/reconcile` })
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.json()).toMatchObject({ result: 'waiting', safeAfterHeight: 20_145 })
+    expect(reconcileInputs).toEqual([{ attemptPublicId: ATTEMPT_ID, claimPublicId: CLAIM_ID, merchantPublicId: MERCHANT_ID }])
+    expect((await app.inject({
+      cookies,
+      method: 'POST',
+      payload: { referenceHeight: 1 },
+      url: `${base}/reconcile`,
+    })).statusCode).toBe(400)
+
+    await app.inject({ cookies, method: 'POST', payload: { event: 'wallet-request-started' }, url: `${base}/wallet-state` })
+    expect(stateInputs).toEqual([{
+      attemptPublicId: ATTEMPT_ID,
+      claimPublicId: CLAIM_ID,
+      event: 'wallet-request-started',
+      merchantPublicId: MERCHANT_ID,
+      referenceHeight: 12_345,
+    }])
+    expect((await app.inject({
+      cookies,
+      method: 'POST',
+      payload: { event: 'wallet-request-started', referenceHeight: 1 },
+      url: `${base}/wallet-state`,
+    })).statusCode).toBe(400)
+
+    const offline = await buildApp(config, { database: {} as postgres.Sql })
+    apps.push(offline)
+    expect((await offline.inject({ cookies, method: 'POST', url: `${base}/reconcile` })).statusCode).toBe(503)
   })
 
   it('rejects client-supplied refund authority fields', async () => {

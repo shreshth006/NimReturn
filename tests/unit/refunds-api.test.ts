@@ -4,6 +4,7 @@ import {
   attachRefundTransaction,
   createRefund,
   getRefund,
+  reconcileRefundOutcome,
 } from '../../src/lib/api/refunds.js'
 
 const MERCHANT_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
@@ -27,7 +28,9 @@ function response() {
         valueLuna: 1_000,
       },
       failureCode: null,
+      outcome: { referenceHeight: null, ruledOutAt: null, ruledOutHeight: null, safeAfterHeight: null },
       publicId: ATTEMPT_ID,
+      recipientRule: 'claim-key-v2',
       rowVersion: 1,
       state: 'payment_requested',
       transaction: null,
@@ -51,6 +54,29 @@ describe('refund API client', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit
     expect(init.body).toBe('{}')
     expect(init.credentials).toBe('include')
+  })
+
+  it('reconciles an unknown outcome with an empty body and strict result shapes', async () => {
+    const waiting = {
+      headBlockNumber: 100,
+      refund: response(),
+      result: 'waiting',
+      safeAfterHeight: 7_900,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(waiting), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(reconcileRefundOutcome(MERCHANT_ID, CLAIM_ID, ATTEMPT_ID))
+      .resolves.toMatchObject({ result: 'waiting', safeAfterHeight: 7_900 })
+    const call = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(call[0]).toMatch(`/refunds/${ATTEMPT_ID}/reconcile`)
+    expect(call[1].body).toBe('{}')
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      refund: response(),
+      result: 'recovered',
+    }), { status: 200 })))
+    await expect(reconcileRefundOutcome(MERCHANT_ID, CLAIM_ID, ATTEMPT_ID))
+      .rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
   })
 
   it('attaches only a normalized hash and never a client sender/recipient/value', async () => {

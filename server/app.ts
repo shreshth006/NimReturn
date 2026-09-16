@@ -60,7 +60,7 @@ import {
   ResolutionLifecycleError,
 } from './domain/resolution-lifecycle.js'
 import { NimiqRpcError } from './rpc/nimiq-rpc.js'
-import type { NimiqRpcClient } from './rpc/nimiq-rpc.js'
+import type { AddressTransactionSearch, NimiqRpcClient } from './rpc/nimiq-rpc.js'
 import {
   createRefundAttempt,
   getRefund,
@@ -69,6 +69,7 @@ import {
 } from './domain/refund-lifecycle.js'
 import {
   recheckRefundTransaction,
+  reconcileRefundOutcome,
   verifyRefundTransaction,
 } from './domain/verify-refund.js'
 import {
@@ -353,6 +354,7 @@ function refundError(error: unknown): WriterError {
   if (code === 'REFUND_NOT_AVAILABLE') return { code, message: 'No verified approved refund was found.', statusCode: 404 }
   if (code === 'STATE_CONFLICT') return { code, message: 'The refund state conflicts with this action.', statusCode: 409 }
   if (code === 'EVIDENCE_INTEGRITY') return { code, message: 'The refund evidence could not be verified safely.', statusCode: 503 }
+  if (code === 'RPC_UNAVAILABLE') return { code, message: 'Chain history is unavailable; the refund outcome stays unknown. Try again shortly.', statusCode: 503 }
   return { code: 'REFUND_UNAVAILABLE', message: 'The refund request could not be completed safely.', statusCode: 503 }
 }
 
@@ -386,6 +388,8 @@ export interface AppDependencies {
   recordRefundState?: typeof recordRefundWalletState
   verifyRefund?: typeof verifyRefundTransaction
   recheckRefund?: typeof recheckRefundTransaction
+  reconcileRefund?: typeof reconcileRefundOutcome
+  refundSearch?: AddressTransactionSearch | null
   readPromiseLedger?: typeof getPromiseLedger
 }
 
@@ -457,11 +461,13 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const updateRefundState = dependencies.recordRefundState ?? recordRefundWalletState
   const verifyRefund = dependencies.verifyRefund ?? verifyRefundTransaction
   const recheckRefund = dependencies.recheckRefund ?? recheckRefundTransaction
+  const reconcileRefund = dependencies.reconcileRefund ?? reconcileRefundOutcome
   const readPromiseLedger = dependencies.readPromiseLedger ?? getPromiseLedger
   const rpc = dependencies.rpc ?? null
   const purchaseReader: PurchaseTransactionReader = rpc ?? {
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
   }
+  const refundSearch = dependencies.refundSearch ?? rpc
   const cookieOptions = {
     httpOnly: true,
     path: '/',
@@ -1263,7 +1269,15 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
     }
     try {
-      return reply.send(await updateRefundState(database, { ...params.data, event: body.data.event }))
+      let referenceHeight: number | undefined
+      if (body.data.event === 'wallet-request-started' && refundSearch) {
+        try { referenceHeight = (await refundSearch.getHead()).blockNumber } catch { referenceHeight = undefined }
+      }
+      return reply.send(await updateRefundState(database, {
+        ...params.data,
+        event: body.data.event,
+        ...(referenceHeight === undefined ? {} : { referenceHeight }),
+      }))
     } catch (error) {
       const response = refundError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
@@ -1304,6 +1318,28 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     try {
       const refund = await recheckRefund(database, purchaseReader, params.data)
       return reply.code(refund.attempt?.state === 'payment_pending' ? 202 : 200).send(refund)
+    } catch (error) {
+      const response = refundError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/merchants/:merchantPublicId/claims/:claimPublicId/refunds/:attemptPublicId/reconcile', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    if (!writerOriginAllowed(request.headers.origin)) return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    const params = refundAttemptParamsSchema.safeParse(request.params)
+    const body = emptyBodySchema.safeParse(request.body ?? {})
+    if (!params.success || !body.success) return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The refund reconciliation request is invalid.' })
+    if (!database || !config.SESSION_SECRET || !refundSearch) {
+      return reply.code(503).send({ code: 'REFUND_UNAVAILABLE', message: 'Refund reconciliation is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    try {
+      return reply.send(await reconcileRefund(database, purchaseReader, refundSearch, params.data))
     } catch (error) {
       const response = refundError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })

@@ -938,6 +938,11 @@ export const refundAttempts = pgTable('refund_attempts', {
   walletState: refundAttemptState('wallet_state').default('payment_requested').notNull(),
   transactionHash: char('transaction_hash', { length: 64 }),
   failureCode: varchar('failure_code', { length: 50 }),
+  recipientRule: varchar('recipient_rule', { length: 24 }).default('purchase-sender-v1').notNull(),
+  claimKeyId: uuid('claim_key_id').references(() => purchaseClaimKeys.id, { onDelete: 'restrict' }),
+  outcomeReferenceHeight: bigint('outcome_reference_height', { mode: 'number' }),
+  outcomeRuledOutAt: timestamp('outcome_ruled_out_at', { withTimezone: true }),
+  outcomeRuledOutHeight: bigint('outcome_ruled_out_height', { mode: 'number' }),
   rowVersion: integer('row_version').default(1).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -993,6 +998,14 @@ export const refundAttempts = pgTable('refund_attempts', {
     sql`(${table.walletState} = 'payment_failed' and ${table.failureCode} is not null) or (${table.walletState} <> 'payment_failed' and ${table.failureCode} is null)`,
   ),
   check('refund_attempts_row_version_positive', sql`${table.rowVersion} > 0`),
+  check(
+    'refund_attempts_recipient_rule',
+    sql`(${table.recipientRule} = 'purchase-sender-v1' and ${table.claimKeyId} is null) or (${table.recipientRule} = 'claim-key-v2' and ${table.claimKeyId} is not null)`,
+  ),
+  check(
+    'refund_attempts_outcome_ruled_out',
+    sql`(${table.outcomeRuledOutAt} is null and ${table.outcomeRuledOutHeight} is null) or (${table.outcomeRuledOutAt} is not null and ${table.outcomeReferenceHeight} is not null and ${table.outcomeRuledOutHeight} >= ${table.outcomeReferenceHeight} + 7800 and ${table.walletState} = 'payment_cancelled' and ${table.transactionHash} is null)`,
+  ),
 ])
 
 export const refundTransactions = pgTable('refund_transactions', {

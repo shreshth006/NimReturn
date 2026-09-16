@@ -15,7 +15,14 @@ const stateSchema = z.object({
   claimPublicId: publicTokenSchema,
   event: z.enum(['wallet-request-started', 'wallet-cancelled', 'submission-outcome-unknown']),
   merchantPublicId: publicTokenSchema,
+  referenceHeight: z.number().int().safe().nonnegative().optional(),
 }).strict()
+
+// Albatross accepts a signed transaction for 7,200 blocks after its validity start height.
+// The extra margin covers the wallet choosing a start height slightly ahead of our RPC head.
+export const REFUND_OUTCOME_SAFETY_BLOCKS = 7_200 + 600
+
+export type RefundRecipientRule = 'claim-key-v2' | 'purchase-sender-v1'
 
 export type RefundAttemptState =
   | 'payment_cancelled'
@@ -38,7 +45,14 @@ export interface RefundView {
       valueLuna: number
     }
     failureCode: string | null
+    outcome: {
+      referenceHeight: number | null
+      ruledOutAt: Date | null
+      ruledOutHeight: number | null
+      safeAfterHeight: number | null
+    }
     publicId: string
+    recipientRule: RefundRecipientRule
     rowVersion: number
     state: RefundAttemptState
     transaction: null | {
@@ -73,6 +87,7 @@ export type RefundLifecycleErrorCode =
   | 'INVALID_REQUEST'
   | 'PERSISTENCE_CONFLICT'
   | 'REFUND_NOT_AVAILABLE'
+  | 'RPC_UNAVAILABLE'
   | 'STATE_CONFLICT'
 
 export class RefundLifecycleError extends Error {
@@ -103,6 +118,10 @@ interface RefundRow {
   head_block_number: string | null
   merchant_public_id: string
   network: string | null
+  outcome_reference_height: string | null
+  outcome_ruled_out_at: Date | null
+  outcome_ruled_out_height: string | null
+  recipient_rule: RefundRecipientRule | null
   observed_state: NonNullable<RefundView['attempt']>['transaction'] extends infer T
     ? T extends { observedState: infer S } ? S : never
     : never
@@ -165,6 +184,10 @@ function project(row: RefundRow): RefundView {
     if ((row.wallet_state === 'refunded') !== Boolean(row.refund_verified_at && transaction?.observedState === 'finalized')) {
       fail('EVIDENCE_INTEGRITY', 'Stored refund completion evidence is inconsistent.')
     }
+    if (row.recipient_rule !== 'claim-key-v2' && row.recipient_rule !== 'purchase-sender-v1') {
+      fail('EVIDENCE_INTEGRITY', 'Stored refund recipient rule is invalid.')
+    }
+    const referenceHeight = safeInteger(row.outcome_reference_height)
     attempt = {
       createdAt: row.attempt_created_at,
       expectedPayment: {
@@ -175,7 +198,14 @@ function project(row: RefundRow): RefundView {
         valueLuna: expectedValue,
       },
       failureCode: row.failure_code,
+      outcome: {
+        referenceHeight,
+        ruledOutAt: row.outcome_ruled_out_at,
+        ruledOutHeight: safeInteger(row.outcome_ruled_out_height),
+        safeAfterHeight: referenceHeight === null ? null : referenceHeight + REFUND_OUTCOME_SAFETY_BLOCKS,
+      },
       publicId: row.attempt_public_id,
+      recipientRule: row.recipient_rule,
       rowVersion: row.row_version,
       state: row.wallet_state,
       transaction,
@@ -210,6 +240,10 @@ async function readRow(
       latest_attempt.expected_recipient, latest_attempt.expected_value_luna::text,
       latest_attempt.expected_data, latest_attempt.wallet_state,
       latest_attempt.failure_code, latest_attempt.row_version,
+      latest_attempt.recipient_rule,
+      latest_attempt.outcome_reference_height::text,
+      latest_attempt.outcome_ruled_out_at,
+      latest_attempt.outcome_ruled_out_height::text,
       latest_attempt.created_at as attempt_created_at,
       latest_attempt.updated_at as attempt_updated_at,
       chain_transactions.transaction_hash, chain_transactions.observed_state,
@@ -285,6 +319,8 @@ export async function createRefundAttempt(
       approved_refund_luna: string
       price_luna: string
       order_network: string
+      claim_key_id: string | null
+      claim_key_signer: string | null
     }[]>`
       select claims.id as claim_id, claims.merchant_id, claims.passport_id,
         claim_resolutions.id as resolution_id,
@@ -292,13 +328,17 @@ export async function createRefundAttempt(
         purchase_passports.original_buyer_address,
         claim_resolutions.approved_refund_luna::text,
         purchase_passports.price_luna::text,
-        orders.network as order_network
+        orders.network as order_network,
+        verified_key.id as claim_key_id,
+        verified_key.signer_address as claim_key_signer
       from claims
       join claim_resolutions on claim_resolutions.claim_id = claims.id
         and claim_resolutions.verification_status = 'verified'
         and claim_resolutions.decision = 'APPROVED'
       join purchase_passports on purchase_passports.id = claims.passport_id
       join orders on orders.id = purchase_passports.order_id
+      left join purchase_claim_keys verified_key
+        on verified_key.order_id = orders.id and verified_key.verified_at is not null
       where claims.public_id = ${input.claimPublicId}
         and claims.workflow_state = 'approved'
         and purchase_passports.status = 'active'
@@ -313,6 +353,10 @@ export async function createRefundAttempt(
     if (!approved || approved !== price) fail('EVIDENCE_INTEGRITY', 'The approved refund does not equal the purchase price.')
     const now = (await transaction<{ now: Date }[]>`select clock_timestamp() as now`)[0]?.now
     if (!now) fail('PERSISTENCE_CONFLICT', 'The database clock was unavailable.')
+    // A purchase bound to a claim key is refunded to that key, never to the chain sender,
+    // which Nimiq Pay may route through a contract account the buyer cannot sign for.
+    const recipientRule: RefundRecipientRule = binding.claim_key_id ? 'claim-key-v2' : 'purchase-sender-v1'
+    const recipient = binding.claim_key_signer ?? binding.original_buyer_address
     let inserted = false
     for (let attempt = 0; attempt < 3 && !inserted; attempt += 1) {
       const publicId = randomBytes(16).toString('base64url')
@@ -320,12 +364,13 @@ export async function createRefundAttempt(
         insert into refund_attempts (
           public_id, claim_id, claim_public_id, resolution_id, passport_id, merchant_id,
           network, expected_sender, expected_recipient, expected_value_luna,
-          expected_data, created_at, updated_at
+          expected_data, recipient_rule, claim_key_id, created_at, updated_at
         ) values (
           ${publicId}, ${binding.claim_id}, ${input.claimPublicId}, ${binding.resolution_id},
           ${binding.passport_id}, ${binding.merchant_id}, ${input.network},
-          ${binding.settlement_recipient}, ${binding.original_buyer_address}, ${approved},
-          ${encodeRefundTag(input.claimPublicId)}, ${now}, ${now}
+          ${binding.settlement_recipient}, ${recipient}, ${approved},
+          ${encodeRefundTag(input.claimPublicId)}, ${recipientRule}, ${binding.claim_key_id},
+          ${now}, ${now}
         ) on conflict (public_id) do nothing returning id
       `
       inserted = rows.length === 1
@@ -337,7 +382,7 @@ export async function createRefundAttempt(
         correlation_id, evidence_type, payload
       ) values (
         'claim', ${binding.claim_id}, 'refund.attempt-created', 'NR1', ${now},
-        ${randomUUID()}, 'backend', ${transaction.json({ resolutionId: binding.resolution_id })}
+        ${randomUUID()}, 'backend', ${transaction.json({ recipientRule, resolutionId: binding.resolution_id })}
       )
     `
     const created = await readRow(transaction, input.claimPublicId, input.merchantPublicId)
@@ -376,7 +421,13 @@ export async function recordRefundWalletState(
         || (target === 'payment_cancelled' && ['payment_requested', 'wallet_request_started'].includes(attempt.state))
         || (target === 'submission_outcome_unknown' && attempt.state === 'wallet_request_started')
       if (!allowed) fail('STATE_CONFLICT', 'The refund wallet state cannot move backward or skip required steps.')
-      await transaction`update refund_attempts set wallet_state = ${target} where id = ${attempt.id}`
+      const referenceHeight = target === 'wallet_request_started' ? input.referenceHeight ?? null : null
+      await transaction`
+        update refund_attempts set
+          wallet_state = ${target},
+          outcome_reference_height = coalesce(outcome_reference_height, ${referenceHeight}::bigint)
+        where id = ${attempt.id}
+      `
     }
     const row = await readRow(transaction, input.claimPublicId, input.merchantPublicId)
     if (!row) fail('PERSISTENCE_CONFLICT', 'The refund attempt disappeared.')

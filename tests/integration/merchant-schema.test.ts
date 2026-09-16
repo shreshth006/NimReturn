@@ -37,6 +37,7 @@ import {
   recordRefundWalletState,
 } from '../../server/domain/refund-lifecycle.js'
 import {
+  reconcileRefundOutcome,
   recheckRefundTransaction,
   verifyRefundTransaction,
 } from '../../server/domain/verify-refund.js'
@@ -2836,6 +2837,327 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       await expect(renewClaimAuthorization(runtime, created.publicId))
         .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('refunds the pre-payment claim key and reconciles unknown wallet outcomes safely', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    try {
+      const settlement = VALID_ADDRESS_E
+      const merchantKey = '7a'.repeat(32)
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: settlement,
+        displayName: 'Refund Key Merchant',
+        productName: 'Refund Key Product',
+      })
+      const policyChallenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 1_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 1_382_400,
+        settlementAddress: settlement,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 31_536_000,
+      })
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: policyChallenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof(merchantKey, policyChallenge.canonicalMessage).proof,
+      })
+
+      // Buyer signs with K but pays from contract account P; the merchant refunds from H.
+      const buyerKey = '7b'.repeat(32)
+      const claimKey = createPolicyProof(buyerKey, 'derive-address-only').address
+      const payingContract = createPolicyProof('7c'.repeat(32), 'derive-address-only').address
+      const merchantContract = createPolicyProof('7d'.repeat(32), 'derive-address-only').address
+      const outsider = createPolicyProof('7e'.repeat(32), 'derive-address-only').address
+
+      async function approvedClaim(purchaseHash: string) {
+        const order = await createPurchaseOrder(runtime, {
+          network: 'TestAlbatross',
+          productPublicId: draft.productPublicId,
+        })
+        await bindClaimKey(runtime, order.publicId, buyerKey)
+        await recordPurchaseWalletState(runtime, { event: 'wallet-request-started', orderPublicId: order.publicId })
+        const purchased = await verifyPurchaseTransaction(runtime, {
+          getTransaction: () => Promise.resolve({
+            blockNumber: 8_000,
+            blockTimestamp: Date.now() - 60_000,
+            data: order.expectedPayment.data,
+            executionResult: true,
+            finality: { finalizingBlockNumber: 8_010, headBlockNumber: 8_011, reached: true },
+            hash: purchaseHash,
+            network: order.expectedPayment.network,
+            recipient: order.expectedPayment.recipient,
+            sender: payingContract,
+            state: 'finalized',
+            valueLuna: order.expectedPayment.valueLuna,
+          } satisfies ObservedTransaction),
+        }, { hash: purchaseHash, orderPublicId: order.publicId })
+        const passportPublicId = purchased.passport?.publicId
+        if (!passportPublicId) throw new Error('Refund key test requires a verified Passport.')
+        const claim = await createClaimChallenge(runtime, {
+          claimType: 'RETURN',
+          note: '',
+          passportPublicId,
+          reasonCode: 'DEFECTIVE',
+        })
+        await expect(submitClaimProof(runtime, {
+          claimPublicId: claim.publicId,
+          proof: createPolicyProof(buyerKey, claim.challenge.canonicalMessage).proof,
+        })).resolves.toMatchObject({ authorization: { mode: 'purchase_key' }, workflowState: 'eligible' })
+        const approval = await createResolutionChallenge(runtime, {
+          claimPublicId: claim.publicId,
+          decision: 'APPROVED',
+          merchantPublicId: draft.merchantPublicId,
+          note: '',
+          reasonCode: 'POLICY_ACCEPTED',
+        })
+        await publishResolution(runtime, {
+          claimPublicId: claim.publicId,
+          merchantPublicId: draft.merchantPublicId,
+          proof: createPolicyProof(merchantKey, approval.canonicalMessage).proof,
+          resolutionPublicId: approval.publicId,
+        })
+        return { claimPublicId: claim.publicId, order }
+      }
+
+      const ids = (claimPublicId: string, attemptPublicId: string) => ({
+        attemptPublicId,
+        claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+      })
+      const refundTx = (claimPublicId: string, hash: string, overrides: Partial<ObservedTransaction> = {}): ObservedTransaction => ({
+        blockNumber: 9_000,
+        blockTimestamp: Date.now(),
+        data: `NR1:R:${claimPublicId}`,
+        executionResult: true,
+        finality: { finalizingBlockNumber: 9_010, headBlockNumber: 9_011, reached: true },
+        hash,
+        network: 'TestAlbatross',
+        recipient: claimKey,
+        sender: merchantContract,
+        state: 'finalized',
+        valueLuna: 1_000,
+        ...overrides,
+      })
+      const verifyWith = (claimPublicId: string, attemptPublicId: string, observed: ObservedTransaction) =>
+        verifyRefundTransaction(runtime, { getTransaction: () => Promise.resolve(observed) }, {
+          ...ids(claimPublicId, attemptPublicId),
+          hash: observed.hash,
+        })
+
+      // --- Direct refund: recipient is the claim key, sender is only evidence. ---
+      const first = await approvedClaim('a1'.repeat(32))
+      const created = await createRefundAttempt(runtime, {
+        claimPublicId: first.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const firstAttempt = created.attempt
+      if (!firstAttempt) throw new Error('Expected a refund attempt.')
+      expect(firstAttempt).toMatchObject({
+        expectedPayment: { recipient: claimKey, sender: settlement, valueLuna: 1_000 },
+        recipientRule: 'claim-key-v2',
+        state: 'payment_requested',
+      })
+      expect(firstAttempt.expectedPayment.recipient).not.toBe(payingContract)
+
+      await recordRefundWalletState(runtime, { ...ids(first.claimPublicId, firstAttempt.publicId), event: 'wallet-request-started' })
+      await expect(verifyWith(first.claimPublicId, firstAttempt.publicId, refundTx(first.claimPublicId, 'a1'.repeat(32))))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+      await expect(verifyWith(first.claimPublicId, firstAttempt.publicId, refundTx(first.claimPublicId, 'b1'.repeat(32), {
+        recipient: payingContract,
+      }))).resolves.toMatchObject({ attempt: { failureCode: 'TRANSACTION_INVALID', state: 'payment_failed' }, refund: null })
+
+      const wrongAmount = await createRefundAttempt(runtime, {
+        claimPublicId: first.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const wrongAmountId = wrongAmount.attempt?.publicId
+      if (!wrongAmountId || wrongAmountId === firstAttempt.publicId) throw new Error('Expected a fresh attempt.')
+      await recordRefundWalletState(runtime, { ...ids(first.claimPublicId, wrongAmountId), event: 'wallet-request-started' })
+      await expect(verifyWith(first.claimPublicId, wrongAmountId, refundTx(first.claimPublicId, 'b2'.repeat(32), {
+        valueLuna: 999,
+      }))).resolves.toMatchObject({ attempt: { state: 'payment_failed' } })
+
+      const wrongTag = await createRefundAttempt(runtime, {
+        claimPublicId: first.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const wrongTagId = wrongTag.attempt?.publicId
+      if (!wrongTagId) throw new Error('Expected a fresh attempt.')
+      await recordRefundWalletState(runtime, { ...ids(first.claimPublicId, wrongTagId), event: 'wallet-request-started' })
+      await expect(verifyWith(first.claimPublicId, wrongTagId, refundTx(first.claimPublicId, 'b3'.repeat(32), {
+        data: 'NR1:R:AAAAAAAAAAAAAAAAAAAAAA',
+      }))).resolves.toMatchObject({ attempt: { state: 'payment_failed' } })
+
+      const good = await createRefundAttempt(runtime, {
+        claimPublicId: first.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const goodId = good.attempt?.publicId
+      if (!goodId) throw new Error('Expected a fresh attempt.')
+      await recordRefundWalletState(runtime, { ...ids(first.claimPublicId, goodId), event: 'wallet-request-started' })
+      const refunded = await verifyWith(first.claimPublicId, goodId, refundTx(first.claimPublicId, 'b4'.repeat(32)))
+      expect(refunded).toMatchObject({
+        attempt: {
+          recipientRule: 'claim-key-v2',
+          state: 'refunded',
+          transaction: { recipient: claimKey, sender: merchantContract, observedState: 'finalized' },
+        },
+        refund: { verifiedAt: expect.any(Date) as unknown },
+      })
+      await expect(getPromiseLedger(runtime, draft.merchantPublicId)).resolves.toMatchObject({
+        metrics: { verifiedRefunds: { value: 1 } },
+      })
+
+      // The database refuses a claim-key attempt paying anyone but the bound key.
+      const second = await approvedClaim('a2'.repeat(32))
+      await expect(client`
+        insert into refund_attempts (
+          public_id, claim_id, claim_public_id, resolution_id, passport_id, merchant_id,
+          network, expected_sender, expected_recipient, expected_value_luna, expected_data,
+          recipient_rule, claim_key_id
+        )
+        select 'ForgedRecipientAttempt', claims.id, claims.public_id, resolutions.id,
+          claims.passport_id, claims.merchant_id, 'TestAlbatross', ${settlement}, ${outsider},
+          1000, 'NR1:R:' || claims.public_id, 'claim-key-v2', keys.id
+        from claims
+        join claim_resolutions resolutions on resolutions.claim_id = claims.id
+        join purchase_claim_keys keys on keys.order_id = claims.order_id
+        where claims.public_id = ${second.claimPublicId}
+      `).rejects.toThrow(/must pay the verified pre-payment claim key/u)
+
+      // --- Unknown outcome: nothing on chain yet, safety window still open. ---
+      const unknown = await createRefundAttempt(runtime, {
+        claimPublicId: second.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const unknownId = unknown.attempt?.publicId
+      if (!unknownId) throw new Error('Expected a refund attempt.')
+      const unknownIds = ids(second.claimPublicId, unknownId)
+      const noReader = { getTransaction: () => Promise.resolve(null) }
+      const searchAt = (blockNumber: number, history: { blockNumber: number; data: string | null; hash: string; recipient: string; valueLuna: number }[] = []) => ({
+        getHead: () => Promise.resolve({ blockNumber, network: 'TestAlbatross' }),
+        listTransactionsByAddress: () => Promise.resolve(history),
+      })
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(20_000), unknownIds))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+      await recordRefundWalletState(runtime, { ...unknownIds, event: 'wallet-request-started', referenceHeight: 20_000 })
+      await recordRefundWalletState(runtime, { ...unknownIds, event: 'submission-outcome-unknown' })
+      await expect(createRefundAttempt(runtime, {
+        claimPublicId: second.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })).resolves.toMatchObject({ attempt: { publicId: unknownId, state: 'submission_outcome_unknown' } })
+
+      await expect(reconcileRefundOutcome(runtime, noReader, {
+        getHead: () => Promise.reject(new Error('rpc down')),
+        listTransactionsByAddress: () => Promise.resolve([]),
+      }, unknownIds)).rejects.toMatchObject({ code: 'RPC_UNAVAILABLE' })
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(27_799), unknownIds)).resolves.toMatchObject({
+        headBlockNumber: 27_799,
+        refund: { attempt: { outcome: { referenceHeight: 20_000, safeAfterHeight: 27_800 }, state: 'submission_outcome_unknown' } },
+        result: 'waiting',
+        safeAfterHeight: 27_800,
+      })
+      // A full history page that does not reach back to the reference height is not proof.
+      const fullPage = Array.from({ length: 500 }, (_, index) => ({
+        blockNumber: 30_000 - index,
+        data: null,
+        hash: (index + 1).toString(16).padStart(64, '0'),
+        recipient: claimKey,
+        valueLuna: 1,
+      }))
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(40_000, fullPage), unknownIds))
+        .resolves.toMatchObject({ result: 'waiting' })
+
+      // The runtime role cannot rule an outcome out early, or with chain evidence attached.
+      await expect(runtime`
+        update refund_attempts set wallet_state = 'payment_cancelled',
+          outcome_ruled_out_at = clock_timestamp(), outcome_ruled_out_height = 27_799
+        where public_id = ${unknownId}
+      `).rejects.toThrow(/refund_attempts_outcome_ruled_out/u)
+      await expect(runtime`
+        update refund_attempts set wallet_state = 'payment_cancelled'
+        where public_id = ${unknownId}
+      `).rejects.toThrow(/illegal refund attempt transition/u)
+      await expect(runtime`
+        update refund_attempts set outcome_reference_height = 1
+        where public_id = ${unknownId}
+      `).rejects.toThrow(/reference height is immutable/u)
+
+      // A tagged payment to another address, or an already-bound hash, is never recovered.
+      const decoys = [
+        { blockNumber: 25_000, data: `NR1:R:${second.claimPublicId}`, hash: 'c1'.repeat(32), recipient: outsider, valueLuna: 1_000 },
+        { blockNumber: 25_001, data: `NR1:R:${second.claimPublicId}`, hash: 'b4'.repeat(32), recipient: claimKey, valueLuna: 1_000 },
+      ]
+      const ruledOut = await reconcileRefundOutcome(runtime, noReader, searchAt(27_800, decoys), unknownIds)
+      expect(ruledOut).toMatchObject({
+        refund: {
+          attempt: {
+            outcome: { referenceHeight: 20_000, ruledOutHeight: 27_800 },
+            state: 'payment_cancelled',
+            transaction: null,
+          },
+        },
+        result: 'ruled-out',
+      })
+      await expect(runtime`
+        update refund_attempts set outcome_ruled_out_height = 99_999 where public_id = ${unknownId}
+      `).rejects.toThrow(/ruled-out refund outcome is immutable|can only change with its lifecycle state/u)
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(30_000), unknownIds))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+
+      // --- Unknown outcome that did reach the chain is recovered, not duplicated. ---
+      const retry = await createRefundAttempt(runtime, {
+        claimPublicId: second.claimPublicId,
+        merchantPublicId: draft.merchantPublicId,
+        network: 'TestAlbatross',
+      })
+      const retryId = retry.attempt?.publicId
+      if (!retryId || retryId === unknownId) throw new Error('Expected a new attempt after ruling out.')
+      const retryIds = ids(second.claimPublicId, retryId)
+      await recordRefundWalletState(runtime, { ...retryIds, event: 'wallet-request-started' })
+      await recordRefundWalletState(runtime, { ...retryIds, event: 'submission-outcome-unknown' })
+      // No height was captured at wallet start, so the window starts at the first reconciliation.
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(60_000), retryIds)).resolves.toMatchObject({
+        refund: { attempt: { outcome: { referenceHeight: 60_000, safeAfterHeight: 67_800 } } },
+        result: 'waiting',
+      })
+      await expect(reconcileRefundOutcome(runtime, noReader, searchAt(61_000), retryIds))
+        .resolves.toMatchObject({ refund: { attempt: { outcome: { referenceHeight: 60_000 } } }, result: 'waiting' })
+      const landed = refundTx(second.claimPublicId, 'c2'.repeat(32))
+      const recovered = await reconcileRefundOutcome(
+        runtime,
+        { getTransaction: () => Promise.resolve(landed) },
+        searchAt(50_000, [{ blockNumber: 49_000, data: landed.data, hash: landed.hash, recipient: claimKey, valueLuna: 1_000 }]),
+        retryIds,
+      )
+      expect(recovered).toMatchObject({
+        refund: { attempt: { publicId: retryId, state: 'refunded', transaction: { hash: landed.hash } } },
+        result: 'recovered',
+        transactionHash: landed.hash,
+      })
+      await expect(getRefund(runtime, second.claimPublicId)).resolves.toMatchObject({
+        attempt: { publicId: retryId, state: 'refunded' },
+      })
+      await expect(getRefund(runtime, first.claimPublicId)).resolves.toMatchObject({
+        attempt: { state: 'refunded', transaction: { hash: 'b4'.repeat(32) } },
+      })
     } finally {
       await runtime.end()
     }

@@ -14,7 +14,7 @@ const DEFINITIONS = {
   rejectedClaims: 'Claims with a final REJECTED attestation verified to the purchase-bound policy signer.',
   unresolvedCases: 'Filed claims without a verified final policy-signer decision.',
   verifiedPurchases: 'Unique purchases with successful execution and following-macro finality, bound to a verified policy.',
-  verifiedRefunds: 'Unique refunds with exact sender, recipient, value and tag, successful execution, and following-macro finality.',
+  verifiedRefunds: 'Unique refunds with exact recipient, value and tag, successful execution, and following-macro finality. The recipient is the purchase claim key (sender recorded as evidence) or, for purchases without one, the chain buyer paid from the signed settlement address.',
 } as const
 
 type CountMetric = {

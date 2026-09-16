@@ -79,6 +79,31 @@ function readData(record: Record<string, unknown>): string | undefined {
   return raw === undefined ? undefined : (hexToText(raw) ?? raw)
 }
 
+export interface AddressTransactionSummary {
+  blockNumber: number
+  data: string | null
+  hash: string
+  recipient: string
+  valueLuna: number
+}
+
+export interface AddressTransactionSearch {
+  getHead(): Promise<{ blockNumber: number; network: string }>
+  listTransactionsByAddress(address: string, max: number): Promise<AddressTransactionSummary[]>
+}
+
+export function summarizeRpcTransaction(value: unknown): AddressTransactionSummary {
+  const record = asRecord(value)
+  const hash = record ? firstString(record, ['hash', 'transactionHash', 'transaction_hash']) : undefined
+  const recipient = record ? firstString(record, ['to', 'recipient']) : undefined
+  const valueLuna = record ? firstNumber(record, ['value', 'valueLuna', 'value_luna']) : undefined
+  const blockNumber = record ? firstNumber(record, ['blockNumber', 'block_number']) : undefined
+  if (!record || !hash || !recipient || valueLuna === undefined || blockNumber === undefined) {
+    throw new NimiqRpcError('RPC address history omitted a required transaction field')
+  }
+  return { blockNumber, data: readData(record) ?? null, hash: hash.toLowerCase(), recipient, valueLuna }
+}
+
 export interface RpcFinalityContext {
   finalizingBlockNumber: number
   headBlockNumber: number
@@ -215,5 +240,12 @@ export class NimiqRpcClient {
       headBlockNumber: head.blockNumber,
       network: head.network,
     })
+  }
+
+  // Newest first; the caller decides whether the page reaches far enough back.
+  async listTransactionsByAddress(address: string, max: number): Promise<AddressTransactionSummary[]> {
+    const result = await this.call('getTransactionsByAddress', [address, max, null])
+    if (!Array.isArray(result)) throw new NimiqRpcError('RPC address history was not a list')
+    return result.map((entry) => summarizeRpcTransaction(entry))
   }
 }

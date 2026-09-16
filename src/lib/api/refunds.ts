@@ -27,7 +27,14 @@ const refundSchema = z.object({
       valueLuna: z.number().int().positive().safe(),
     }).strict(),
     failureCode: z.string().min(1).max(50).nullable(),
+    outcome: z.object({
+      referenceHeight: z.number().int().nonnegative().safe().nullable(),
+      ruledOutAt: iso.nullable(),
+      ruledOutHeight: z.number().int().nonnegative().safe().nullable(),
+      safeAfterHeight: z.number().int().nonnegative().safe().nullable(),
+    }).strict(),
     publicId: token,
+    recipientRule: z.enum(['claim-key-v2', 'purchase-sender-v1']),
     rowVersion: z.number().int().positive().safe(),
     state,
     transaction: z.object({
@@ -57,7 +64,19 @@ const refundSchema = z.object({
   resolutionPublicId: token,
 }).strict()
 
+const reconciliationSchema = z.discriminatedUnion('result', [
+  z.object({ refund: refundSchema, result: z.literal('recovered'), transactionHash: hash }).strict(),
+  z.object({ refund: refundSchema, result: z.literal('ruled-out') }).strict(),
+  z.object({
+    headBlockNumber: z.number().int().nonnegative().safe(),
+    refund: refundSchema,
+    result: z.literal('waiting'),
+    safeAfterHeight: z.number().int().nonnegative().safe(),
+  }).strict(),
+])
+
 export type Refund = z.infer<typeof refundSchema>
+export type RefundReconciliation = z.infer<typeof reconciliationSchema>
 export type RefundWalletEvent = 'submission-outcome-unknown' | 'wallet-cancelled' | 'wallet-request-started'
 
 export class RefundApiError extends Error {
@@ -66,6 +85,10 @@ export class RefundApiError extends Error {
 }
 
 async function request(path: string, init?: RequestInit): Promise<Refund> {
+  return requestAs(path, refundSchema, init)
+}
+
+async function requestAs<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     credentials: 'include',
@@ -79,7 +102,7 @@ async function request(path: string, init?: RequestInit): Promise<Refund> {
     const parsed = apiError.safeParse(body)
     throw new RefundApiError(parsed.success ? parsed.data.code : 'REQUEST_FAILED', parsed.success ? parsed.data.message : 'The refund request failed.', response.status)
   }
-  const parsed = refundSchema.safeParse(body)
+  const parsed = schema.safeParse(body)
   if (!parsed.success) throw new RefundApiError('INVALID_API_RESPONSE', 'NimReturn returned refund evidence that failed validation.', response.status)
   return parsed.data
 }
@@ -129,4 +152,16 @@ export function recheckRefund(
     body: '{}',
     method: 'POST',
   })
+}
+
+export function reconcileRefundOutcome(
+  merchantPublicId: string,
+  claimPublicId: string,
+  attemptPublicId: string,
+): Promise<RefundReconciliation> {
+  return requestAs(
+    `${basePath(merchantPublicId, claimPublicId)}/${token.parse(attemptPublicId)}/reconcile`,
+    reconciliationSchema,
+    { body: '{}', method: 'POST' },
+  )
 }

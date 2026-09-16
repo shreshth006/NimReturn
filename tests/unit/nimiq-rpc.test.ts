@@ -106,4 +106,39 @@ describe('Nimiq RPC normalization', () => {
       network: 'TestAlbatross',
     })
   })
+
+  it('lists address history newest first with decoded data and fails closed on malformed entries', async () => {
+    const tag = 'NR1:R:AAAAAAAAAAAAAAAAAAAAAA'
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { data: [{
+        hash: 'AB'.repeat(32),
+        from: 'NQ00 SENDER',
+        to: 'NQ01 RECIPIENT',
+        value: 1_000,
+        recipientData: textToHex(tag),
+        blockNumber: 77,
+      }] },
+    })))
+    vi.stubGlobal('fetch', fetchMock)
+    const client = new NimiqRpcClient('https://rpc.example.test')
+
+    await expect(client.listTransactionsByAddress('NQ01RECIPIENT', 500)).resolves.toEqual([{
+      blockNumber: 77,
+      data: tag,
+      hash: 'ab'.repeat(32),
+      recipient: 'NQ01 RECIPIENT',
+      valueLuna: 1_000,
+    }])
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string) as { method: string; params: unknown[] }
+    expect(body).toMatchObject({ method: 'getTransactionsByAddress', params: ['NQ01RECIPIENT', 500, null] })
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      result: { data: [{ hash: 'ab'.repeat(32), to: 'NQ01 RECIPIENT' }] },
+    })))
+    await expect(client.listTransactionsByAddress('NQ01RECIPIENT', 500)).rejects.toBeInstanceOf(NimiqRpcError)
+  })
 })

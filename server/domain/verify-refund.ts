@@ -8,8 +8,10 @@ import {
   type ObservedTransaction,
   type TransactionVerification,
 } from '../../src/lib/protocol/transaction-verification.js'
+import type { AddressTransactionSearch } from '../rpc/nimiq-rpc.js'
 import {
   getRefund,
+  REFUND_OUTCOME_SAFETY_BLOCKS,
   RefundLifecycleError,
   type RefundAttemptState,
   type RefundView,
@@ -36,6 +38,7 @@ interface AttemptRow {
   merchant_id: string
   network: string
   passport_id: string
+  recipient_rule: 'claim-key-v2' | 'purchase-sender-v1'
   resolution_id: string
   state: RefundAttemptState
   transaction_hash: string | null
@@ -72,6 +75,7 @@ async function lockedAttempt(
       refund_attempts.network, refund_attempts.expected_sender,
       refund_attempts.expected_recipient, refund_attempts.expected_value_luna::text,
       refund_attempts.expected_data, refund_attempts.wallet_state as state,
+      refund_attempts.recipient_rule,
       refund_attempts.transaction_hash, chain_transactions.id as chain_id
     from refund_attempts
     join claims on claims.id = refund_attempts.claim_id
@@ -264,7 +268,8 @@ async function verifyReserved(
     hash: input.hash,
     network: attempt.network,
     recipient: attempt.expected_recipient,
-    sender: attempt.expected_sender,
+    // Claim-key refunds record whichever account Nimiq Pay sent from.
+    ...(attempt.recipient_rule === 'claim-key-v2' ? {} : { sender: attempt.expected_sender }),
     valueLuna: positiveLuna(attempt.expected_value_luna),
   }, observed)
   if (verification.outcome === 'verified') return persistVerified(client, input, observed, verification)
@@ -309,7 +314,14 @@ export async function recheckRefundTransaction(
 
   let observed: ObservedTransaction | null
   try { observed = await reader.getTransaction(hash) } catch { observed = null }
-  const verification = observed ? verifyObservedTransaction({ ...view.attempt.expectedPayment, hash }, observed) : null
+  const { sender: expectedSender, ...expectedFields } = view.attempt.expectedPayment
+  const verification = observed
+    ? verifyObservedTransaction({
+        ...expectedFields,
+        ...(view.attempt.recipientRule === 'claim-key-v2' ? {} : { sender: expectedSender }),
+        hash,
+      }, observed)
+    : null
   const same = Boolean(observed && verification?.outcome === 'verified'
     && normalized(observed.sender) === stored.sender
     && normalized(observed.recipient) === stored.recipient
@@ -318,7 +330,7 @@ export async function recheckRefundTransaction(
     && observed.finality.finalizingBlockNumber === stored.finalizingBlockNumber)
   const outcome = observed ? (same ? 'confirmed' : 'exception') : 'inconclusive'
   const reason = outcome === 'confirmed'
-    ? 'Independent recheck confirmed the original refund fields, execution, sender, and macro finality.'
+    ? 'Independent recheck confirmed the original refund fields, execution, recorded sender, and macro finality.'
     : outcome === 'exception'
       ? `Previously finalized refund evidence regressed or changed: ${verification?.reason ?? 'invalid evidence'}`
       : 'Refund reconciliation RPC was unavailable or absent; original finalized evidence was not rewritten.'
@@ -349,4 +361,144 @@ export async function recheckRefundTransaction(
   const refreshed = await getRefund(client, parsed.data.claimPublicId)
   if (!refreshed) fail('PERSISTENCE_CONFLICT', 'The reconciled refund disappeared.')
   return refreshed
+}
+
+const HISTORY_PAGE_SIZE = 500
+
+export type RefundOutcomeReconciliation =
+  | { refund: RefundView; result: 'recovered'; transactionHash: string }
+  | { refund: RefundView; result: 'ruled-out' }
+  | { refund: RefundView; result: 'waiting'; headBlockNumber: number; safeAfterHeight: number }
+
+interface UnknownAttemptRow {
+  expected_data: string
+  expected_recipient: string
+  expected_value_luna: string
+  has_chain: boolean
+  id: string
+  network: string
+  outcome_reference_height: string | null
+  state: RefundAttemptState
+}
+
+async function lockUnknownAttempt(
+  transaction: postgres.TransactionSql,
+  input: Omit<z.infer<typeof inputSchema>, 'hash'>,
+): Promise<UnknownAttemptRow> {
+  const rows = await transaction<UnknownAttemptRow[]>`
+    select refund_attempts.id, refund_attempts.wallet_state as state, refund_attempts.network,
+      refund_attempts.expected_recipient, refund_attempts.expected_value_luna::text,
+      refund_attempts.expected_data, refund_attempts.outcome_reference_height::text,
+      exists (
+        select 1 from chain_transactions
+        where purpose = 'refund' and resource_id = refund_attempts.id
+      ) as has_chain
+    from refund_attempts
+    join claims on claims.id = refund_attempts.claim_id
+    join merchants on merchants.id = refund_attempts.merchant_id
+    where refund_attempts.public_id = ${input.attemptPublicId}
+      and claims.public_id = ${input.claimPublicId}
+      and merchants.public_id = ${input.merchantPublicId}
+    for update of refund_attempts
+  `
+  const attempt = rows[0]
+  if (!attempt) fail('REFUND_NOT_AVAILABLE', 'The refund attempt was not found.')
+  if (attempt.state !== 'submission_outcome_unknown' || attempt.has_chain) {
+    fail('STATE_CONFLICT', 'Only a refund with an unknown wallet outcome can be reconciled.')
+  }
+  return attempt
+}
+
+async function refundView(
+  client: postgres.Sql | postgres.TransactionSql,
+  claimPublicId: string,
+): Promise<RefundView> {
+  const view = await getRefund(client, claimPublicId)
+  if (!view) fail('PERSISTENCE_CONFLICT', 'The refund disappeared.')
+  return view
+}
+
+/**
+ * Resolve a refund whose native wallet request returned no hash. A transaction carrying
+ * this attempt's refund tag is recovered and verified like any attached hash. Otherwise a
+ * new attempt is only unlocked once the chain head has passed every block at which a
+ * transaction signed for the original request could still be accepted.
+ */
+export async function reconcileRefundOutcome(
+  client: postgres.Sql,
+  reader: PurchaseTransactionReader,
+  search: AddressTransactionSearch,
+  rawInput: unknown,
+): Promise<RefundOutcomeReconciliation> {
+  const parsed = inputSchema.omit({ hash: true }).safeParse(rawInput)
+  if (!parsed.success) throw new RefundLifecycleError('INVALID_REQUEST', 'The refund reconciliation request is invalid.')
+  const input = parsed.data
+  const expectation = await client.begin((transaction) => lockUnknownAttempt(transaction, input))
+
+  let head: { blockNumber: number; network: string }
+  let history: Awaited<ReturnType<AddressTransactionSearch['listTransactionsByAddress']>>
+  try {
+    head = await search.getHead()
+    history = await search.listTransactionsByAddress(expectation.expected_recipient, HISTORY_PAGE_SIZE)
+  } catch {
+    throw new RefundLifecycleError('RPC_UNAVAILABLE', 'Chain history is unavailable; the refund outcome stays unknown.')
+  }
+  if (head.network !== expectation.network) fail('EVIDENCE_INTEGRITY', 'The RPC network does not match the refund.')
+
+  const candidates = history.filter((entry) => entry.data === expectation.expected_data
+    && normalized(entry.recipient) === expectation.expected_recipient)
+  const bound = candidates.length === 0 ? [] : await client<{ transaction_hash: string }[]>`
+    select transaction_hash from chain_transactions
+    where network = ${expectation.network}
+      and transaction_hash in ${client(candidates.map((entry) => entry.hash))}
+  `
+  const boundHashes = new Set(bound.map((row) => row.transaction_hash))
+  const tagged = candidates.find((entry) => !boundHashes.has(entry.hash))
+  if (tagged) {
+    const refund = await verifyRefundTransaction(client, reader, { ...input, hash: tagged.hash })
+    return { refund, result: 'recovered', transactionHash: tagged.hash }
+  }
+
+  return client.begin(async (transaction) => {
+    const attempt = await lockUnknownAttempt(transaction, input)
+    let referenceHeight = attempt.outcome_reference_height === null ? null : Number(attempt.outcome_reference_height)
+    if (referenceHeight === null) {
+      // No height was recorded when the wallet opened, so start the safety window now.
+      referenceHeight = head.blockNumber
+      await transaction`
+        update refund_attempts set outcome_reference_height = ${referenceHeight}
+        where id = ${attempt.id} and outcome_reference_height is null
+      `
+    }
+    const safeAfterHeight = referenceHeight + REFUND_OUTCOME_SAFETY_BLOCKS
+    const oldest = history.at(-1)
+    const historyCoversWindow = history.length < HISTORY_PAGE_SIZE
+      || (oldest !== undefined && oldest.blockNumber < referenceHeight)
+    if (head.blockNumber < safeAfterHeight || !historyCoversWindow) {
+      return {
+        headBlockNumber: head.blockNumber,
+        refund: await refundView(transaction, input.claimPublicId),
+        result: 'waiting' as const,
+        safeAfterHeight,
+      }
+    }
+    await transaction`
+      update refund_attempts set
+        wallet_state = 'payment_cancelled',
+        outcome_ruled_out_at = clock_timestamp(),
+        outcome_ruled_out_height = ${head.blockNumber}
+      where id = ${attempt.id} and wallet_state = 'submission_outcome_unknown'
+    `
+    await transaction`
+      insert into protocol_events (
+        aggregate_type, aggregate_id, event_type, protocol_version, occurred_at,
+        correlation_id, evidence_type, payload
+      )
+      select 'claim', refund_attempts.claim_id, 'refund.outcome-ruled-out', 'NR1', clock_timestamp(),
+        ${randomUUID()}, 'backend',
+        ${transaction.json({ headBlockNumber: head.blockNumber, referenceHeight })}
+      from refund_attempts where refund_attempts.id = ${attempt.id}
+    `
+    return { refund: await refundView(transaction, input.claimPublicId), result: 'ruled-out' as const }
+  })
 }

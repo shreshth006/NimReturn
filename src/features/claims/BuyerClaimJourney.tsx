@@ -275,8 +275,12 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
         <div className={refund.refund ? 'buyer-refund buyer-refund--verified' : 'buyer-refund'}>
           <p className="eyebrow">Phase 4 · independent payment evidence</p>
           <h3>{refund.refund ? 'Refund paid and verified' : 'Approved · refund still pending'}</h3>
-          <p>{refund.refund ? 'NimReturn independently matched the purchase-bound settlement sender, original buyer, exact amount and data, execution, and macro finality.' : 'A signed approval is not a payment. This changes only after matching finalized chain evidence exists.'}</p>
-          {refund.attempt && <dl><div><dt>Required sender</dt><dd><code>{refund.attempt.expectedPayment.sender}</code></dd></div><div><dt>Recipient</dt><dd><code>{refund.attempt.expectedPayment.recipient}</code></dd></div><div><dt>Amount</dt><dd>{refund.attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div><div><dt>State</dt><dd>{refund.attempt.state.replaceAll('_', ' ')}</dd></div>{refund.attempt.transaction && <><div><dt>Transaction</dt><dd><code>{short(refund.attempt.transaction.hash)}</code></dd></div><div><dt>Finalizing macro</dt><dd>{refund.attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></>}</dl>}
+          <p>{!refund.refund
+            ? 'A signed approval is not a payment. This changes only after matching finalized chain evidence exists.'
+            : refund.attempt?.recipientRule === 'claim-key-v2'
+              ? 'NimReturn independently matched your purchase claim key as recipient, the exact amount and refund tag, execution, and macro finality. The sender is shown as recorded evidence.'
+              : 'NimReturn independently matched the purchase-bound settlement sender, original buyer, exact amount and data, execution, and macro finality.'}</p>
+          {refund.attempt && <dl><div><dt>{refund.attempt.recipientRule === 'claim-key-v2' ? 'Observed sender' : 'Required sender'}</dt><dd><code>{refund.attempt.recipientRule === 'claim-key-v2' ? refund.attempt.transaction?.sender ?? 'Pending' : refund.attempt.expectedPayment.sender}</code></dd></div><div><dt>Recipient</dt><dd><code>{refund.attempt.expectedPayment.recipient}</code></dd></div><div><dt>Amount</dt><dd>{refund.attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div><div><dt>State</dt><dd>{refund.attempt.state.replaceAll('_', ' ')}</dd></div>{refund.attempt.transaction && <><div><dt>Transaction</dt><dd><code>{short(refund.attempt.transaction.hash)}</code></dd></div><div><dt>Finalizing macro</dt><dd>{refund.attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></>}</dl>}
         </div>
       )}
 
