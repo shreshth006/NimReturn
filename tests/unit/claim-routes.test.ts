@@ -238,6 +238,7 @@ describe('claim routes', () => {
   it('protects the merchant claim queue and resolution writers with the merchant session', async () => {
     const queue: MerchantClaimQueueItem[] = [{
       claim: {
+        authorizationMode: 'purchase_key',
         claimSignerAddress: ADDRESS,
         claimTime: new Date('2026-09-15T12:00:00.000Z'),
         claimType: 'RETURN',

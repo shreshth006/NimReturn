@@ -39,6 +39,7 @@ interface DatabaseNowRow { now: Date }
 
 interface ClaimDecisionRow {
   approved_refund_luna: string | null
+  authorization_mode?: string | null
   claim_id: string
   claim_note: string
   claim_public_id: string
@@ -128,6 +129,7 @@ export interface ResolutionView {
 
 export interface MerchantClaimQueueItem {
   claim: {
+    authorizationMode: 'delegated' | 'purchase_key' | 'self'
     claimSignerAddress: string
     claimTime: Date
     claimType: 'RETURN' | 'WARRANTY'
@@ -513,6 +515,10 @@ export async function listMerchantClaims(
       claims.claim_time, claims.claim_signer_address, claims.purchase_sender_address,
       claims.workflow_state, merchants.id as merchant_id,
       merchants.public_id as merchant_public_id, merchants.policy_signer_address,
+      (
+        select authorization_mode::text from claim_authorizations
+        where claim_authorizations.claim_id = claims.id and consumed_at is not null
+      ) as authorization_mode,
       purchase_passports.public_id as passport_public_id,
       purchase_passports.product_name, orders.expected_value_luna::text as order_price_luna,
       claim_eligibility_evaluations.eligible as eligibility_eligible,
@@ -540,11 +546,16 @@ export async function listMerchantClaims(
     limit 100
   `
   return rows.map((row) => {
-    if (!row.claim_signer_address || !row.policy_signer_address) {
+    const mode = row.authorization_mode
+    if (
+      !row.claim_signer_address || !row.policy_signer_address
+      || (mode !== 'delegated' && mode !== 'purchase_key' && mode !== 'self')
+    ) {
       fail('EVIDENCE_INTEGRITY', 'Merchant claim queue contains incomplete authority evidence.')
     }
     return {
       claim: {
+        authorizationMode: mode,
         claimSignerAddress: row.claim_signer_address,
         claimTime: row.claim_time,
         claimType: row.claim_type,

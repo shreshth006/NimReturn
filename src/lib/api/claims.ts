@@ -85,6 +85,7 @@ const resolutionSchema = z.object({
 
 const queueItemSchema = z.object({
   claim: z.object({
+    authorizationMode: z.enum(['delegated', 'purchase_key', 'self']),
     claimSignerAddress: addressSchema,
     claimTime: isoDateSchema,
     claimType: z.enum(['RETURN', 'WARRANTY']),

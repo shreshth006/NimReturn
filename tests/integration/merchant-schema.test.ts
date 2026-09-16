@@ -2699,6 +2699,9 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       await expect(getClaim(runtime, keyClaim.publicId))
         .resolves.toMatchObject({ authorization: { mode: 'purchase_key' } })
+      await expect(listMerchantClaims(runtime, draft.merchantPublicId)).resolves.toMatchObject([{
+        claim: { authorizationMode: 'purchase_key', publicId: keyClaim.publicId },
+      }])
 
       // The database refuses a purchase-key authority borrowed from another order.
       const otherOrder = await createPurchaseOrder(runtime, {

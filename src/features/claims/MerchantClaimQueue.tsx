@@ -222,7 +222,7 @@ export function MerchantClaimQueue({
             <p>{item.claim.note || item.claim.reasonCode.replaceAll('_', ' ')}</p>
             <dl>
               <div><dt>Claim time</dt><dd>{formatTime(item.claim.claimTime)}</dd></div>
-              <div><dt>Authorization</dt><dd>{item.claim.claimSignerAddress === item.claim.purchaseSenderAddress ? 'Self · chain purchaser' : 'Delegated by chain purchaser'}</dd></div>
+              <div><dt>Authorization</dt><dd>{item.claim.authorizationMode === 'self' ? 'Self · chain purchaser' : item.claim.authorizationMode === 'purchase_key' ? 'Purchase claim key · signed before payment' : 'Delegated by chain purchaser'}</dd></div>
               <div><dt>Claim signer</dt><dd><code>{short(item.claim.claimSignerAddress)}</code></dd></div>
               <div><dt>Workflow</dt><dd>{item.claim.workflowState.replaceAll('_', ' ')}</dd></div>
             </dl>
