@@ -4,15 +4,15 @@ Last updated: 2026-09-16 (IST)
 
 ## Current phase
 
-**Phase 5 — Promise Ledger + polish: experimental/code-complete at the manual and deployment boundary.** D-030 records the project lead's explicit Phase 5 instruction. Its verified-evidence projection, judge-facing lifecycle, reconciliation visibility, responsive/accessibility implementation, frontend splitting, and automated security controls are complete. Phases 0 and 1 are complete; Phases 2–4 remain open at their recorded physical boundaries. No later physical, accessibility, first-minute, or deployment result is inferred from code, automation, or prior prompts. Phase 6 has not started.
+**Phase 5 — Promise Ledger + polish: experimental/code-complete at the manual and deployment boundary.** D-030 records the project lead's explicit Phase 5 instruction. Its verified-evidence projection, judge-facing lifecycle, reconciliation visibility, responsive/accessibility implementation, frontend splitting, and automated security controls are complete. Phases 0 and 1 are complete. A full purchase → claim → approval → refund run passed on Android on 2026-09-17 after D-035/D-036; Phases 2–4 keep only their recorded remaining physical checks. No later physical, accessibility, first-minute, or deployment result is inferred from code, automation, or prior prompts. Phase 6 has not started.
 
 ## Completion by phase
 
 - Phase 0 — Technical proof: **100% complete** (prior Android signing and independent chain/finality proof plus explicit project-lead PASS reports for T-001, T-002, and T-020).
 - Phase 1 — Policy + Merchant: **100% complete** (explicit project-lead PASS reports for physical signing/publication and v1→v2 validation on 2026-09-16; D-034).
-- Phase 2 — Purchase Passport: **90%** (implementation and automated gates complete; physical reload/recovery and mobile/accessibility PASS by explicit project-lead reports on 2026-09-16; physical purchase, chain verification, and Passport results await explicit reports; first-minute test deferred).
-- Phase 3 — Claims: **90% experimental/code-complete** (protocol, implementation, UI, and automated gates complete; signer-routing usability, actual-device claim/resolution, reload, and mobile validation pending).
-- Phase 4 — Refund: **90% experimental/code-complete** (protocol, persistence, API, UI, and automated gates complete; required-sender routing, actual-device payment/finality, reload, and mobile validation pending).
+- Phase 2 — Purchase Passport: **95%** (all physical results PASS by explicit project-lead reports on 2026-09-16/17 except the deferred first-minute test).
+- Phase 3 — Claims: **95%** (self-authorized claim, distinct-signer authorization via the D-035 purchase claim key, and merchant resolution PASS on Android 2026-09-17; claim/resolution reload and mobile/accessibility pending).
+- Phase 4 — Refund: **93%** (independent refund verification PASS on Android 2026-09-17 under D-036; native cancellation, reload/recovery, and mobile/accessibility pending; settlement-sender routing superseded).
 - Phase 5 — Promise Ledger + polish: **90% experimental/code-complete** (derived ledger, judge surface, polish, and automated gates complete; manual accessibility/device/first-minute testing and production operations pending).
 - Phase 6 — Real pilot: **0%**.
 - Phase 7 — Competition submission: **5%** (strategy/checklist drafted; no assets or submission).
@@ -91,9 +91,9 @@ Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on 
 
 - **Phase 0 closed:** T-001, T-002, and T-020 passed by explicit project-lead reports on 2026-09-16. The first T-020 attempt exposed a non-`Error` rejection compatibility bug; after the focused normalizer fix, the physical retest showed the native rejection as cancelled with nothing approved and a safe retry available. The prior private Android artifact already proves exact signing bytes/address binding and one independently retrieved matching transaction with successful execution and following-macro finality. No private wallet or proof material is stored in Git.
 - **Phase 1 closed:** physical signing/publication and v1→v2 validation passed by explicit project-lead reports on 2026-09-16 (D-034).
-- **Phase 2 exit:** reload/recovery and mobile/accessibility passed. A real low-value buyer payment, independent chain verification, Passport creation, and the deferred first-minute test still require explicit project-lead results.
-- **Phase 3 exit:** actual-device self/distinct-signer claims, merchant resolution signing, reload/recovery, and mobile checks require explicit project-lead results.
-- **Phase 4 exit:** an actual low-value refund from the purchase-bound settlement account, independent chain/finality verification, recovery/reload, and mobile checks require explicit project-lead results. If Nimiq Pay cannot route the required sender, that is a FAIL and must not be bypassed.
+- **Phase 2 exit:** only the deferred first-minute test remains.
+- **Phase 3 exit:** claim/resolution reload and mobile checks remain.
+- **Phase 4 exit:** native refund cancellation, refund reload/recovery (including ruling out the earlier unknown-outcome attempt after its validity window), and mobile checks remain. Nimiq Pay does not send from the settlement address; D-036 records the claim-key refund rule that replaced that requirement.
 - **Phase 5 exit:** the manual WCAG/device matrix, Promise Ledger reconciliation against the real lifecycle, five unbriefed first-minute tests, and production operations criteria remain open.
 - **Deployment:** temporary HTTPS staging, managed database credentials, generated session secret, and a working public TestAlbatross development RPC are provisioned. Remaining release blockers are an operated primary/failover RPC, backup/restore proof, alerts, an incident runbook, and actual Nimiq Pay CSP/WebView validation. The free database expires on 2026-10-16 and the free web service cold-starts after inactivity. The current rate limiter is process-local, so staging must remain single-instance and any later multi-instance release needs a shared store.
 

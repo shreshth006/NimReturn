@@ -434,3 +434,15 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 
 **Consequences:** Migration 0015 adds the recipient rule, claim-key binding, and outcome reference/ruled-out evidence to refund attempts, replaces the refund triggers, and updates `promise_ledger_v1` so claim-key refunds count without sender equality. A ruled-out attempt becomes `payment_cancelled` with immutable ruled-out evidence. The merchant UI adds **Check the chain for this refund**. Because the sender is not required, the ledger counts a correctly tagged payment to the claim key after a verified approval regardless of which account paid; the observed sender is always shown.
 
+## D-037 — 2026-09-17 — Record the first complete Android lifecycle
+
+**Decision:** Accept the project lead's explicit PASS reports for Phase 2 real buyer payment, independent chain verification, and Purchase Passport creation; Phase 3 self-authorized claim, distinct-signer authorization, and merchant resolution; and Phase 4 independent refund verification. Record Phase 4 settlement-sender routing as superseded by D-036 rather than PASS or FAIL.
+
+**Context:** After D-035 and D-036 were deployed, one fresh 1,000-Luna purchase completed purchase, claim, signed approval, and a claim-key refund through macro finality inside Nimiq Pay on Android, and the project lead reported the results explicitly.
+
+**Alternatives:** keep all Phase 2–4 results open until every reload, cancellation, and mobile check is repeated; record distinct-signer authorization as FAIL because the exact-claim delegation path is unusable in this wallet.
+
+**Rationale:** Each recorded item was directly observed and reported. The claim signer genuinely differed from the chain sender and was authorized by a key proven before payment, which is the D-035 distinct-signer path; the unusable delegation path is noted as a wallet limitation instead of being bypassed.
+
+**Consequences:** Phase 2 is 95% (first-minute test deferred), Phase 3 95% (reload/mobile open), and Phase 4 93% (cancellation, reload/recovery, and mobile open). Phase 5 results and Phase 6 remain untouched.
+

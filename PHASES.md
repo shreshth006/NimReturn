@@ -62,13 +62,13 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 
 ### Exit criteria
 
-- [ ] End-to-end device purchase creates exactly one passport only after valid evidence.
+- [x] End-to-end device purchase creates exactly one passport only after valid evidence. Passed by explicit project-lead report on 2026-09-17.
 - [x] Wrong network/sender/recipient/value/data/state and duplicate hashes fail in automated verification; physical purchase remains separately open.
 - [ ] Cancel, pending, inconclusive, invalid, and verified are distinct and recover on reload. Automated coverage passes; device cancellation/reload remains open.
 - [x] Race/idempotency tests pass and append-only chain reconciliation is operational.
 - [ ] Passport clearly shows purchase-bound policy and first-minute test passes through passport creation.
 
-Physical reload/recovery and mobile/accessibility passed by explicit project-lead reports on 2026-09-16; the other physical Phase 2 results remain open, and the first-minute test is deferred.
+Physical payment, chain verification, Passport creation, reload/recovery, and mobile/accessibility passed by explicit project-lead reports on 2026-09-16/17. Only the deferred first-minute test remains.
 
 Phase 2 cannot formally exit until its automated/code criteria and the consolidated physical-device session pass. D-025 permits Phase 3 implementation without treating that deferral as a Phase 2 exit.
 
@@ -84,7 +84,7 @@ First close the D-018 claimant-authorization design gate: define how a proof-der
 - [x] Eligibility unit matrix and exact boundary tests pass.
 - [x] Policy eligible copy never promises outcome.
 - [x] Only policy merchant can resolve; one final resolution under concurrency.
-- [ ] Actual-device claim/resolution signing and reload work.
+- [ ] Actual-device claim/resolution signing and reload work. Signing passed on 2026-09-17 (claim via the D-035 purchase claim key, merchant approval via the policy signer); reload remains open.
 
 Phase 3 implementation is code-complete but cannot formally exit until the consolidated physical-device claim/resolution, reload, and mobile checks pass. D-029 explicitly allows Phase 4 implementation to proceed while correcting D-027's authorization history; it does not convert any open item to PASS.
 
@@ -96,11 +96,11 @@ Approved refund expectation; direct purchase-bound settlement address→original
 
 ### Exit criteria
 
-- [ ] Low-value device refund verifies end to end.
+- [x] Low-value device refund verifies end to end. Passed on 2026-09-17, paid to the purchase claim key under D-036.
 - [x] Wrong network/sender/recipient/value/data/state/duplicate fail in automated verification; physical exact-sender validation remains open.
 - [x] Approved is never confused with refunded.
 - [x] Reload-safe identifiers, RPC outage, cancellation/unknown recovery, double-submit, and concurrent verifier tests pass; actual WebView reload remains open.
-- [ ] Full purchase→claim→decision→refund story completes reliably on target devices.
+- [ ] Full purchase→claim→decision→refund story completes reliably on target devices. One complete Android run passed on 2026-09-17; cancellation and reload paths remain open.
 
 Phase 4 implementation is code-complete but cannot formally exit until the consolidated low-value exact-sender refund, independent finality, recovery/reload, and mobile checks pass. The project lead subsequently authorized the narrowly scoped Phase 5 work recorded in D-030; that later instruction does not close Phase 4.
 
