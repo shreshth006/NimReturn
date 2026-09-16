@@ -217,7 +217,7 @@ Pin lockfile; use official Nimiq packages; review new install scripts, licenses,
 
 - [ ] No custody path, server wallet, private-key/seed input, or treasury address.
 - [ ] Mini App SDK/core versions pinned and current behavior re-reviewed.
-- [ ] Actual-device sign fixture validates exact NR1 bytes and address binding on target Nimiq Pay versions. Phase 0 diagnostic proof passed; the current Phase 1 physical policy flow remains pending.
+- [x] Actual-device sign fixture validates exact NR1 bytes and address binding on target Nimiq Pay versions. Phase 0 diagnostic proof passed; the Phase 1 physical policy flow passed by explicit project-lead report on 2026-09-16.
 - [x] Known-good/tampered/wrong-address signature tests pass.
 - [x] Purchase/refund wrong network/sender/recipient/value/data/state/hash automated tests pass; actual-device exact-sender evidence remains open.
 - [x] Global hash/nonces and one-to-one constraints verified under PostgreSQL concurrency tests.

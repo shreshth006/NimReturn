@@ -43,14 +43,14 @@ Database migrations/constraints; first-proof-derived merchant policy signer; sep
 
 ### Exit criteria
 
-- [ ] Merchant can create and sign a policy on device and publish product in under 60 seconds. Physical validation remains pending.
+- [x] Merchant can create and sign a policy on device and publish product in under 60 seconds. Passed by explicit project-lead report on 2026-09-16.
 - [x] First proof atomically establishes the policy signer; later wrong-signer/invalid/altered/expired/replayed proofs fail; a distinct signed settlement address succeeds.
 - [x] Concurrent version creation is monotonic and historical verified policy cannot update/delete under runtime role.
 - [x] Product cannot activate without verified policy.
-- [ ] API/database integration tests, mobile accessibility, and full gate pass. Automated integration/full gates pass; the physical mobile exit remains pending.
+- [x] API/database integration tests, mobile accessibility, and full gate pass. Automated gates pass; the physical v1→v2 mobile exit passed by explicit project-lead report on 2026-09-16.
 - [x] Deferred T-001/T-002 actual-device cases pass during the consolidated device run. Both passed by explicit project-lead reports on 2026-09-16.
 
-Phase 1 remains open. Physical signing/publication and physical v1→v2 validation require the project lead's explicit personal results.
+Phase 1 is closed. The project lead explicitly reported physical signing/publication PASS and physical v1→v2 validation PASS on 2026-09-16; D-034 records the closeout.
 
 D-023 permits Phase 2 implementation despite this open exit. It does not mark any Phase 1 criterion complete.
 

@@ -385,3 +385,27 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 **Rationale:** The explicit physical reports satisfy the remaining human-gated scenarios, while the preserved artifact supplies the required exact-byte/address-binding and independent-chain evidence. Keeping later named results open preserves the rule that a physical observation changes only the result the project lead explicitly reports.
 
 **Consequences:** Phase 0 is 100% complete. Phase 1 stays at 92% pending physical signing/publication and v1→v2 validation. All Phase 2–5 device, routing, reload, accessibility, reconciliation, and first-minute results remain open. Repository evidence remains sanitized, and Phase 6 remains locked.
+
+## D-033 — 2026-09-16 — Restore lost merchant sessions only with the established policy signer
+
+**Decision:** When an established merchant's `HttpOnly` session is missing or expired, restore it only through a short-lived (five-minute), one-time, origin-bound `NIMRETURN/AUTH/1/MERCHANT_SESSION` challenge whose proof derives exactly the merchant's immutable policy signer. Stop clearing the consumed bootstrap cookie in the same publication response.
+
+**Context:** During the Phase 1 phone run, the Android Nimiq Pay WebView kept the public v1 workspace but lost the protected merchant session after a publication response that both cleared the bootstrap cookie and set the merchant cookie. The v2 form then failed with `MERCHANT_AUTH_REQUIRED`, and waiting could not repair it.
+
+**Alternatives:** delete v1 and start a new merchant; trust a remembered merchant identifier or `listAccounts()`; lengthen session lifetime; reuse the commercial NR1 policy domain for authentication.
+
+**Rationale:** The policy signer is already the merchant's cryptographic authority. A separate authentication domain prevents a login signature from being confused with a commercial attestation. Challenges are stored as immutable evidence, verified against exact bytes and hash, consumed atomically, and separately rate-limited; a failed proof leaves the challenge unused and changes no merchant or policy row.
+
+**Consequences:** Migration 0012 adds `merchant_session_challenges` (runtime role: select, insert, and `consumed_at` update only). The merchant studio offers **Reconnect policy signer** and preserves unsaved terms. Signer rotation remains unsupported.
+
+## D-034 — 2026-09-16 — Close Phase 1 from explicit physical results
+
+**Decision:** Mark Phase 1 physical signing/publication and Phase 1 physical v1→v2 validation PASS and formally close Phase 1.
+
+**Context:** After D-033 and migration 0012 were live on staging, the project lead ran the flow on Android inside Nimiq Pay and explicitly reported `Phase 1 physical signing/publication PASS` and `Phase 1 v1→v2 physical validation PASS` on 2026-09-16.
+
+**Alternatives:** keep Phase 1 open until further versions are published; infer any Phase 2–5 result from this session.
+
+**Rationale:** The explicit reports cover the two remaining Phase 1 exit criteria; all automated and integration gates were already complete.
+
+**Consequences:** Phase 1 is 100% complete. Phase 2–5 physical results remain open, repository evidence stays sanitized, and Phase 6 remains locked.
