@@ -1,5 +1,5 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import {
   ClaimApiError,
@@ -42,7 +42,13 @@ function formatTime(value: string): string {
   }).format(new Date(value))
 }
 
-export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: string }) {
+export function MerchantClaimQueue({
+  merchantPublicId,
+  onAuthorizationLost,
+}: {
+  merchantPublicId: string
+  onAuthorizationLost?: () => void
+}) {
   const [claims, setClaims] = useState<MerchantClaimQueueItem[]>([])
   const [selected, setSelected] = useState<MerchantClaimQueueItem | null>(null)
   const [challenge, setChallenge] = useState<ClaimResolution | null>(null)
@@ -54,6 +60,20 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
   const [notice, setNotice] = useState<Notice | null>(null)
   const [verified, setVerified] = useState<ClaimResolution | null>(null)
 
+  const recordError = useCallback((error: unknown) => {
+    if (
+      error instanceof ClaimApiError
+      && error.status === 401
+      && error.code === 'MERCHANT_AUTH_REQUIRED'
+    ) {
+      if (onAuthorizationLost) {
+        onAuthorizationLost()
+        return
+      }
+    }
+    setNotice({ kind: 'error', message: messageFor(error) })
+  }, [onAuthorizationLost])
+
   async function loadClaims(showNotice = false) {
     setBusy('load')
     try {
@@ -61,7 +81,7 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
       setClaims(next)
       if (showNotice) setNotice({ kind: 'info', message: 'The protected claim queue was refreshed.' })
     } catch (error) {
-      setNotice({ kind: 'error', message: messageFor(error) })
+      recordError(error)
     } finally {
       setBusy(null)
     }
@@ -71,10 +91,10 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
     let active = true
     void getMerchantClaims(merchantPublicId)
       .then((next) => { if (active) setClaims(next) })
-      .catch((error: unknown) => { if (active) setNotice({ kind: 'error', message: messageFor(error) }) })
+      .catch((error: unknown) => { if (active) recordError(error) })
       .finally(() => { if (active) setBusy(null) })
     return () => { active = false }
-  }, [merchantPublicId])
+  }, [merchantPublicId, recordError])
 
   async function choose(item: MerchantClaimQueueItem) {
     setSelected(item)
@@ -91,7 +111,7 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
         setChallenge(pending)
         setNotice({ kind: 'info', message: 'Recovered the exact pending decision. No new challenge was created.' })
       } catch (error) {
-        setNotice({ kind: 'error', message: messageFor(error) })
+        recordError(error)
       } finally { setBusy(null) }
     }
   }
@@ -115,7 +135,7 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
         message: `Review the exact ${decision.toLowerCase()} decision before opening Nimiq Pay. Only the original policy signer is accepted.`,
       })
     } catch (error) {
-      setNotice({ kind: 'error', message: messageFor(error) })
+      recordError(error)
     } finally { setBusy(null) }
   }
 
@@ -166,7 +186,7 @@ export function MerchantClaimQueue({ merchantPublicId }: { merchantPublicId: str
       })
       await loadClaims()
     } catch (error) {
-      setNotice({ kind: 'error', message: messageFor(error) })
+      recordError(error)
     } finally { setBusy(null) }
   }
 

@@ -6,6 +6,7 @@ import type {
 } from '../../src/lib/protocol/claim.js'
 import type { ClaimEligibilityEvaluation } from '../../src/lib/protocol/claim-eligibility.js'
 import type { ResolutionPayload } from '../../src/lib/protocol/resolution.js'
+import type { MerchantSessionPayload } from '../../src/lib/protocol/merchant-session.js'
 import type {
   ObservedTransaction,
   TransactionVerification,
@@ -162,6 +163,59 @@ export const merchantBootstrapSessions = pgTable('merchant_bootstrap_sessions', 
   check(
     'merchant_bootstrap_sessions_valid_times',
     sql`${table.expiresAt} > ${table.createdAt} and (${table.consumedAt} is null or (${table.consumedAt} >= ${table.createdAt} and ${table.consumedAt} <= ${table.expiresAt}))`,
+  ),
+])
+
+export const merchantSessionChallenges = pgTable('merchant_session_challenges', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  nonce: char('nonce', { length: 22 }).notNull(),
+  merchantId: uuid('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  expectedSignerAddress: varchar('expected_signer_address', { length: 36 }).notNull(),
+  audience: varchar('audience', { length: 2_048 }).notNull(),
+  payload: jsonb('payload').$type<MerchantSessionPayload>().notNull(),
+  canonicalMessage: text('canonical_message').notNull(),
+  payloadHash: char('payload_hash', { length: 64 }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('merchant_session_challenges_nonce_unique').on(table.nonce),
+  index('merchant_session_challenges_merchant_expiry_index')
+    .on(table.merchantId, table.expiresAt),
+  index('merchant_session_challenges_expiry_index').on(table.expiresAt),
+  check(
+    'merchant_session_challenges_nonce_format',
+    sql`${table.nonce} ~ '^[A-Za-z0-9_-]{22}$'`,
+  ),
+  check(
+    'merchant_session_challenges_expected_signer_format',
+    sql`${table.expectedSignerAddress} ~ '^NQ[0-9A-HJ-NP-VXY]{34}$'`,
+  ),
+  check(
+    'merchant_session_challenges_audience_format',
+    sql`btrim(${table.audience}) = ${table.audience} and ${table.audience} ~ '^https?://' and ${table.audience} !~ '[[:cntrl:]]'`,
+  ),
+  check(
+    'merchant_session_challenges_payload_object',
+    sql`jsonb_typeof(${table.payload}) = 'object'`,
+  ),
+  check(
+    'merchant_session_challenges_payload_binding',
+    sql`${table.payload}->>'nonce' = ${table.nonce} and ${table.payload}->>'audience' = ${table.audience} and ${table.payload}->>'policySignerAddress' = ${table.expectedSignerAddress} and ${table.payload}->>'type' = 'MERCHANT_SESSION' and ${table.payload}->>'version' = '1'`,
+  ),
+  check(
+    'merchant_session_challenges_canonical_message_domain',
+    sql`${table.canonicalMessage} like 'NIMRETURN/AUTH/1/MERCHANT_SESSION' || chr(10) || '%'`,
+  ),
+  check(
+    'merchant_session_challenges_payload_hash_format',
+    sql`${table.payloadHash} ~ '^[0-9a-f]{64}$'`,
+  ),
+  check(
+    'merchant_session_challenges_valid_times',
+    sql`${table.expiresAt} > ${table.createdAt} and ${table.expiresAt} <= ${table.createdAt} + interval '5 minutes' and (${table.consumedAt} is null or (${table.consumedAt} >= ${table.createdAt} and ${table.consumedAt} < ${table.expiresAt}))`,
   ),
 ])
 

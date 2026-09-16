@@ -37,6 +37,10 @@ import {
 } from '../../server/domain/verify-refund.js'
 import { getPromiseLedger } from '../../server/domain/get-promise-ledger.js'
 import {
+  createMerchantSessionChallenge,
+  restoreMerchantSession,
+} from '../../server/domain/merchant-session-recovery.js'
+import {
   recheckPurchaseTransaction,
   verifyPurchaseTransaction,
 } from '../../server/domain/verify-purchase.js'
@@ -48,6 +52,10 @@ import {
   type ClaimPayload,
 } from '../../src/lib/protocol/claim.js'
 import { buildPolicyMessage, type PolicyPayload } from '../../src/lib/protocol/policy.js'
+import {
+  buildMerchantSessionMessage,
+  type MerchantSessionPayload,
+} from '../../src/lib/protocol/merchant-session.js'
 import type { ObservedTransaction } from '../../src/lib/protocol/transaction-verification.js'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
@@ -1070,6 +1078,259 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
     } finally {
       await runtime.end()
     }
+  })
+
+  async function insertAgedSessionChallenge(input: {
+    ageMs: number
+    merchantId: string
+    merchantPublicId: string
+    nonce: string
+    signerAddress: string
+  }) {
+    const databaseNow = (await client<{ now: Date }[]>`select clock_timestamp() as now`)[0]!.now
+    const createdAt = new Date(databaseNow.getTime() - input.ageMs)
+    const expiresAt = new Date(createdAt.getTime() + (5 * 60 * 1_000))
+    const payload: MerchantSessionPayload = {
+      audience: 'https://staging.example.test',
+      createdAt: createdAt.getTime(),
+      expiresAt: expiresAt.getTime(),
+      merchantId: input.merchantPublicId,
+      nonce: input.nonce,
+      policySignerAddress: input.signerAddress,
+      type: 'MERCHANT_SESSION',
+      version: 1,
+    }
+    const canonicalMessage = buildMerchantSessionMessage(payload)
+    await client`
+      insert into merchant_session_challenges (
+        nonce, merchant_id, expected_signer_address, audience, payload,
+        canonical_message, payload_hash, expires_at, created_at
+      ) values (
+        ${input.nonce}, ${input.merchantId}, ${input.signerAddress}, ${payload.audience},
+        ${client.json(payload)}, ${canonicalMessage}, ${hashProtocolPayload(canonicalMessage)},
+        ${expiresAt}, ${createdAt}
+      )
+    `
+    return canonicalMessage
+  }
+
+  it('rejects expired, cross-merchant, malformed, and altered merchant session proofs', async () => {
+    const reauthenticationPrivateKey = 'ad'.repeat(32)
+    const signer = createPolicyProof(reauthenticationPrivateKey, 'adversarial-reauth-signer')
+    const merchantPublicId = 'ReauthAdversarialFix1A'
+    const otherMerchantPublicId = 'ReauthAdversarialFix1B'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const otherMerchantId = await insertMerchant(otherMerchantPublicId)
+    const otherSigner = createPolicyProof('ae'.repeat(32), 'adversarial-reauth-other-signer')
+    await client`
+      update merchants set policy_signer_address = ${signer.address} where id = ${merchantId}
+    `
+    await client`
+      update merchants set policy_signer_address = ${otherSigner.address} where id = ${otherMerchantId}
+    `
+    const merchantBefore = await client`select * from merchants where id = ${merchantId}`
+
+    const expiredMessage = await insertAgedSessionChallenge({
+      ageMs: 6 * 60 * 1_000,
+      merchantId,
+      merchantPublicId,
+      nonce: 'ReauthExpiredNonce0001',
+      signerAddress: signer.address,
+    })
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: 'ReauthExpiredNonce0001',
+      merchantPublicId,
+      proof: createPolicyProof(reauthenticationPrivateKey, expiredMessage).proof,
+    })).rejects.toMatchObject({ code: 'CHALLENGE_EXPIRED' })
+
+    await insertAgedSessionChallenge({
+      ageMs: (4 * 60 * 1_000) + 30_000,
+      merchantId,
+      merchantPublicId,
+      nonce: 'ReauthNearExpiryNonce1',
+      signerAddress: signer.address,
+    })
+    const fresh = await createMerchantSessionChallenge(client, {
+      audience: 'https://staging.example.test',
+      merchantPublicId,
+    })
+    expect(fresh.nonce).not.toBe('ReauthNearExpiryNonce1')
+    expect(fresh.expiresAt.getTime() - fresh.payload.createdAt).toBe(5 * 60 * 1_000)
+
+    const validProof = createPolicyProof(reauthenticationPrivateKey, fresh.canonicalMessage).proof
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: fresh.nonce,
+      merchantPublicId: otherMerchantPublicId,
+      proof: validProof,
+    })).rejects.toMatchObject({ code: 'MERCHANT_NOT_FOUND' })
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: fresh.nonce,
+      merchantPublicId,
+      proof: { publicKey: validProof.publicKey },
+    })).rejects.toMatchObject({ code: 'INVALID_PROOF' })
+    const alteredMessage = fresh.canonicalMessage.replace(merchantPublicId, otherMerchantPublicId)
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: fresh.nonce,
+      merchantPublicId,
+      proof: createPolicyProof(reauthenticationPrivateKey, alteredMessage).proof,
+    })).rejects.toMatchObject({ code: 'MESSAGE_MISMATCH' })
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: fresh.nonce,
+      merchantPublicId,
+      proof: { ...validProof, payloadHash: hashProtocolPayload(alteredMessage) },
+    })).rejects.toMatchObject({ code: 'PAYLOAD_HASH_MISMATCH' })
+
+    const rejectedAttempts = await client<{ consumed_at: Date | null }[]>`
+      select consumed_at from merchant_session_challenges where nonce = ${fresh.nonce}
+    `
+    expect(rejectedAttempts[0]?.consumed_at).toBeNull()
+
+    await expect(restoreMerchantSession(client, {
+      challengeNonce: fresh.nonce,
+      merchantPublicId,
+      proof: validProof,
+    })).resolves.toMatchObject({ merchantPublicId, signerAddress: signer.address })
+    expect(await client`select * from merchants where id = ${merchantId}`).toEqual(merchantBefore)
+  })
+
+  it('restores only an established active merchant through a one-time signer-bound challenge', async () => {
+    const merchantPublicId = 'ReauthMerchantFixture1'
+    const merchantId = await insertMerchant(merchantPublicId)
+    const reauthenticationPrivateKey = 'ac'.repeat(32)
+    const establishedSigner = createPolicyProof(
+      reauthenticationPrivateKey,
+      'merchant-session-recovery-signer',
+    )
+    await client`
+      update merchants
+      set policy_signer_address = ${establishedSigner.address}
+      where id = ${merchantId}
+    `
+
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 2,
+    })
+    try {
+      const first = await createMerchantSessionChallenge(runtime, {
+        audience: 'https://staging.example.test',
+        merchantPublicId,
+      })
+      const repeated = await createMerchantSessionChallenge(runtime, {
+        audience: 'https://staging.example.test',
+        merchantPublicId,
+      })
+      expect(repeated).toEqual(first)
+      expect(first.payload).toMatchObject({
+        audience: 'https://staging.example.test',
+        merchantId: merchantPublicId,
+        nonce: first.nonce,
+        policySignerAddress: establishedSigner.address,
+        type: 'MERCHANT_SESSION',
+        version: 1,
+      })
+      expect(first.expiresAt.getTime() - first.payload.createdAt).toBe(5 * 60 * 1_000)
+
+      const wrongProof = createPolicyProof(
+        PRIVATE_KEY_POLICY_CONCURRENT,
+        first.canonicalMessage,
+      ).proof
+      await expect(restoreMerchantSession(runtime, {
+        challengeNonce: first.nonce,
+        merchantPublicId,
+        proof: wrongProof,
+      })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH' })
+
+      const proof = createPolicyProof(reauthenticationPrivateKey, first.canonicalMessage).proof
+      const restores = await Promise.allSettled([
+        restoreMerchantSession(runtime, {
+          challengeNonce: first.nonce,
+          merchantPublicId,
+          proof,
+        }),
+        restoreMerchantSession(runtime, {
+          challengeNonce: first.nonce,
+          merchantPublicId,
+          proof,
+        }),
+      ])
+      const successfulRestores = restores.filter((result) => result.status === 'fulfilled')
+      const rejectedRestores = restores.filter((result) => result.status === 'rejected')
+      expect(successfulRestores).toHaveLength(1)
+      expect(rejectedRestores).toHaveLength(1)
+      expect(successfulRestores[0]).toMatchObject({
+        value: {
+          merchantId,
+          merchantPublicId,
+          signerAddress: establishedSigner.address,
+        },
+      })
+      expect(rejectedRestores[0]).toMatchObject({
+        reason: { code: 'CHALLENGE_CONSUMED' },
+      })
+      await expect(restoreMerchantSession(runtime, {
+        challengeNonce: first.nonce,
+        merchantPublicId,
+        proof,
+      })).rejects.toMatchObject({ code: 'CHALLENGE_CONSUMED' })
+
+      const privileges = await runtime<{
+        can_delete: boolean
+        can_insert: boolean
+        can_select: boolean
+        can_update_any: boolean
+        can_update_canonical: boolean
+        can_update_consumed: boolean
+      }[]>`
+        select
+          has_table_privilege(current_user, 'merchant_session_challenges', 'SELECT') as can_select,
+          has_table_privilege(current_user, 'merchant_session_challenges', 'INSERT') as can_insert,
+          has_table_privilege(current_user, 'merchant_session_challenges', 'UPDATE') as can_update_any,
+          has_table_privilege(current_user, 'merchant_session_challenges', 'DELETE') as can_delete,
+          has_column_privilege(current_user, 'merchant_session_challenges', 'consumed_at', 'UPDATE') as can_update_consumed,
+          has_column_privilege(current_user, 'merchant_session_challenges', 'canonical_message', 'UPDATE') as can_update_canonical
+      `
+      expect(privileges[0]).toEqual({
+        can_delete: false,
+        can_insert: true,
+        can_select: true,
+        can_update_any: false,
+        can_update_canonical: false,
+        can_update_consumed: true,
+      })
+      await expect(runtime`
+        update merchant_session_challenges
+        set canonical_message = 'tampered'
+        where nonce = ${first.nonce}
+      `).rejects.toThrow(/permission denied/u)
+      await expect(runtime`
+        delete from merchant_session_challenges where nonce = ${first.nonce}
+      `).rejects.toThrow(/permission denied/u)
+      await expect(client`
+        delete from merchant_session_challenges where nonce = ${first.nonce}
+      `).rejects.toThrow(/challenge evidence is immutable/u)
+    } finally {
+      await runtime.end()
+    }
+
+    const unsignedMerchantId = await insertMerchant('ReauthUnsignedFixture1')
+    await expect(createMerchantSessionChallenge(client, {
+      audience: 'https://staging.example.test',
+      merchantPublicId: 'ReauthUnsignedFixture1',
+    })).rejects.toMatchObject({ code: 'MERCHANT_STATE_CONFLICT' })
+    expect(unsignedMerchantId).toBeTruthy()
+
+    const disabledMerchantId = await insertMerchant('ReauthDisabledFixture1')
+    const disabledSigner = createPolicyProof('ab'.repeat(32), 'disabled-merchant-signer')
+    await client`
+      update merchants
+      set policy_signer_address = ${disabledSigner.address}, status = 'disabled'
+      where id = ${disabledMerchantId}
+    `
+    await expect(createMerchantSessionChallenge(client, {
+      audience: 'https://staging.example.test',
+      merchantPublicId: 'ReauthDisabledFixture1',
+    })).rejects.toMatchObject({ code: 'MERCHANT_STATE_CONFLICT' })
   })
 
   it('creates a normalized merchant/product draft while persisting only the bootstrap hash', async () => {

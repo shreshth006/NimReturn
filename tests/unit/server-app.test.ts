@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../server/app.js'
 import type { ServerConfig } from '../../server/config.js'
 import type { PurchaseOrderView } from '../../server/domain/purchase-order.js'
+import {
+  MerchantSessionRecoveryError,
+  type MerchantSessionRecoveryErrorCode,
+} from '../../server/domain/merchant-session-recovery.js'
 
 const config: ServerConfig = {
   HOST: '127.0.0.1',
@@ -23,6 +27,7 @@ const ORDER_PUBLIC_ID = 'EEEEEEEEEEEEEEEEEEEEEE'
 const PASSPORT_PUBLIC_ID = 'FFFFFFFFFFFFFFFFFFFFFF'
 const SETTLEMENT_ADDRESS = 'NQ15A4YFKG7PU2KLJ7R0K3HE36PLPCC9ND0F'
 const TRANSACTION_HASH = 'a'.repeat(64)
+const MERCHANT_ORIGIN = 'https://merchant.example'
 
 function purchaseOrder(overrides: Partial<PurchaseOrderView> = {}): PurchaseOrderView {
   return {
@@ -324,6 +329,167 @@ describe('server app', () => {
     expect(response.json()).toMatchObject({ code: 'MERCHANT_AUTH_REQUIRED' })
   })
 
+  it('restores a protected merchant session only through a no-store signer challenge', async () => {
+    const sessionInputs: unknown[] = []
+    const policyInputs: unknown[] = []
+    const createdAt = Date.now()
+    const expiresAt = new Date(createdAt + 300_000)
+    const authPayload = {
+      audience: MERCHANT_ORIGIN,
+      createdAt,
+      expiresAt: expiresAt.getTime(),
+      merchantId: MERCHANT_PUBLIC_ID,
+      nonce: POLICY_NONCE,
+      policySignerAddress: SETTLEMENT_ADDRESS,
+      type: 'MERCHANT_SESSION' as const,
+      version: 1 as const,
+    }
+    const proof = {
+      canonicalMessage: 'NIMRETURN/AUTH/1/MERCHANT_SESSION\n{}',
+      payloadHash: 'a'.repeat(64),
+      publicKey: 'b'.repeat(64),
+      signature: 'c'.repeat(128),
+    }
+    const policyPayload = {
+      createdAt,
+      merchantId: MERCHANT_PUBLIC_ID,
+      nonce: POLICY_NONCE,
+      policyId: POLICY_ID,
+      priceLuna: 2_000,
+      productId: PRODUCT_PUBLIC_ID,
+      productName: 'Trail cup',
+      protocol: 'NR1' as const,
+      returnWindowSeconds: 86_400,
+      settlementAddress: SETTLEMENT_ADDRESS,
+      type: 'POLICY' as const,
+      version: 2,
+      warrantyTransferAllowed: false,
+      warrantyWindowSeconds: 2_592_000,
+    }
+    const app = await buildApp({
+      ...writerConfig,
+      CORS_ORIGIN: MERCHANT_ORIGIN,
+      DATABASE_URL: 'postgresql://runtime:secret@database.example.com:5432/nimreturn',
+      NIMIQ_RPC_URL: 'https://rpc.example.com',
+      NODE_ENV: 'production',
+    }, {
+      createMerchantSessionChallenge: (_database, input) => {
+        sessionInputs.push(input)
+        return Promise.resolve({
+          canonicalMessage: proof.canonicalMessage,
+          expectedSignerAddress: SETTLEMENT_ADDRESS,
+          expiresAt,
+          merchantId: '00000000-0000-0000-0000-000000000001',
+          nonce: POLICY_NONCE,
+          payload: authPayload,
+          payloadHash: proof.payloadHash,
+        })
+      },
+      createPolicyChallenge: (_database, input) => {
+        policyInputs.push(input)
+        return Promise.resolve({
+          canonicalMessage: 'NIMRETURN/1/POLICY\n{}',
+          expiresAt,
+          merchantId: '00000000-0000-0000-0000-000000000001',
+          nonce: POLICY_NONCE,
+          payload: policyPayload,
+          payloadHash: 'd'.repeat(64),
+          policyVersionId: '00000000-0000-0000-0000-000000000003',
+          productId: '00000000-0000-0000-0000-000000000002',
+        })
+      },
+      database: {} as postgres.Sql,
+      restoreMerchantSession: (_database, input) => {
+        sessionInputs.push(input)
+        return Promise.resolve({
+          merchantId: '00000000-0000-0000-0000-000000000001',
+          merchantPublicId: MERCHANT_PUBLIC_ID,
+          signerAddress: SETTLEMENT_ADDRESS,
+        })
+      },
+    })
+    apps.push(app)
+
+    const challengeResponse = await app.inject({
+      headers: { origin: MERCHANT_ORIGIN },
+      method: 'POST',
+      payload: {},
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/session/challenges`,
+    })
+    expect(challengeResponse.statusCode).toBe(201)
+    expect(challengeResponse.headers['cache-control']).toBe('no-store')
+    expect(sessionInputs[0]).toEqual({
+      audience: MERCHANT_ORIGIN,
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+    })
+
+    const restoreResponse = await app.inject({
+      headers: { origin: MERCHANT_ORIGIN },
+      method: 'POST',
+      payload: { challengeNonce: POLICY_NONCE, proof },
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/session`,
+    })
+    expect(restoreResponse.statusCode).toBe(200)
+    expect(restoreResponse.headers['cache-control']).toBe('no-store')
+    expect(restoreResponse.body).not.toContain(proof.signature)
+    expect(restoreResponse.json()).toMatchObject({
+      authenticated: true,
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+      signerAddress: SETTLEMENT_ADDRESS,
+    })
+    const sessionCookie = cookiePair(
+      restoreResponse.headers['set-cookie'],
+      'nimreturn_merchant_session',
+    )
+    const rawSetCookie = String(restoreResponse.headers['set-cookie'])
+    expect(rawSetCookie).toContain('HttpOnly')
+    expect(rawSetCookie).toContain('Secure')
+    expect(rawSetCookie).toContain('SameSite=Strict')
+    expect(rawSetCookie).toContain('Max-Age=')
+    expect(rawSetCookie).toContain('Expires=')
+
+    const v2Response = await app.inject({
+      cookies: { nimreturn_merchant_session: sessionCookie.split('=')[1] ?? '' },
+      headers: { origin: MERCHANT_ORIGIN },
+      method: 'POST',
+      payload: {
+        priceLuna: 2_000,
+        returnWindowSeconds: 86_400,
+        settlementAddress: SETTLEMENT_ADDRESS,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 2_592_000,
+      },
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/products/${PRODUCT_PUBLIC_ID}/policies/challenges`,
+    })
+    expect(v2Response.statusCode).toBe(201)
+    expect(policyInputs).toHaveLength(1)
+    expect(sessionInputs[1]).toEqual({
+      challengeNonce: POLICY_NONCE,
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+      proof,
+    })
+  })
+
+  it('rejects merchant session recovery from an unconfigured production origin', async () => {
+    const app = await buildApp({
+      ...writerConfig,
+      CORS_ORIGIN: MERCHANT_ORIGIN,
+      NODE_ENV: 'production',
+    }, { database: {} as postgres.Sql })
+    apps.push(app)
+
+    const response = await app.inject({
+      headers: { origin: 'https://attacker.example' },
+      method: 'POST',
+      payload: {},
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/session/challenges`,
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.json()).toMatchObject({ code: 'ORIGIN_FORBIDDEN' })
+  })
+
   it('bounds anonymous merchant draft creation per client', async () => {
     const app = await buildApp(writerConfig, {
       createDraft: () => Promise.resolve({
@@ -349,6 +515,78 @@ describe('server app', () => {
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await expect(app.inject(request)).resolves.toMatchObject({ statusCode: 201 })
+    }
+    const limited = await app.inject(request)
+    expect(limited.statusCode).toBe(429)
+    expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' })
+    expect(limited.json<{ message: string }>().message).toMatch(/Wait about \d+ minutes? before retrying/u)
+  })
+
+  it('maps failed merchant session proofs without issuing a cookie', async () => {
+    let nextError: MerchantSessionRecoveryErrorCode = 'SIGNER_MISMATCH'
+    const app = await buildApp(writerConfig, {
+      database: {} as postgres.Sql,
+      restoreMerchantSession: () => Promise.reject(
+        new MerchantSessionRecoveryError(nextError, 'rejected'),
+      ),
+    })
+    apps.push(app)
+    const proof = {
+      canonicalMessage: 'NIMRETURN/AUTH/1/MERCHANT_SESSION\n{}',
+      payloadHash: 'a'.repeat(64),
+      publicKey: 'b'.repeat(64),
+      signature: 'c'.repeat(128),
+    }
+    const restore = (payload: unknown) => app.inject({
+      method: 'POST',
+      payload: payload as Record<string, unknown>,
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/session`,
+    })
+
+    const expectations: [MerchantSessionRecoveryErrorCode, number][] = [
+      ['SIGNER_MISMATCH', 422],
+      ['MESSAGE_MISMATCH', 422],
+      ['INVALID_SIGNATURE', 422],
+      ['CHALLENGE_EXPIRED', 410],
+      ['CHALLENGE_CONSUMED', 409],
+      ['MERCHANT_NOT_FOUND', 404],
+    ]
+    for (const [code, statusCode] of expectations) {
+      nextError = code
+      const response = await restore({ challengeNonce: POLICY_NONCE, proof })
+      expect(response.statusCode).toBe(statusCode)
+      expect(response.json()).toMatchObject({ code })
+      expect(response.headers['set-cookie']).toBeUndefined()
+      expect(response.headers['cache-control']).toBe('no-store')
+    }
+
+    for (const payload of [
+      { challengeNonce: POLICY_NONCE },
+      { challengeNonce: POLICY_NONCE, proof: { ...proof, signature: 'zz' } },
+      { challengeNonce: POLICY_NONCE, proof, signerAddress: SETTLEMENT_ADDRESS },
+    ]) {
+      const response = await restore(payload)
+      expect(response.statusCode).toBe(400)
+      expect(response.headers['set-cookie']).toBeUndefined()
+    }
+  })
+
+  it('bounds merchant session recovery challenges separately per client', async () => {
+    const app = await buildApp(writerConfig, {
+      createMerchantSessionChallenge: () => Promise.reject(
+        new MerchantSessionRecoveryError('MERCHANT_NOT_FOUND', 'missing'),
+      ),
+      database: {} as postgres.Sql,
+    })
+    apps.push(app)
+    const request = {
+      headers: { origin: 'http://localhost:5173' },
+      method: 'POST' as const,
+      payload: {},
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/session/challenges`,
+    }
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(app.inject(request)).resolves.toMatchObject({ statusCode: 404 })
     }
     const limited = await app.inject(request)
     expect(limited.statusCode).toBe(429)

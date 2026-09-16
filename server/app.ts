@@ -42,6 +42,12 @@ import {
   readMerchantSessionToken,
 } from './http/merchant-session.js'
 import {
+  createMerchantSessionChallenge,
+  MerchantSessionRecoveryError,
+  restoreMerchantSession,
+} from './domain/merchant-session-recovery.js'
+import { merchantSessionProofEnvelopeSchema } from '../src/lib/protocol/merchant-session.js'
+import {
   createResolutionChallenge,
   getClaimResolution,
   listMerchantClaims,
@@ -86,6 +92,10 @@ const policyTermsBodySchema = z.object({
 const publishPolicyBodySchema = z.object({
   challengeNonce: publicToken,
   proof: policyProofEnvelopeSchema,
+}).strict()
+const restoreMerchantSessionBodySchema = z.object({
+  challengeNonce: publicToken,
+  proof: merchantSessionProofEnvelopeSchema,
 }).strict()
 const transactionHash = z.string().regex(/^[0-9a-f]{64}$/iu)
 const verifyBodySchema = z.object({
@@ -185,6 +195,38 @@ function writerError(error: unknown): WriterError {
   return {
     code: 'WRITER_UNAVAILABLE',
     message: 'The merchant request could not be completed safely.',
+    statusCode: 503,
+  }
+}
+
+function merchantSessionRecoveryError(error: unknown): WriterError {
+  const code = error instanceof MerchantSessionRecoveryError
+    ? error.code
+    : 'SESSION_RECOVERY_UNAVAILABLE'
+  if (code === 'INVALID_REQUEST') {
+    return { code, message: 'The merchant session request is invalid.', statusCode: 400 }
+  }
+  if (code === 'MERCHANT_NOT_FOUND') {
+    return { code, message: 'The merchant or session challenge was not found.', statusCode: 404 }
+  }
+  if (code === 'CHALLENGE_EXPIRED') {
+    return { code, message: 'The merchant session challenge expired. Request a fresh challenge.', statusCode: 410 }
+  }
+  if (
+    code === 'INVALID_PROOF'
+    || code === 'INVALID_SIGNATURE'
+    || code === 'MESSAGE_MISMATCH'
+    || code === 'PAYLOAD_HASH_MISMATCH'
+    || code === 'SIGNER_MISMATCH'
+  ) {
+    return { code, message: 'The wallet proof did not authenticate the policy signer.', statusCode: 422 }
+  }
+  if (code === 'CHALLENGE_CONSUMED' || code === 'MERCHANT_STATE_CONFLICT') {
+    return { code, message: 'The merchant session challenge is unavailable or already used.', statusCode: 409 }
+  }
+  return {
+    code: 'SESSION_RECOVERY_UNAVAILABLE',
+    message: 'Merchant access could not be restored safely.',
     statusCode: 503,
   }
 }
@@ -292,11 +334,13 @@ function refundError(error: unknown): WriterError {
 }
 
 export interface AppDependencies {
+  createMerchantSessionChallenge?: typeof createMerchantSessionChallenge
   createDraft?: typeof createMerchantDraft
   createOrder?: typeof createPurchaseOrder
   createPolicyChallenge?: typeof createPolicyChallenge
   database?: postgres.Sql | null
   publishPolicy?: typeof publishVerifiedPolicy
+  restoreMerchantSession?: typeof restoreMerchantSession
   createClaim?: typeof createClaimChallenge
   readClaim?: typeof getClaim
   readOrder?: typeof getPurchaseOrder
@@ -335,11 +379,14 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   })
   await app.register(cookie)
   await app.register(rateLimit, {
-    errorResponseBuilder: () => ({
-      code: 'RATE_LIMITED',
-      message: 'Too many merchant requests. Wait before retrying.',
-      statusCode: 429,
-    }),
+    errorResponseBuilder: (_request, context) => {
+      const minutes = Math.max(1, Math.ceil(context.ttl / 60_000))
+      return {
+        code: 'RATE_LIMITED',
+        message: `Too many merchant requests. Wait about ${minutes} minute${minutes === 1 ? '' : 's'} before retrying.`,
+        statusCode: 429,
+      }
+    },
     global: false,
   })
 
@@ -357,10 +404,13 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
 
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
+  const issueMerchantSessionChallenge = dependencies.createMerchantSessionChallenge
+    ?? createMerchantSessionChallenge
   const createOrder = dependencies.createOrder ?? createPurchaseOrder
   const createClaim = dependencies.createClaim ?? createClaimChallenge
   const issuePolicyChallenge = dependencies.createPolicyChallenge ?? createPolicyChallenge
   const publishPolicy = dependencies.publishPolicy ?? publishVerifiedPolicy
+  const recoverMerchantSession = dependencies.restoreMerchantSession ?? restoreMerchantSession
   const readPublicProduct = dependencies.readPublicProduct ?? getPublicVerifiedProduct
   const readOrder = dependencies.readOrder ?? getPurchaseOrder
   const readPassport = dependencies.readPassport ?? getPurchasePassport
@@ -447,6 +497,98 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
   })
+
+  app.post(
+    '/api/v1/merchants/:merchantPublicId/session/challenges',
+    { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } },
+    async (request, reply) => {
+      reply.header('cache-control', 'no-store')
+      if (!writerOriginAllowed(request.headers.origin)) {
+        return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+      }
+      const params = merchantParamsSchema.safeParse(request.params)
+      const body = emptyBodySchema.safeParse(request.body)
+      const audience = config.NODE_ENV === 'production'
+        ? config.CORS_ORIGIN
+        : request.headers.origin
+      if (!params.success || !body.success || !audience) {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant session request is invalid.' })
+      }
+      if (!database || !config.SESSION_SECRET) {
+        return reply.code(503).send({ code: 'WRITER_UNAVAILABLE', message: 'Merchant session recovery is temporarily unavailable.' })
+      }
+
+      try {
+        const created = await issueMerchantSessionChallenge(database, {
+          audience,
+          merchantPublicId: params.data.merchantPublicId,
+        })
+        return reply.code(201).send({
+          canonicalMessage: created.canonicalMessage,
+          expectedSignerAddress: created.expectedSignerAddress,
+          expiresAt: created.expiresAt,
+          nonce: created.nonce,
+          payload: created.payload,
+          payloadHash: created.payloadHash,
+        })
+      } catch (error) {
+        request.log.warn(
+          { errorType: error instanceof Error ? error.name : 'UnknownError' },
+          'Merchant session challenge creation failed',
+        )
+        const response = merchantSessionRecoveryError(error)
+        return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+      }
+    },
+  )
+
+  app.post(
+    '/api/v1/merchants/:merchantPublicId/session',
+    { config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } },
+    async (request, reply) => {
+      reply.header('cache-control', 'no-store')
+      if (!writerOriginAllowed(request.headers.origin)) {
+        return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+      }
+      const params = merchantParamsSchema.safeParse(request.params)
+      const body = restoreMerchantSessionBodySchema.safeParse(request.body)
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The merchant session proof is invalid.' })
+      }
+      if (!database || !config.SESSION_SECRET) {
+        return reply.code(503).send({ code: 'WRITER_UNAVAILABLE', message: 'Merchant session recovery is temporarily unavailable.' })
+      }
+
+      try {
+        const restored = await recoverMerchantSession(database, {
+          ...body.data,
+          merchantPublicId: params.data.merchantPublicId,
+        })
+        const session = createMerchantSessionToken({
+          merchantPublicId: restored.merchantPublicId,
+          secret: config.SESSION_SECRET,
+        })
+        reply.setCookie(MERCHANT_SESSION_COOKIE, session.token, {
+          ...cookieOptions,
+          expires: session.expiresAt,
+          maxAge: Math.max(0, Math.floor((session.expiresAt.getTime() - Date.now()) / 1_000)),
+        })
+        return reply.send({
+          authenticated: true,
+          expiresAt: session.expiresAt,
+          merchantPublicId: restored.merchantPublicId,
+          signerAddress: restored.signerAddress,
+        })
+      } catch (error) {
+        request.log.warn(
+          { errorType: error instanceof Error ? error.name : 'UnknownError' },
+          'Merchant session recovery failed',
+        )
+        const response = merchantSessionRecoveryError(error)
+        return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+      }
+    },
+  )
 
   app.post(
     '/api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges',

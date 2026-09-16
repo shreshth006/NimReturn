@@ -1,5 +1,5 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
@@ -7,7 +7,10 @@ import {
   getPublicProduct,
   MerchantApiError,
   publishPolicy,
+  requestMerchantSessionChallenge,
   requestPolicyChallenge,
+  restoreMerchantSession,
+  type MerchantSessionChallenge,
   type PolicyChallenge,
   type PolicyTermsInput,
   type PublicVerifiedProduct,
@@ -30,9 +33,21 @@ import {
   type MerchantWorkspace,
 } from './merchant-workspace.js'
 import { revealVersionEditor } from './version-editor.js'
+import {
+  validateMerchantSessionChallenge,
+  verifyMerchantSessionWalletProof,
+  type VerifiedMerchantSessionProof,
+} from './session-recovery.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
-type BusyAction = 'challenge' | 'draft' | 'public-read' | 'sign' | null
+type BusyAction =
+  | 'challenge'
+  | 'draft'
+  | 'public-read'
+  | 'session-challenge'
+  | 'session-sign'
+  | 'sign'
+  | null
 
 interface TermsForm {
   priceLuna: string
@@ -170,7 +185,19 @@ export function MerchantPolicyStudio() {
   const [localProof, setLocalProof] = useState<LocalProof | null>(null)
   const [publicationSucceeded, setPublicationSucceeded] = useState(false)
   const [authorizationLost, setAuthorizationLost] = useState(false)
+  const [sessionChallenge, setSessionChallenge] = useState<MerchantSessionChallenge | null>(null)
+  const [sessionProof, setSessionProof] = useState<VerifiedMerchantSessionProof | null>(null)
+  const [sessionRevision, setSessionRevision] = useState(0)
   const termsTitleRef = useRef<HTMLHeadingElement | null>(null)
+  const recoveryTitleRef = useRef<HTMLHeadingElement | null>(null)
+
+  const markPublishedAuthorizationLost = useCallback(() => {
+    setAuthorizationLost(true)
+    setNotice({
+      kind: 'error',
+      message: 'Merchant access expired in this browser. The verified public policy and your unsaved terms remain intact. Reconnect with the immutable policy signer to continue.',
+    })
+  }, [])
 
   function recordMerchantError(error: unknown) {
     if (
@@ -179,10 +206,7 @@ export function MerchantPolicyStudio() {
       && error.code === 'MERCHANT_AUTH_REQUIRED'
     ) {
       if (publicProduct) {
-        setNotice({
-          kind: 'error',
-          message: 'The merchant session expired. The existing public policy remains verified and readable, but this browser can no longer create a new version.',
-        })
+        markPublishedAuthorizationLost()
         return
       }
       setAuthorizationLost(true)
@@ -273,6 +297,11 @@ export function MerchantPolicyStudio() {
     revealVersionEditor(termsTitleRef.current)
   }, [authorizationLost, challenge, editingTerms, publicProduct])
 
+  useEffect(() => {
+    if (!authorizationLost || !publicProduct) return
+    revealVersionEditor(recoveryTitleRef.current)
+  }, [authorizationLost, publicProduct])
+
   async function submitDraft(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setBusy('draft')
@@ -338,6 +367,91 @@ export function MerchantPolicyStudio() {
       })
     } catch (error) {
       recordMerchantError(error)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function prepareSessionRecovery() {
+    if (!workspace || !publicProduct || busy !== null) return
+    setBusy('session-challenge')
+    setSessionProof(null)
+    setNotice({
+      kind: 'info',
+      message: 'Requesting one short-lived reconnect challenge. No wallet approval opens automatically.',
+    })
+    try {
+      const created = await requestMerchantSessionChallenge(workspace.merchantPublicId)
+      validateMerchantSessionChallenge({
+        challenge: created,
+        expectedAudience: globalThis.location.origin,
+        immutablePolicySignerAddress: publicProduct.policy.signerAddress,
+        merchantPublicId: workspace.merchantPublicId,
+      })
+      setSessionChallenge(created)
+      setNotice({
+        kind: 'info',
+        message: 'Reconnect challenge ready. Inspect its immutable signer, origin, hash, and exact bytes before opening Nimiq Pay.',
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: friendlyError(error) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function signAndRestoreSession() {
+    if (!workspace || !publicProduct || !sessionChallenge || busy !== null) return
+    setBusy('session-sign')
+    setSessionProof(null)
+    setNotice({
+      kind: 'info',
+      message: 'Review and sign the exact reconnect challenge with the immutable policy signer in Nimiq Pay.',
+    })
+    try {
+      validateMerchantSessionChallenge({
+        challenge: sessionChallenge,
+        expectedAudience: globalThis.location.origin,
+        immutablePolicySignerAddress: publicProduct.policy.signerAddress,
+        merchantPublicId: workspace.merchantPublicId,
+      })
+      const activeProvider = provider ?? await initializeNimiqProvider()
+      setProvider(activeProvider)
+      const walletProof = await requestSignature(activeProvider, sessionChallenge.canonicalMessage)
+      const verified = verifyMerchantSessionWalletProof({
+        challenge: sessionChallenge,
+        expectedAudience: globalThis.location.origin,
+        immutablePolicySignerAddress: publicProduct.policy.signerAddress,
+        merchantPublicId: workspace.merchantPublicId,
+        walletProof,
+      })
+      setSessionProof(verified)
+      setNotice({
+        kind: 'info',
+        message: 'Local signature, exact bytes, and policy-signer binding passed. Restoring the protected server session…',
+      })
+      const restored = await restoreMerchantSession({
+        challengeNonce: sessionChallenge.nonce,
+        merchantPublicId: workspace.merchantPublicId,
+        proof: verified.proof,
+      })
+      if (
+        restored.merchantPublicId !== workspace.merchantPublicId
+        || normalizeNimiqAddress(restored.signerAddress)
+          !== normalizeNimiqAddress(publicProduct.policy.signerAddress)
+      ) {
+        throw new Error('The restored session response did not match this merchant and policy signer.')
+      }
+      setSessionChallenge(null)
+      setSessionProof(null)
+      setAuthorizationLost(false)
+      setSessionRevision((revision) => revision + 1)
+      setNotice({
+        kind: 'success',
+        message: `Merchant access restored with the immutable policy signer until ${formatTimestamp(restored.expiresAt)}. Your v2 terms were preserved; review them and deliberately retry when ready.`,
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: friendlyError(error) })
     } finally {
       setBusy(null)
     }
@@ -483,6 +597,61 @@ export function MerchantPolicyStudio() {
         </section>
       )}
 
+      {authorizationLost && workspace && publicProduct && (
+        <section className="studio-panel studio-panel--sign" aria-labelledby="session-recovery-title">
+          <div className="panel-intro">
+            <span className="panel-kicker">Protected recovery</span>
+            <div>
+              <h2 id="session-recovery-title" ref={recoveryTitleRef} tabIndex={-1}>Reconnect policy signer</h2>
+              <p>Your public policy and unsaved version changes remain intact. A new short-lived signature can restore this browser session without changing any policy version.</p>
+            </div>
+          </div>
+          <div className="policy-explainer">
+            <strong>Only the immutable policy signer can restore access.</strong>
+            <span>The settlement address, wallet account list, public v1 proof, and browser storage are never merchant authority.</span>
+          </div>
+
+          {!sessionChallenge && (
+            <button type="button" disabled={busy !== null} onClick={() => void prepareSessionRecovery()}>
+              {busy === 'session-challenge' ? 'Requesting reconnect challenge…' : 'Reconnect policy signer'}
+            </button>
+          )}
+
+          {sessionChallenge && (
+            <>
+              <dl className="proof-grid">
+                <ProofItem label="Required policy signer" value={sessionChallenge.expectedSignerAddress} mono wide />
+                <ProofItem label="Application origin" value={sessionChallenge.payload.audience} mono wide />
+                <ProofItem label="Challenge expires" value={formatTimestamp(sessionChallenge.expiresAt)} />
+                <ProofItem label="Authentication version" value="MERCHANT_SESSION v1" />
+                <ProofItem label="Payload hash · BLAKE2b-256" value={sessionChallenge.payloadHash} mono wide />
+              </dl>
+              <details className="evidence-details canonical-preview">
+                <summary>Inspect exact reconnect message</summary>
+                <pre>{sessionChallenge.canonicalMessage}</pre>
+              </details>
+              <button type="button" disabled={busy !== null} onClick={() => void signAndRestoreSession()}>
+                {busy === 'session-sign' ? 'Waiting for Nimiq Pay…' : 'Sign reconnect challenge with Nimiq Pay'}
+              </button>
+              <button
+                className="text-button"
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void prepareSessionRecovery()}
+              >
+                {busy === 'session-challenge' ? 'Requesting…' : 'Request a fresh challenge'}
+              </button>
+              {sessionProof && (
+                <div className="local-proof" role="status">
+                  <strong>Local reconnect proof passed</strong>
+                  <span>Exact framed bytes verified and the public key derived immutable policy signer {sessionProof.signerAddress}. Server restoration still decides access.</span>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       {!workspace && !productToRead && (
         <section className="studio-panel" aria-labelledby="draft-title">
           <div className="panel-intro">
@@ -563,7 +732,7 @@ export function MerchantPolicyStudio() {
         </section>
       )}
 
-      {workspace && challenge && (
+      {workspace && challenge && !authorizationLost && (
         <section className="studio-panel studio-panel--sign" aria-labelledby="sign-title">
           <div className="panel-intro">
             <span className="panel-kicker">Step 3</span>
@@ -615,13 +784,17 @@ export function MerchantPolicyStudio() {
       {publicProduct && (
         <VerifiedPolicyPanel
           product={publicProduct}
-          canEdit={workspace?.productPublicId === publicProduct.product.publicId && !challenge}
+          canEdit={workspace?.productPublicId === publicProduct.product.publicId && !challenge && !authorizationLost}
           onNewVersion={startNewVersion}
         />
       )}
 
-      {workspace && publicProduct && workspace.productPublicId === publicProduct.product.publicId && (
-        <MerchantClaimQueue merchantPublicId={workspace.merchantPublicId} />
+      {workspace && publicProduct && !authorizationLost && workspace.productPublicId === publicProduct.product.publicId && (
+        <MerchantClaimQueue
+          key={`${workspace.merchantPublicId}:${sessionRevision}`}
+          merchantPublicId={workspace.merchantPublicId}
+          onAuthorizationLost={markPublishedAuthorizationLost}
+        />
       )}
     </>
   )

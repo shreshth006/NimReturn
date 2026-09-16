@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import { normalizeNimiqAddress } from '../crypto/nimiq-signature.js'
+import {
+  merchantSessionPayloadSchema,
+  merchantSessionProofEnvelopeSchema,
+} from '../protocol/merchant-session.js'
 import {
   policyPayloadSchema,
   policyProofEnvelopeSchema,
@@ -8,6 +13,19 @@ import {
 const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/u, '') ?? ''
 const publicTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{22}$/u)
 const isoDateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)))
+
+const canonicalAddressSchema = z.string().superRefine((value, context) => {
+  try {
+    if (normalizeNimiqAddress(value) !== value) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Address must use canonical no-space uppercase form.',
+      })
+    }
+  } catch {
+    context.addIssue({ code: 'custom', message: 'Address must be a valid Nimiq address.' })
+  }
+})
 
 const apiErrorSchema = z.object({
   code: z.string().min(1),
@@ -32,6 +50,44 @@ const policyChallengeSchema = z.object({
   nonce: publicTokenSchema,
   payload: policyPayloadSchema,
   payloadHash: z.string().regex(/^[0-9a-f]{64}$/u),
+}).strict()
+
+const merchantSessionChallengeSchema = z.object({
+  canonicalMessage: z.string().min(1).max(4096),
+  expectedSignerAddress: canonicalAddressSchema,
+  expiresAt: isoDateSchema,
+  nonce: publicTokenSchema,
+  payload: merchantSessionPayloadSchema,
+  payloadHash: z.string().regex(/^[0-9a-f]{64}$/u),
+}).strict().superRefine((challenge, context) => {
+  if (challenge.expectedSignerAddress !== challenge.payload.policySignerAddress) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Merchant session signer fields do not match.',
+      path: ['expectedSignerAddress'],
+    })
+  }
+  if (challenge.nonce !== challenge.payload.nonce) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Merchant session nonce fields do not match.',
+      path: ['nonce'],
+    })
+  }
+  if (Date.parse(challenge.expiresAt) !== challenge.payload.expiresAt) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Merchant session expiry fields do not match.',
+      path: ['expiresAt'],
+    })
+  }
+})
+
+const restoredMerchantSessionSchema = z.object({
+  authenticated: z.literal(true),
+  expiresAt: isoDateSchema,
+  merchantPublicId: publicTokenSchema,
+  signerAddress: canonicalAddressSchema,
 }).strict()
 
 const publishedPolicySchema = z.object({
@@ -79,6 +135,8 @@ const policyTermsInputSchema = z.object({
 
 export type CreatedMerchant = z.infer<typeof createdMerchantSchema>
 export type PolicyChallenge = z.infer<typeof policyChallengeSchema>
+export type MerchantSessionChallenge = z.infer<typeof merchantSessionChallengeSchema>
+export type RestoredMerchantSession = z.infer<typeof restoredMerchantSessionSchema>
 export type PublishedPolicy = z.infer<typeof publishedPolicySchema>
 export type PublicVerifiedProduct = z.infer<typeof publicProductSchema>
 export type CreateMerchantInput = z.infer<typeof createMerchantInputSchema>
@@ -160,6 +218,38 @@ export function requestPolicyChallenge(input: {
     policyChallengeSchema,
     {
       body: JSON.stringify(policyTermsInputSchema.parse(input.terms)),
+      method: 'POST',
+    },
+  )
+}
+
+export function requestMerchantSessionChallenge(
+  merchantPublicId: string,
+): Promise<MerchantSessionChallenge> {
+  return requestJson(
+    `/api/v1/merchants/${publicTokenSchema.parse(merchantPublicId)}/session/challenges`,
+    merchantSessionChallengeSchema,
+    {
+      body: JSON.stringify({}),
+      method: 'POST',
+    },
+  )
+}
+
+export function restoreMerchantSession(input: {
+  challengeNonce: string
+  merchantPublicId: string
+  proof: unknown
+}): Promise<RestoredMerchantSession> {
+  const merchantPublicId = publicTokenSchema.parse(input.merchantPublicId)
+  return requestJson(
+    `/api/v1/merchants/${merchantPublicId}/session`,
+    restoredMerchantSessionSchema,
+    {
+      body: JSON.stringify({
+        challengeNonce: publicTokenSchema.parse(input.challengeNonce),
+        proof: merchantSessionProofEnvelopeSchema.parse(input.proof),
+      }),
       method: 'POST',
     },
   )
