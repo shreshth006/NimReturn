@@ -593,6 +593,51 @@ export async function getClaim(
   return row ? projectClaim(row) : null
 }
 
+async function insertDelegatedAuthorization(
+  transaction: postgres.TransactionSql,
+  input: {
+    claimId: string
+    claimPayloadHash: string
+    claimPublicId: string
+    claimSignerAddress: string
+    databaseNow: Date
+    purchaseSenderAddress: string
+  },
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const authorizationPublicId = token()
+    const nonce = token()
+    const expiresAt = new Date(input.databaseNow.getTime() + CLAIM_CHALLENGE_TTL_MS)
+    const authorizationPayload: ClaimAuthorizationPayload = {
+      authorizationId: authorizationPublicId,
+      claimId: input.claimPublicId,
+      claimPayloadHash: input.claimPayloadHash,
+      claimSignerAddress: input.claimSignerAddress,
+      createdAt: input.databaseNow.getTime(),
+      expiresAt: expiresAt.getTime(),
+      nonce,
+      protocol: 'NR1',
+      purchaseSenderAddress: input.purchaseSenderAddress,
+      type: 'CLAIM_AUTHORIZATION',
+    }
+    const canonicalMessage = buildClaimAuthorizationMessage(authorizationPayload)
+    const rows = await transaction<{ id: string }[]>`
+      insert into claim_authorizations (
+        public_id, claim_id, authorization_mode, purchase_sender_address,
+        claim_signer_address, claim_payload_hash, challenge_nonce, payload,
+        canonical_message, payload_hash, expires_at, created_at
+      ) values (
+        ${authorizationPublicId}, ${input.claimId}, 'delegated', ${input.purchaseSenderAddress},
+        ${input.claimSignerAddress}, ${input.claimPayloadHash}, ${nonce},
+        ${transaction.json(authorizationPayload)}, ${canonicalMessage},
+        ${hashProtocolPayload(canonicalMessage)}, ${expiresAt}, ${input.databaseNow}
+      ) on conflict do nothing returning id
+    `
+    if (rows.length === 1) return
+  }
+  fail('PERSISTENCE_CONFLICT', 'Claim authorization could not be allocated.')
+}
+
 export async function submitClaimProof(
   client: postgres.Sql,
   rawInput: unknown,
@@ -685,39 +730,14 @@ export async function submitClaimProof(
       `
       await evaluateAndAccept(transaction, verifiedClaim, databaseNow, resource)
     } else {
-      let authorizationCreated = false
-      for (let attempt = 0; attempt < 3 && !authorizationCreated; attempt += 1) {
-        const authorizationPublicId = token()
-        const nonce = token()
-        const expiresAt = new Date(databaseNow.getTime() + CLAIM_CHALLENGE_TTL_MS)
-        const authorizationPayload: ClaimAuthorizationPayload = {
-          authorizationId: authorizationPublicId,
-          claimId: claim.public_id,
-          claimPayloadHash: claim.payload_hash,
-          claimSignerAddress: proof.actualSignerAddress,
-          createdAt: databaseNow.getTime(),
-          expiresAt: expiresAt.getTime(),
-          nonce,
-          protocol: 'NR1',
-          purchaseSenderAddress: claim.purchase_sender_address,
-          type: 'CLAIM_AUTHORIZATION',
-        }
-        const canonicalMessage = buildClaimAuthorizationMessage(authorizationPayload)
-        const rows = await transaction<{ id: string }[]>`
-          insert into claim_authorizations (
-            public_id, claim_id, authorization_mode, purchase_sender_address,
-            claim_signer_address, claim_payload_hash, challenge_nonce, payload,
-            canonical_message, payload_hash, expires_at, created_at
-          ) values (
-            ${authorizationPublicId}, ${claim.id}, 'delegated', ${claim.purchase_sender_address},
-            ${proof.actualSignerAddress}, ${claim.payload_hash}, ${nonce},
-            ${transaction.json(authorizationPayload)}, ${canonicalMessage},
-            ${hashProtocolPayload(canonicalMessage)}, ${expiresAt}, ${databaseNow}
-          ) on conflict do nothing returning id
-        `
-        authorizationCreated = rows.length === 1
-      }
-      if (!authorizationCreated) fail('PERSISTENCE_CONFLICT', 'Claim authorization could not be allocated.')
+      await insertDelegatedAuthorization(transaction, {
+        claimId: claim.id,
+        claimPayloadHash: claim.payload_hash,
+        claimPublicId: claim.public_id,
+        claimSignerAddress: proof.actualSignerAddress,
+        databaseNow,
+        purchaseSenderAddress: claim.purchase_sender_address,
+      })
     }
 
     const result = await readClaim(transaction, claim.public_id)
@@ -806,6 +826,52 @@ export async function submitClaimAuthorization(
     await evaluateAndAccept(transaction, claim, databaseNow, resource)
     const result = await readClaim(transaction, claim.public_id)
     if (!result) fail('PERSISTENCE_CONFLICT', 'The authorized claim could not be read back.')
+    return projectClaim(result)
+  })
+}
+
+// A delegated authorization challenge can lapse before the purchase wallet signs it.
+// Only then may a fresh challenge be issued; nothing about the verified claim changes.
+export async function renewClaimAuthorization(
+  client: postgres.Sql,
+  rawClaimPublicId: unknown,
+): Promise<ClaimView> {
+  const parsed = publicTokenSchema.safeParse(rawClaimPublicId)
+  if (!parsed.success) fail('INVALID_REQUEST', 'The claim identifier is invalid.')
+
+  return client.begin(async (transaction) => {
+    const claim = await readClaim(transaction, parsed.data, true)
+    if (!claim) fail('CLAIM_NOT_FOUND', 'The claim was not found.')
+    if (
+      claim.workflow_state !== 'authorization_pending'
+      || claim.signature_status !== 'verified'
+      || !claim.claim_signer_address
+    ) {
+      fail('STATE_CONFLICT', 'The claim is not awaiting purchase-sender authorization.')
+    }
+    const databaseNow = requireOne(
+      await transaction<DatabaseNowRow[]>`select clock_timestamp() as now`,
+      'PERSISTENCE_CONFLICT',
+      'The database clock was unavailable.',
+    ).now
+    if (
+      claim.authorization_mode === 'delegated'
+      && claim.authorization_consumed_at === null
+      && claim.authorization_expires_at !== null
+      && claim.authorization_expires_at > databaseNow
+    ) {
+      return projectClaim(claim)
+    }
+    await insertDelegatedAuthorization(transaction, {
+      claimId: claim.id,
+      claimPayloadHash: claim.payload_hash,
+      claimPublicId: claim.public_id,
+      claimSignerAddress: claim.claim_signer_address,
+      databaseNow,
+      purchaseSenderAddress: claim.purchase_sender_address,
+    })
+    const result = await readClaim(transaction, claim.public_id)
+    if (!result) fail('PERSISTENCE_CONFLICT', 'The renewed claim could not be read back.')
     return projectClaim(result)
   })
 }

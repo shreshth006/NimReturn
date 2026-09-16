@@ -7,6 +7,7 @@ import {
   createClaim,
   getClaim,
   getResolution,
+  renewClaimAuthorization,
   submitClaim,
   type Claim,
   type ClaimResolution,
@@ -18,7 +19,7 @@ import { buildClaimProof } from './claim-proof.js'
 import { clearClaimSession, loadClaimSession, saveClaimSession } from './claim-session.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
-type Busy = 'authorize' | 'create' | 'restore' | 'sign' | null
+type Busy = 'authorize' | 'create' | 'renew' | 'restore' | 'sign' | null
 
 function short(value: string): string {
   return value.length <= 18 ? value : `${value.slice(0, 9)}…${value.slice(-7)}`
@@ -27,6 +28,12 @@ function short(value: string): string {
 function errorMessage(error: unknown): string {
   if (error instanceof ClaimApiError) return error.message
   return normalizeWalletError(error).message
+}
+
+function authorizationExpired(claim: Claim): boolean {
+  const expiresAt = claim.authorization?.expiresAt
+  return claim.authorization?.status === 'pending' && expiresAt !== null && expiresAt !== undefined
+    && Date.parse(expiresAt) <= Date.now()
 }
 
 function unsignedClaimExpired(claim: Claim): boolean {
@@ -141,7 +148,12 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
       const walletResult = await requestSignature(activeProvider, authorization.canonicalMessage)
-      const { proof } = buildClaimProof(authorization.canonicalMessage, walletResult)
+      const { proof, signerAddress } = buildClaimProof(authorization.canonicalMessage, walletResult)
+      if (signerAddress !== authorization.requiredSignerAddress) {
+        throw new Error(
+          `Nimiq Pay signed with ${short(signerAddress)}, but this approval must come from the purchase account ${short(authorization.requiredSignerAddress)}. Switch the active account in Nimiq Pay to that address, then tap Authorize again. Nothing was submitted.`,
+        )
+      }
       const next = await authorizeClaim(claim.publicId, authorization.publicId, proof)
       setClaim(next)
       setNotice({
@@ -150,6 +162,18 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
           ? 'Purchase-sender authorization verified. The claim is policy eligible—not a guaranteed remedy.'
           : 'Purchase-sender authorization verified. The claim is policy ineligible under the signed terms.',
       })
+    } catch (error) {
+      setNotice({ kind: 'error', message: errorMessage(error) })
+    } finally { setBusy(null) }
+  }
+
+  async function renewAuthorization() {
+    if (!claim) return
+    setBusy('renew')
+    try {
+      const next = await renewClaimAuthorization(claim.publicId)
+      setClaim(next)
+      setNotice({ kind: 'info', message: 'A fresh purchase-wallet approval is ready. It stays valid for 10 minutes.' })
     } catch (error) {
       setNotice({ kind: 'error', message: errorMessage(error) })
     } finally { setBusy(null) }
@@ -211,6 +235,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       {claim && claim.workflowState === 'signature_requested' && !unsignedClaimExpired(claim) && (
         <div className="claim-signing-card">
           <div className="claim-facts"><span>{claim.claimType}</span><strong>{claim.reasonCode.replaceAll('_', ' ')}</strong><small>Policy v{claim.policyVersion} · buyer copied from verified chain evidence</small></div>
+          <p className="claim-boundary">For direct acceptance, sign with the purchase account <code>{short(claim.purchaseSenderAddress)}</code>. Another account needs a second approval from it.</p>
           <details className="evidence-details canonical-preview"><summary>Inspect exact claim bytes</summary><pre>{claim.challenge.canonicalMessage}</pre></details>
           <div className="hash-callout"><span>Claim payload hash</span><code>{claim.payloadHash}</code></div>
           <button type="button" disabled={busy !== null} onClick={() => void sign()}>{busy === 'sign' ? 'Waiting for Nimiq Pay…' : 'Sign claim with Nimiq Pay'}</button>
@@ -221,8 +246,10 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
         <div className="authorization-card">
           <p className="eyebrow">Second proof required</p><h3>Authorize this exact claim from the purchase wallet.</h3>
           <dl><div><dt>Claim signer</dt><dd><code>{claim.claimSignerAddress}</code></dd></div><div><dt>Required purchaser</dt><dd><code>{claim.authorization.requiredSignerAddress}</code></dd></div><div><dt>Claim hash</dt><dd><code>{claim.payloadHash}</code></dd></div></dl>
-          <p>This grants no general account access. It binds only this immutable claim and signer.</p>
-          <button type="button" disabled={busy !== null} onClick={() => void authorize()}>{busy === 'authorize' ? 'Waiting for purchase wallet…' : 'Authorize exact claim with Nimiq Pay'}</button>
+          <p>This grants no general account access. It binds only this immutable claim and signer. Switch Nimiq Pay to the required purchaser account before approving.</p>
+          {authorizationExpired(claim)
+            ? <button type="button" disabled={busy !== null} onClick={() => void renewAuthorization()}>{busy === 'renew' ? 'Preparing a fresh approval…' : 'Approval window ended · request a fresh one'}</button>
+            : <button type="button" disabled={busy !== null} onClick={() => void authorize()}>{busy === 'authorize' ? 'Waiting for purchase wallet…' : 'Authorize exact claim with Nimiq Pay'}</button>}
         </div>
       )}
 

@@ -188,6 +188,14 @@ export function authorizeClaim(
   )
 }
 
+export function renewClaimAuthorization(claimPublicId: string): Promise<Claim> {
+  return requestJson(
+    `/api/v1/claims/${publicTokenSchema.parse(claimPublicId)}/authorizations`,
+    claimSchema,
+    { body: JSON.stringify({}), method: 'POST' },
+  )
+}
+
 export function getResolution(claimPublicId: string): Promise<ClaimResolution> {
   return requestJson(`/api/v1/claims/${publicTokenSchema.parse(claimPublicId)}/resolution`, resolutionSchema)
 }

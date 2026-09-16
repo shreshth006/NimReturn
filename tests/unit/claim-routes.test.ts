@@ -144,6 +144,34 @@ describe('claim routes', () => {
     })
   })
 
+  it('renews a purchase-wallet authorization only through a bodiless origin-checked request', async () => {
+    const renewed: unknown[] = []
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      renewAuthorization: (_database, claimPublicId) => {
+        renewed.push(claimPublicId)
+        return Promise.resolve(claimView({ signatureStatus: 'verified', workflowState: 'authorization_pending' }))
+      },
+    })
+    apps.push(app)
+
+    const response = await app.inject({
+      method: 'POST',
+      payload: {},
+      url: `/api/v1/claims/${CLAIM_ID}/authorizations`,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(renewed).toEqual([CLAIM_ID])
+
+    const rejected = await app.inject({
+      method: 'POST',
+      payload: { purchaseSenderAddress: ADDRESS },
+      url: `/api/v1/claims/${CLAIM_ID}/authorizations`,
+    })
+    expect(rejected.statusCode).toBe(400)
+    expect(renewed).toHaveLength(1)
+  })
+
   it('passes only the strict proof envelope to claim submission', async () => {
     const inputs: unknown[] = []
     const app = await buildApp(config, {

@@ -34,6 +34,7 @@ import {
   ClaimLifecycleError,
   createClaimChallenge,
   getClaim,
+  renewClaimAuthorization,
   submitClaimAuthorization,
   submitClaimProof,
 } from './domain/claim-lifecycle.js'
@@ -358,6 +359,7 @@ export interface AppDependencies {
   verifyPurchase?: typeof verifyPurchaseTransaction
   submitClaim?: typeof submitClaimProof
   authorizeClaim?: typeof submitClaimAuthorization
+  renewAuthorization?: typeof renewClaimAuthorization
   createResolution?: typeof createResolutionChallenge
   publishResolution?: typeof publishResolution
   readResolution?: typeof getClaimResolution
@@ -426,6 +428,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const verifyPurchase = dependencies.verifyPurchase ?? verifyPurchaseTransaction
   const submitClaim = dependencies.submitClaim ?? submitClaimProof
   const authorizeClaim = dependencies.authorizeClaim ?? submitClaimAuthorization
+  const renewAuthorization = dependencies.renewAuthorization ?? renewClaimAuthorization
   const createResolution = dependencies.createResolution ?? createResolutionChallenge
   const publishClaimResolution = dependencies.publishResolution ?? publishResolution
   const readResolution = dependencies.readResolution ?? getClaimResolution
@@ -965,6 +968,29 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       }))
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim authorization failed')
+      const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.post('/api/v1/claims/:claimPublicId/authorizations', {
+    config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = claimParamsSchema.safeParse(request.params)
+    const body = emptyBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The authorization renewal request is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim authorization is temporarily unavailable.' })
+    }
+    try {
+      return reply.send(await renewAuthorization(database, params.data.claimPublicId))
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Claim authorization renewal failed')
       const response = claimError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }

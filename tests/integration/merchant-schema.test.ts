@@ -17,6 +17,7 @@ import { recordPurchaseWalletState } from '../../server/domain/purchase-wallet-s
 import {
   createClaimChallenge,
   getClaim,
+  renewClaimAuthorization,
   submitClaimAuthorization,
   submitClaimProof,
 } from '../../server/domain/claim-lifecycle.js'
@@ -2537,6 +2538,124 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       })
       await expect(createClaimChallenge(runtime, claimInput))
         .rejects.toMatchObject({ code: 'CLAIM_ALREADY_OPEN' })
+    } finally {
+      await runtime.end()
+    }
+  })
+
+  it('renews only a lapsed purchase-wallet authorization for a delegated claim', async () => {
+    const runtime = postgres(requireSafeTestDatabaseUrl(), {
+      connection: { options: '-c role=nimreturn_runtime' },
+      max: 3,
+    })
+    try {
+      const draft = await createMerchantDraft(runtime, {
+        defaultSettlementAddress: VALID_ADDRESS_F,
+        displayName: 'Renewal Merchant',
+        productName: 'Renewal Product',
+      })
+      const merchantKey = '5c'.repeat(32)
+      const policyChallenge = await createPolicyChallenge(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        merchantPublicId: draft.merchantPublicId,
+        priceLuna: 1_000,
+        productPublicId: draft.productPublicId,
+        returnWindowSeconds: 1_382_400,
+        settlementAddress: VALID_ADDRESS_F,
+        warrantyTransferAllowed: false,
+        warrantyWindowSeconds: 31_536_000,
+      })
+      await publishVerifiedPolicy(runtime, {
+        bootstrapCapability: draft.bootstrapCapability,
+        challengeNonce: policyChallenge.nonce,
+        merchantPublicId: draft.merchantPublicId,
+        productPublicId: draft.productPublicId,
+        proof: createPolicyProof(merchantKey, policyChallenge.canonicalMessage).proof,
+      })
+      const order = await createPurchaseOrder(runtime, {
+        network: 'TestAlbatross',
+        productPublicId: draft.productPublicId,
+      })
+      const buyerKey = '5d'.repeat(32)
+      const buyer = createPolicyProof(buyerKey, 'derive-address-only')
+      const purchaseHash = '9b'.repeat(32)
+      const purchased = await verifyPurchaseTransaction(runtime, {
+        getTransaction: () => Promise.resolve({
+          blockNumber: 5_000,
+          blockTimestamp: Date.now() - 60_000,
+          data: order.expectedPayment.data,
+          executionResult: true,
+          finality: { finalizingBlockNumber: 5_010, headBlockNumber: 5_011, reached: true },
+          hash: purchaseHash,
+          network: order.expectedPayment.network,
+          recipient: order.expectedPayment.recipient,
+          sender: buyer.address,
+          state: 'finalized',
+          valueLuna: order.expectedPayment.valueLuna,
+        } satisfies ObservedTransaction),
+      }, { hash: purchaseHash, orderPublicId: order.publicId })
+      const passportPublicId = purchased.passport?.publicId
+      if (!passportPublicId) throw new Error('Renewal test requires a verified Passport.')
+
+      const created = await createClaimChallenge(runtime, {
+        claimType: 'RETURN',
+        note: '',
+        passportPublicId,
+        reasonCode: 'DEFECTIVE',
+      })
+      await expect(renewClaimAuthorization(runtime, created.publicId))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+      // The merchant's policy-signing account signs the claim, as observed on the phone.
+      const pending = await submitClaimProof(runtime, {
+        claimPublicId: created.publicId,
+        proof: createPolicyProof(merchantKey, created.challenge.canonicalMessage).proof,
+      })
+      const first = pending.authorization
+      if (!first?.canonicalMessage) throw new Error('Expected a delegated authorization challenge.')
+      await expect(renewClaimAuthorization(runtime, created.publicId)).resolves.toMatchObject({
+        authorization: { publicId: first.publicId, status: 'pending' },
+      })
+
+      await client.begin(async (admin) => {
+        await admin`alter table claim_authorizations disable trigger claim_authorizations_immutable_guard`
+        await admin`
+          update claim_authorizations
+          set created_at = clock_timestamp() - interval '20 minutes',
+            expires_at = clock_timestamp() - interval '1 second'
+          where public_id = ${first.publicId}
+        `
+        await admin`alter table claim_authorizations enable trigger claim_authorizations_immutable_guard`
+      })
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: first.publicId,
+        claimPublicId: created.publicId,
+        proof: createPolicyProof(buyerKey, first.canonicalMessage).proof,
+      })).rejects.toMatchObject({ code: 'CHALLENGE_EXPIRED' })
+
+      const renewed = await renewClaimAuthorization(runtime, created.publicId)
+      const second = renewed.authorization
+      if (!second?.canonicalMessage) throw new Error('Expected a renewed authorization challenge.')
+      expect(second.publicId).not.toBe(first.publicId)
+      expect(renewed).toMatchObject({
+        authorization: { mode: 'delegated', requiredSignerAddress: buyer.address, status: 'pending' },
+        workflowState: 'authorization_pending',
+      })
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: second.publicId,
+        claimPublicId: created.publicId,
+        proof: createPolicyProof(merchantKey, second.canonicalMessage).proof,
+      })).rejects.toMatchObject({ code: 'SIGNER_MISMATCH' })
+      await expect(submitClaimAuthorization(runtime, {
+        authorizationPublicId: second.publicId,
+        claimPublicId: created.publicId,
+        proof: createPolicyProof(buyerKey, second.canonicalMessage).proof,
+      })).resolves.toMatchObject({
+        authorization: { mode: 'delegated', status: 'verified' },
+        eligibility: { eligible: true },
+        workflowState: 'eligible',
+      })
+      await expect(renewClaimAuthorization(runtime, created.publicId))
+        .rejects.toMatchObject({ code: 'STATE_CONFLICT' })
     } finally {
       await runtime.end()
     }
