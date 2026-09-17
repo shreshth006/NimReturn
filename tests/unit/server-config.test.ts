@@ -28,6 +28,18 @@ describe('server production configuration', () => {
     })
   })
 
+  it('keeps the optional featured Passport identifier strict and out of defaults', () => {
+    expect(parseServerConfig(productionEnvironment).FEATURED_PASSPORT_ID).toBeUndefined()
+    expect(parseServerConfig({
+      ...productionEnvironment,
+      FEATURED_PASSPORT_ID: 'AAAAAAAAAAAAAAAAAAAAAA',
+    }).FEATURED_PASSPORT_ID).toBe('AAAAAAAAAAAAAAAAAAAAAA')
+    expect(() => parseServerConfig({
+      ...productionEnvironment,
+      FEATURED_PASSPORT_ID: 'not-a-public-id',
+    })).toThrow('FEATURED_PASSPORT_ID')
+  })
+
   it('derives the exact public origin from Render without weakening production validation', () => {
     expect(parseServerConfig({
       ...productionEnvironment,

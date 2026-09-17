@@ -38,6 +38,7 @@ import {
   ClaimLifecycleError,
   createClaimChallenge,
   getClaim,
+  listPassportClaims,
   renewClaimAuthorization,
   submitClaimAuthorization,
   submitClaimProof,
@@ -370,6 +371,7 @@ export interface AppDependencies {
   readClaim?: typeof getClaim
   readOrder?: typeof getPurchaseOrder
   readPassport?: typeof getPurchasePassport
+  readPassportClaims?: typeof listPassportClaims
   readPublicProduct?: PublicProductReader
   recordWalletState?: typeof recordPurchaseWalletState
   createClaimKey?: typeof createPurchaseClaimKeyChallenge
@@ -444,6 +446,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
   const readPublicProduct = dependencies.readPublicProduct ?? getPublicVerifiedProduct
   const readOrder = dependencies.readOrder ?? getPurchaseOrder
   const readPassport = dependencies.readPassport ?? getPurchasePassport
+  const readPassportClaims = dependencies.readPassportClaims ?? listPassportClaims
   const readClaim = dependencies.readClaim ?? getClaim
   const updateWalletState = dependencies.recordWalletState ?? recordPurchaseWalletState
   const issueClaimKey = dependencies.createClaimKey ?? createPurchaseClaimKeyChallenge
@@ -952,6 +955,43 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
   })
 
+  app.get('/api/v1/passports/:passportPublicId/claims', {
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    const params = passportParamsSchema.safeParse(request.params)
+    if (!params.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The Passport identifier is invalid.' })
+    }
+    if (!database) {
+      return reply.code(503).send({ code: 'CLAIM_UNAVAILABLE', message: 'Claim lookup is temporarily unavailable.' })
+    }
+    try {
+      return reply.send({ claims: await readPassportClaims(database, params.data.passportPublicId) })
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Passport claim list failed')
+      const response = claimError(error)
+      return reply.code(response.statusCode).send({ code: response.code, message: response.message })
+    }
+  })
+
+  app.get('/api/v1/featured-example', {
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    const unavailable = { code: 'EXAMPLE_UNAVAILABLE', message: 'No verified completed example is available right now.' }
+    if (!database || !config.FEATURED_PASSPORT_ID) return reply.code(404).send(unavailable)
+    try {
+      // The Passport read re-verifies stored policy and chain evidence and fails closed.
+      const passport = await readPassport(database, config.FEATURED_PASSPORT_ID)
+      if (!passport || passport.status !== 'refunded') return reply.code(404).send(unavailable)
+      return reply.send({ passportPublicId: passport.publicId })
+    } catch (error) {
+      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Featured example failed verification')
+      return reply.code(404).send(unavailable)
+    }
+  })
+
   app.post('/api/v1/passports/:passportPublicId/claims/challenges', {
     config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
   }, async (request, reply) => {
@@ -1344,6 +1384,33 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       const response = refundError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
+  })
+
+  const networkLabel = config.NIMIQ_NETWORK === 'TestAlbatross'
+    ? 'Nimiq Testnet'
+    : config.NIMIQ_NETWORK === 'MainAlbatross' ? 'Nimiq Mainnet' : `Nimiq ${config.NIMIQ_NETWORK}`
+  let cachedHead: { blockNumber: number; readAt: number } | null = null
+  app.get('/api/v1/network', {
+    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    reply.header('cache-control', 'no-store')
+    let headBlockNumber: number | null = null
+    if (rpc) {
+      if (cachedHead && Date.now() - cachedHead.readAt < 5_000) {
+        headBlockNumber = cachedHead.blockNumber
+      } else {
+        try {
+          const head = await rpc.getHead()
+          if (head.network === config.NIMIQ_NETWORK) {
+            cachedHead = { blockNumber: head.blockNumber, readAt: Date.now() }
+            headBlockNumber = head.blockNumber
+          }
+        } catch (error) {
+          request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Network status head read failed')
+        }
+      }
+    }
+    return reply.send({ expectedNetwork: config.NIMIQ_NETWORK, headBlockNumber, label: networkLabel })
   })
 
   app.get('/api/v1/diagnostics/rpc', async (request, reply) => {

@@ -1,6 +1,8 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
 
+import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+
 import {
   attachRefundTransaction,
   createRefund,
@@ -12,10 +14,8 @@ import {
   type Refund,
 } from '../../lib/api/refunds.js'
 import {
-  assertWalletConsensusForPayment,
   initializeNimiqProvider,
   normalizeWalletError,
-  readProviderNetwork,
   sendTransactionWithData,
 } from '../../lib/nimiq/provider.js'
 import {
@@ -99,8 +99,7 @@ export function MerchantRefundJourney({
 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
-      const network = await readProviderNetwork(activeProvider)
-      assertWalletConsensusForPayment(network)
+      const network = await assertWalletOnExpectedNetwork(activeProvider)
       current = await recordRefundState(merchantPublicId, claimPublicId, attempt.publicId, 'wallet-request-started')
       setRefund(current)
       setNotice({

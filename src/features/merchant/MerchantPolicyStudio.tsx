@@ -1,6 +1,8 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
   createMerchant,
@@ -417,6 +419,7 @@ export function MerchantPolicyStudio() {
       })
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletProof = await requestSignature(activeProvider, sessionChallenge.canonicalMessage)
       const verified = verifyMerchantSessionWalletProof({
         challenge: sessionChallenge,
@@ -466,6 +469,7 @@ export function MerchantPolicyStudio() {
       setProvider(activeProvider)
       const accounts = await requestAccounts(activeProvider)
       setNotice({ kind: 'info', message: 'Review and sign the exact canonical NR1 policy in Nimiq Pay.' })
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletProof = await requestSignature(activeProvider, challenge.canonicalMessage)
       const publicKey = walletProof.publicKey.toLowerCase()
       const signature = walletProof.signature.toLowerCase()

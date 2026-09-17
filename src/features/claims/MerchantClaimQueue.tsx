@@ -1,6 +1,8 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useCallback, useEffect, useState } from 'react'
 
+import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+
 import {
   ClaimApiError,
   getMerchantClaims,
@@ -146,6 +148,7 @@ export function MerchantClaimQueue({
     try {
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletResult = await requestSignature(activeProvider, challenge.canonicalMessage)
       const publicKey = walletResult.publicKey.toLowerCase()
       const signature = walletResult.signature.toLowerCase()

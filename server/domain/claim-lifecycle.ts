@@ -173,6 +173,23 @@ export interface ClaimView {
   workflowState: ClaimWorkflowState
 }
 
+export interface PublicPassportClaimView {
+  authorization: {
+    mode: 'delegated' | 'purchase_key' | 'self'
+    status: 'verified'
+  }
+  claimSignerAddress: string
+  claimTime: Date
+  claimType: 'RETURN' | 'WARRANTY'
+  eligibility: ClaimEligibilityEvaluation
+  payloadHash: string
+  publicId: string
+  purchaseSenderAddress: string
+  reasonCode: 'CHANGED_MIND' | 'DEFECTIVE' | 'NOT_AS_DESCRIBED' | 'OTHER'
+  signatureStatus: 'verified'
+  workflowState: Exclude<ClaimWorkflowState, 'authorization_pending' | 'signature_requested'>
+}
+
 function fail(code: ClaimLifecycleErrorCode, message: string): never {
   throw new ClaimLifecycleError(code, message)
 }
@@ -698,6 +715,60 @@ async function insertDelegatedAuthorization(
     if (rows.length === 1) return
   }
   fail('PERSISTENCE_CONFLICT', 'Claim authorization could not be allocated.')
+}
+
+const PUBLIC_LIFECYCLE_STATES = ['eligible', 'ineligible', 'decision_pending', 'approved', 'rejected'] as const
+
+// Accepted claims are already public by identifier; this lists them for one Passport.
+export async function listPassportClaims(
+  client: postgres.Sql | postgres.TransactionSql,
+  rawPassportPublicId: unknown,
+): Promise<PublicPassportClaimView[]> {
+  const parsed = publicTokenSchema.safeParse(rawPassportPublicId)
+  if (!parsed.success) fail('INVALID_REQUEST', 'The Passport identifier is invalid.')
+  const rows = await client<{ public_id: string }[]>`
+    select claims.public_id
+    from claims
+    join purchase_passports on purchase_passports.id = claims.passport_id
+    where purchase_passports.public_id = ${parsed.data}
+      and claims.signature_status = 'verified'
+      and claims.workflow_state in ${client(PUBLIC_LIFECYCLE_STATES as unknown as string[])}
+    order by claims.claim_time asc, claims.id asc
+    limit 20
+  `
+  const views: PublicPassportClaimView[] = []
+  for (const row of rows) {
+    const claim = await readClaim(client, row.public_id)
+    if (!claim) fail('EVIDENCE_INTEGRITY', 'A listed claim disappeared.')
+    const verified = projectClaim(claim)
+    if (
+      verified.signatureStatus !== 'verified'
+      || !verified.claimSignerAddress
+      || !verified.authorization
+      || verified.authorization.status !== 'verified'
+      || !verified.eligibility
+      || verified.workflowState === 'authorization_pending'
+      || verified.workflowState === 'signature_requested'
+    ) {
+      fail('EVIDENCE_INTEGRITY', 'A listed claim is not complete public evidence.')
+    }
+    // Do not make the signed free-text note or canonical message discoverable through
+    // this list. The judge lifecycle needs only the minimal verified evidence below.
+    views.push({
+      authorization: { mode: verified.authorization.mode, status: 'verified' },
+      claimSignerAddress: verified.claimSignerAddress,
+      claimTime: verified.claimTime,
+      claimType: verified.claimType,
+      eligibility: verified.eligibility,
+      payloadHash: verified.payloadHash,
+      publicId: verified.publicId,
+      purchaseSenderAddress: verified.purchaseSenderAddress,
+      reasonCode: verified.reasonCode,
+      signatureStatus: 'verified',
+      workflowState: verified.workflowState,
+    })
+  }
+  return views
 }
 
 export async function submitClaimProof(

@@ -21,6 +21,7 @@ import {
 import {
   createClaimChallenge,
   getClaim,
+  listPassportClaims,
   renewClaimAuthorization,
   submitClaimAuthorization,
   submitClaimProof,
@@ -2702,6 +2703,10 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
       await expect(listMerchantClaims(runtime, draft.merchantPublicId)).resolves.toMatchObject([{
         claim: { authorizationMode: 'purchase_key', publicId: keyClaim.publicId },
       }])
+      // Only signed, accepted claims appear in the public Passport history.
+      await expect(listPassportClaims(runtime, passportPublicId)).resolves.toMatchObject([
+        { authorization: { mode: 'purchase_key' }, publicId: keyClaim.publicId },
+      ])
 
       // The database refuses a purchase-key authority borrowed from another order.
       const otherOrder = await createPurchaseOrder(runtime, {

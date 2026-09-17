@@ -246,6 +246,22 @@ export function recheckTransaction(orderPublicId: string): Promise<PurchaseOrder
   })
 }
 
+export async function getFeaturedExample(): Promise<string | null> {
+  const response = await fetch(`${baseUrl}/api/v1/featured-example`, { headers: { accept: 'application/json' } })
+  if (response.status === 404) return null
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    throw new PurchaseApiError('INVALID_API_RESPONSE', 'NimReturn returned an unreadable example reference.', response.status)
+  }
+  const parsed = z.object({ passportPublicId: publicTokenSchema }).strict().safeParse(body)
+  if (!response.ok || !parsed.success) {
+    throw new PurchaseApiError('INVALID_API_RESPONSE', 'NimReturn returned an invalid example reference.', response.status)
+  }
+  return parsed.data.passportPublicId
+}
+
 export function getPassport(passportPublicId: string): Promise<PurchasePassport> {
   return requestJson(`/api/v1/passports/${publicTokenSchema.parse(passportPublicId)}`, purchasePassportSchema)
 }

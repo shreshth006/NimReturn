@@ -9,8 +9,10 @@ export type WalletErrorKind =
   | 'cancelled'
   | 'consensus-unavailable'
   | 'invalid-response'
+  | 'network-unverified'
   | 'provider-unavailable'
   | 'unknown'
+  | 'wrong-network'
 
 export class WalletOperationError extends Error {
   override readonly name = 'WalletOperationError'

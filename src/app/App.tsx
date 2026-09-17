@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 
+import { CompletedExampleLink, NetworkNotice } from '../features/judge/JudgeEntry.js'
+
 const PhaseZeroDiagnostics = lazy(async () => ({
   default: (await import('../features/diagnostics/PhaseZeroDiagnostics.js')).PhaseZeroDiagnostics,
 }))
@@ -35,6 +37,8 @@ export function App() {
           <span className="phase-badge">{publicLedger ? 'Phase 5 · Promise Ledger' : passportPublicId ? 'Phase 4 · Passport' : buyerJourney ? 'Phase 2 · Purchase' : diagnostics ? 'Phase 0 · Diagnostics' : 'Phase 5 · Merchant'}</span>
         </nav>
       </header>
+      <NetworkNotice />
+      {!diagnostics && !publicLedger && !passportPublicId && <CompletedExampleLink />}
 
       <Suspense fallback={<section className="buyer-loading" role="status">Loading the requested NimReturn proof surface…</section>}>
         {diagnostics ? (

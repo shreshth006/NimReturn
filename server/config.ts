@@ -8,8 +8,13 @@ const optionalUrl = z.preprocess(
 const configSchema = z.object({
   CORS_ORIGIN: optionalUrl,
   DATABASE_URL: optionalUrl,
+  // Public ID of a real, verified Passport shown as the completed example. Kept out of Git.
+  FEATURED_PASSPORT_ID: z.preprocess(
+    (value) => value === '' ? undefined : value,
+    z.string().regex(/^[A-Za-z0-9_-]{22}$/u).optional(),
+  ),
   HOST: z.string().min(1).default('127.0.0.1'),
-  NIMIQ_NETWORK: z.string().min(1).default('TestAlbatross'),
+  NIMIQ_NETWORK: z.string().min(1).max(24).default('TestAlbatross'),
   NIMIQ_RPC_URL: optionalUrl,
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3001),

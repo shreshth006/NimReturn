@@ -65,6 +65,37 @@ const claimSchema = z.object({
   workflowState: claimWorkflowSchema,
 }).strict()
 
+const publicPassportClaimSchema = z.object({
+  authorization: z.object({
+    mode: z.enum(['delegated', 'purchase_key', 'self']),
+    status: z.literal('verified'),
+  }).strict(),
+  claimSignerAddress: addressSchema,
+  claimTime: isoDateSchema,
+  claimType: z.enum(['RETURN', 'WARRANTY']),
+  eligibility: z.object({
+    deadlineMs: z.number().int().safe().nonnegative().nullable(),
+    eligible: z.boolean(),
+    evaluatedAtMs: z.number().int().safe().nonnegative(),
+    evaluatorVersion: z.string().min(1).max(40),
+    rules: z.object({
+      authorizationVerified: z.literal(true),
+      chronologyValid: z.boolean(),
+      passportActive: z.boolean(),
+      purchaseVerified: z.boolean(),
+      withinInclusiveDeadline: z.boolean(),
+      windowAvailable: z.boolean(),
+    }).strict(),
+    selectedWindowSeconds: z.number().int().safe().nonnegative(),
+  }).strict(),
+  payloadHash: hashSchema,
+  publicId: publicTokenSchema,
+  purchaseSenderAddress: addressSchema,
+  reasonCode: z.enum(['CHANGED_MIND', 'DEFECTIVE', 'NOT_AS_DESCRIBED', 'OTHER']),
+  signatureStatus: z.literal('verified'),
+  workflowState: z.enum(['approved', 'decision_pending', 'eligible', 'ineligible', 'rejected']),
+}).strict()
+
 const resolutionSchema = z.object({
   approvedRefundLuna: z.number().int().safe().nonnegative(),
   canonicalMessage: z.string().min(1),
@@ -106,6 +137,7 @@ const queueItemSchema = z.object({
 }).strict()
 
 export type Claim = z.infer<typeof claimSchema>
+export type PublicPassportClaim = z.infer<typeof publicPassportClaimSchema>
 export type ClaimResolution = z.infer<typeof resolutionSchema>
 export type MerchantClaimQueueItem = z.infer<typeof queueItemSchema>
 
@@ -164,6 +196,13 @@ export function createClaim(input: {
       method: 'POST',
     },
   )
+}
+
+export function listPassportClaims(passportPublicId: string): Promise<PublicPassportClaim[]> {
+  return requestJson(
+    `/api/v1/passports/${publicTokenSchema.parse(passportPublicId)}/claims`,
+    z.object({ claims: z.array(publicPassportClaimSchema).max(20) }).strict(),
+  ).then((body) => body.claims)
 }
 
 export function getClaim(claimPublicId: string): Promise<Claim> {

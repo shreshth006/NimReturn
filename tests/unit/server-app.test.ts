@@ -682,4 +682,74 @@ describe('server app', () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ publicId: PASSPORT_PUBLIC_ID, status: 'active' })
   })
+
+  it('reports the verified network label and head without exposing RPC details', async () => {
+    const offline = await buildApp(config, {})
+    apps.push(offline)
+    const noRpc = await offline.inject({ method: 'GET', url: '/api/v1/network' })
+    expect(noRpc.statusCode).toBe(200)
+    expect(noRpc.headers['cache-control']).toBe('no-store')
+    expect(noRpc.json()).toEqual({ expectedNetwork: 'TestAlbatross', headBlockNumber: null, label: 'Nimiq Testnet' })
+
+    let reads = 0
+    const app = await buildApp(config, {
+      rpc: {
+        getHead: () => { reads += 1; return Promise.resolve({ blockNumber: 11_600_000, network: 'TestAlbatross' }) },
+      } as never,
+    })
+    apps.push(app)
+    expect((await app.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: 11_600_000 })
+    await app.inject({ method: 'GET', url: '/api/v1/network' })
+    expect(reads).toBe(1)
+
+    const wrong = await buildApp(config, {
+      rpc: { getHead: () => Promise.resolve({ blockNumber: 60_000_000, network: 'MainAlbatross' }) } as never,
+    })
+    apps.push(wrong)
+    expect((await wrong.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: null })
+  })
+
+  it('offers a featured example only when the configured Passport re-verifies', async () => {
+    const unconfigured = await buildApp(config, { database: {} as postgres.Sql })
+    apps.push(unconfigured)
+    expect((await unconfigured.inject({ method: 'GET', url: '/api/v1/featured-example' })).statusCode).toBe(404)
+
+    const featured = { ...config, FEATURED_PASSPORT_ID: PASSPORT_PUBLIC_ID }
+    const verified = await buildApp(featured, {
+      database: {} as postgres.Sql,
+      readPassport: (_database, publicId) => Promise.resolve({ publicId, status: 'refunded' } as never),
+    })
+    apps.push(verified)
+    const ok = await verified.inject({ method: 'GET', url: '/api/v1/featured-example' })
+    expect(ok.statusCode).toBe(200)
+    expect(ok.json()).toEqual({ passportPublicId: PASSPORT_PUBLIC_ID })
+
+    for (const readPassport of [
+      () => Promise.reject(new Error('evidence integrity failure')),
+      () => Promise.resolve(null),
+      () => Promise.resolve({ publicId: PASSPORT_PUBLIC_ID, status: 'active' } as never),
+      () => Promise.resolve({ publicId: PASSPORT_PUBLIC_ID, status: 'verification_exception' } as never),
+    ]) {
+      const app = await buildApp(featured, { database: {} as postgres.Sql, readPassport })
+      apps.push(app)
+      const response = await app.inject({ method: 'GET', url: '/api/v1/featured-example' })
+      expect(response.statusCode).toBe(404)
+      expect(response.json()).toMatchObject({ code: 'EXAMPLE_UNAVAILABLE' })
+    }
+  })
+
+  it('lists a Passport claim history through its strict public identifier', async () => {
+    const requested: unknown[] = []
+    const app = await buildApp(config, {
+      database: {} as postgres.Sql,
+      readPassportClaims: (_database, publicId) => { requested.push(publicId); return Promise.resolve([]) },
+    })
+    apps.push(app)
+    expect((await app.inject({ method: 'GET', url: '/api/v1/passports/not-valid/claims' })).statusCode).toBe(400)
+    const response = await app.inject({ method: 'GET', url: `/api/v1/passports/${PASSPORT_PUBLIC_ID}/claims` })
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.json()).toEqual({ claims: [] })
+    expect(requested).toEqual([PASSPORT_PUBLIC_ID])
+  })
 })

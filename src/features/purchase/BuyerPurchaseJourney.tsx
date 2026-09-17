@@ -1,6 +1,8 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
 
+import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+
 import { getPublicProduct, type PublicVerifiedProduct } from '../../lib/api/merchant.js'
 import {
   attachTransaction,
@@ -16,10 +18,8 @@ import {
   submitClaimKey,
 } from '../../lib/api/purchase.js'
 import {
-  assertWalletConsensusForPayment,
   initializeNimiqProvider,
   normalizeWalletError,
-  readProviderNetwork,
   requestSignature,
   sendTransactionWithData,
 } from '../../lib/nimiq/provider.js'
@@ -29,6 +29,7 @@ import {
   savePurchaseSession,
 } from './purchase-session.js'
 import { BuyerClaimJourney } from '../claims/BuyerClaimJourney.js'
+import { PassportLifecycle } from './PassportLifecycle.js'
 import { buildClaimProof } from '../claims/claim-proof.js'
 
 type BusyAction = 'binding' | 'loading' | 'paying' | 'preparing' | 'verifying' | null
@@ -188,6 +189,7 @@ export function BuyerPurchaseJourney({
     try {
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletResult = await requestSignature(activeProvider, claimKey.canonicalMessage)
       const { proof, signerAddress } = buildClaimProof(claimKey.canonicalMessage, walletResult)
       const next = await submitClaimKey(order.publicId, claimKey.nonce, proof)
@@ -217,8 +219,7 @@ export function BuyerPurchaseJourney({
 
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
-      const network = await readProviderNetwork(activeProvider)
-      assertWalletConsensusForPayment(network)
+      const network = await assertWalletOnExpectedNetwork(activeProvider)
       currentOrder = await recordWalletState(currentOrder.publicId, 'wallet-request-started')
       setOrder(currentOrder)
       setNotice({
@@ -325,7 +326,8 @@ export function BuyerPurchaseJourney({
           onReconcile={() => void reconcilePassport()}
           passport={passport}
         />
-        {passport.status !== 'verification_exception' && <BuyerClaimJourney passport={passport} />}
+        {passport.status !== 'verification_exception' && <PassportLifecycle key={passport.publicId} passportPublicId={passport.publicId} />}
+        {passport.status === 'active' && <BuyerClaimJourney passport={passport} />}
       </>
     )
   }

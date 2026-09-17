@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   attachTransaction,
   createOrder,
+  getFeaturedExample,
   getPassport,
   PurchaseApiError,
   submitClaimKey,
@@ -130,5 +131,20 @@ describe('purchase API client', () => {
     }), { status: 200 })))
 
     await expect(getPassport(PASSPORT_ID)).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
+  })
+
+  it('accepts only a strict public identifier for the server-reverified example', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID }), { status: 200 }),
+    ))
+    await expect(getFeaturedExample()).resolves.toBe(PASSPORT_ID)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, trusted: true }), { status: 200 }),
+    ))
+    await expect(getFeaturedExample()).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })))
+    await expect(getFeaturedExample()).resolves.toBeNull()
   })
 })

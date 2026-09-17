@@ -1,6 +1,8 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
 
+import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+
 import {
   authorizeClaim,
   ClaimApiError,
@@ -114,6 +116,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
     try {
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletResult = await requestSignature(activeProvider, claim.challenge.canonicalMessage)
       const { proof, signerAddress } = buildClaimProof(claim.challenge.canonicalMessage, walletResult)
       const next = await submitClaim(claim.publicId, proof)
@@ -147,6 +150,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
     try {
       const activeProvider = provider ?? await initializeNimiqProvider()
       setProvider(activeProvider)
+      await assertWalletOnExpectedNetwork(activeProvider)
       const walletResult = await requestSignature(activeProvider, authorization.canonicalMessage)
       const { proof, signerAddress } = buildClaimProof(authorization.canonicalMessage, walletResult)
       if (signerAddress !== authorization.requiredSignerAddress) {

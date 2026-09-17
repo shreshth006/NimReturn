@@ -5,6 +5,7 @@ import {
   getClaim,
   getMerchantClaims,
   getMerchantResolution,
+  listPassportClaims,
   requestResolution,
 } from '../../src/lib/api/claims.js'
 
@@ -129,5 +130,49 @@ describe('claims API client', () => {
       expect.stringMatching(new RegExp(`/api/v1/merchants/${MERCHANT_ID}/claims/${CLAIM_ID}/resolution$`, 'u')),
       expect.objectContaining({ credentials: 'include' }),
     )
+  })
+
+  it('strictly parses the public verified claim history for one Passport', async () => {
+    const accepted = {
+      authorization: {
+        mode: 'purchase_key',
+        status: 'verified',
+      },
+      claimSignerAddress: ADDRESS,
+      claimTime: '2026-09-17T00:00:00.000Z',
+      claimType: 'RETURN',
+      eligibility: {
+        deadlineMs: 1_800_000_000_000,
+        eligible: true,
+        evaluatedAtMs: 1_700_000_000_000,
+        evaluatorVersion: 'claim-eligibility-v1',
+        rules: {
+          authorizationVerified: true,
+          chronologyValid: true,
+          passportActive: true,
+          purchaseVerified: true,
+          windowAvailable: true,
+          withinInclusiveDeadline: true,
+        },
+        selectedWindowSeconds: 86_400,
+      },
+      payloadHash: 'a'.repeat(64),
+      publicId: CLAIM_ID,
+      purchaseSenderAddress: ADDRESS,
+      reasonCode: 'CHANGED_MIND',
+      signatureStatus: 'verified',
+      workflowState: 'eligible',
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ claims: [accepted] }), { status: 200 }),
+    ))
+    await expect(listPassportClaims(PASSPORT_ID)).resolves.toMatchObject([
+      { authorization: { mode: 'purchase_key' }, publicId: CLAIM_ID },
+    ])
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ claims: [{ ...accepted, note: 'not in public projection' }] }), { status: 200 }),
+    ))
+    await expect(listPassportClaims(PASSPORT_ID)).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
   })
 })

@@ -507,3 +507,18 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+.network-notice { margin: 12px 0 0; padding: 10px 14px; border: 1px solid #d9c98f; border-radius: 10px; background: #fbf4dc; color: #4d3f12; font-size: 0.84rem; line-height: 1.5; }
+.example-link { display: grid; gap: 4px; margin: 16px 0 0; padding: 16px 18px; border: 1px solid #9dcbb0; border-radius: 14px; background: var(--green-soft); color: var(--ink); text-decoration: none; }
+.example-link span { color: var(--green); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.example-link strong { font-size: 1.1rem; }
+.example-link small { color: #45504d; font-size: 0.8rem; line-height: 1.45; }
+.passport-lifecycle { margin-top: 28px; padding: clamp(18px, 4vw, 28px); border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.passport-lifecycle h2 { margin: 4px 0 16px; }
+.passport-lifecycle ol { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.passport-lifecycle li { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.lifecycle-step { display: grid; gap: 2px; }
+.lifecycle-step span { color: #3f4d49; font-size: 0.9rem; }
+.passport-lifecycle .evidence-details dl { display: grid; gap: 8px; margin: 0; padding: 12px; border-top: 1px solid var(--line); }
+.passport-lifecycle .evidence-details dd { margin: 0; overflow-wrap: anywhere; font-size: 0.78rem; }
+.lifecycle-note { margin-top: 20px; color: #6f2b27; }
