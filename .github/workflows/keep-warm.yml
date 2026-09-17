@@ -28,10 +28,10 @@ jobs:
           URL: https://nimreturn-staging-cycle2.onrender.com/health
         run: |
           for attempt in 1 2 3; do
-            read -r code total < <(
-              curl -sS -o /tmp/health.json -w '%{http_code} %{time_starttransfer}' \
-                --max-time 120 "$URL" || echo "000 0"
-            )
+            result=$(curl -sS -o /tmp/health.json -w '%{http_code} %{time_starttransfer}' \
+              --max-time 120 "$URL" || echo '000 0')
+            code=${result%% *}
+            total=${result##* }
             echo "attempt $attempt: HTTP $code in ${total}s"
             if [ "$code" = "200" ]; then
               cat /tmp/health.json
