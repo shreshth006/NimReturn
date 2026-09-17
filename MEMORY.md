@@ -10,7 +10,7 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 Phases 0 and 1 are 100% complete. Phase 2 is 95%, Phase 3 is 95%, Phase 4 is 93%, and Phase 5 is 90% experimental/code-complete at its external-validation boundary. The project lead explicitly reported the complete Android purchase → claim → signed approval → independently verified refund lifecycle PASS on 2026-09-17 after D-035/D-036. Remaining named reload, refund-cancellation, mobile/accessibility, Promise Ledger, first-minute, and operations results stay open until separately performed and reported. Phase 6 is not started or authorized.
 
-On 2026-09-17, stale judge-facing Promise Ledger copy from the pre-D-035/D-036 refund model was corrected. It now explains that current purchases refund the purchase-bound claim key and record the observed sender, while legacy purchases retain their purchaser/settlement authorization path. No protocol behavior, physical result, or phase percentage changed.
+On 2026-09-17, stale judge-facing Promise Ledger copy and current protocol/submission summaries from the pre-D-035/D-036 model were corrected. They now explain that current purchases use the purchase-bound claim key for claims/refunds and record the observed refund sender, while legacy purchases retain their purchaser/settlement authorization path. Historical decision records remain unchanged. No protocol behavior, physical result, or phase percentage changed.
 
 # What is complete
 

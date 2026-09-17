@@ -4,7 +4,7 @@
 
 Protocol family: `NR1`.
 
-This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, and D-020 enables the NR1 policy writer while its actual-device exit remains open. D-022 restores all unconfirmed device-gated items to open/pending; D-023 batches Phase 0–2 physical checks for a later device session. D-025 closes the D-018 design gate with an exact-claim authorization proof and permits Phase 3 implementation without claiming any physical result. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
+This specification defines the MVP wire evidence. Phase 0 confirmed the exact Nimiq Pay signed-message transport, D-017 froze the policy identity shape, D-025 defined legacy exact-claim authorization, D-035 added a pre-payment purchase claim key for wallets whose signing key differs from the chain sender, and D-036 made that key the refund destination while retaining the original rule for legacy purchases. Any writer change requires a new entry in `DECISIONS.md`, new fixtures, and either a backwards-compatible reader or a new protocol version.
 
 ## Goals and exclusions
 
@@ -22,7 +22,7 @@ NR1 binds signed commercial assertions to direct NIM transactions and prevents s
 ## Merchant identity roles
 
 - **Policy signer:** the address cryptographically derived from the proof public key. A new merchant's first valid policy proof atomically establishes this immutable MVP identity; later policy and resolution proofs must derive to it.
-- **Settlement address:** the canonical recipient embedded in every policy payload. Purchases for that policy pay this address, and NR1 refunds for those purchases are verified as originating from it.
+- **Settlement address:** the canonical recipient embedded in every policy payload. Purchases for that policy pay this address. It remains the required refund sender only for legacy purchases without a verified pre-payment claim key.
 
 These roles may use the same address or different addresses. `listAccounts()` and client-selected expectations establish neither role. A changed settlement address requires a new signed policy version; changing the policy signer requires a future explicit wallet-migration protocol. Public merchant/product IDs cannot initiate first-signer establishment by themselves: policy bootstrap also requires an unpredictable, expiring, server-bound session capability, consumed atomically with the challenge and signer compare-and-set.
 
@@ -36,7 +36,7 @@ Every payload includes `protocol: "NR1"` and a fixed `type`. The bytes presented
 NIMRETURN/1/<TYPE>\n<CANONICAL_JSON>
 ```
 
-`<TYPE>` is exactly `POLICY`, `CLAIM`, `CLAIM_AUTHORIZATION`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The exact same string is passed to Nimiq Pay `sign()`, displayed for approval, and stored as `canonical_message`. Nimiq Pay's cryptographic signed-message convention UTF-8 encodes that string, prefixes it with `\x16Nimiq Signed Message:\n` plus the base-10 UTF-8 byte length, hashes the resulting bytes with SHA-256, and signs that 32-byte digest with Ed25519. The length is the message byte length, not its JavaScript character count.
+`<TYPE>` is exactly `POLICY`, `PURCHASE_CLAIM_KEY`, `CLAIM`, `CLAIM_AUTHORIZATION`, or `RESOLUTION`. ASCII LF (`0x0a`) is the sole separator and no trailing newline is added. The exact same string is passed to Nimiq Pay `sign()`, displayed for approval, and stored as `canonical_message`. Nimiq Pay's cryptographic signed-message convention UTF-8 encodes that string, prefixes it with `\x16Nimiq Signed Message:\n` plus the base-10 UTF-8 byte length, hashes the resulting bytes with SHA-256, and signs that 32-byte digest with Ed25519. The length is the message byte length, not its JavaScript character count.
 
 NR2 or a later version uses a new prefix and tag namespace. Readers retain NR1 verification indefinitely for historical passports. Writers produce only the current explicitly enabled version.
 
@@ -90,6 +90,28 @@ Policy proof envelope:
 }
 ```
 
+## Purchase claim key payload
+
+Before a current purchase may enter `wallet_request_started`, the buyer signs a claim authority bound to the exact unpaid order:
+
+```json
+{
+  "createdAt": 1789335400000,
+  "expiresAt": 1789336000000,
+  "network": "TestAlbatross",
+  "nonce": "K4dT2J7mP8qRwX5vN1cL9A",
+  "orderId": "Nv2eFQ1dKby8j1h4PV4-4g",
+  "paymentData": "NR1:P:Nv2eFQ1dKby8j1h4PV4-4g",
+  "policyPayloadHash": "<64 lower-case hex>",
+  "protocol": "NR1",
+  "recipient": "NQ...",
+  "type": "PURCHASE_CLAIM_KEY",
+  "valueLuna": 500000
+}
+```
+
+The domain is `NIMRETURN/1/PURCHASE_CLAIM_KEY`. The server binds network, recipient, value, payment tag, policy hash, order, timestamps, and nonce before wallet payment begins. It verifies exact bytes/hash/signature/address binding and stores the proof-derived signer as the order's immutable claim key. Nimiq Pay may later pay from a different chain account; that observed sender remains purchase evidence but does not replace the pre-payment claim authority. A key cannot be attached after payment begins or reused for another order.
+
 ## Claim payload
 
 ```json
@@ -109,13 +131,15 @@ Policy proof envelope:
 
 `claimType` is `RETURN` or `WARRANTY`. `reasonCode` is an allow-listed ASCII enum versioned in application code; it describes user selection and is not itself proof. `note` is 0–280 code points and at most 1,024 UTF-8 bytes. The server copies `purchaseSenderAddress` from independently verified purchase evidence; it is not a signer claim or client argument. The claim signer is separately derived from the proof public key.
 
-D-025 freezes this claim payload. The proof-derived claim signer is not accepted merely because it produced a valid claim signature. Authorization follows one of the two rules below.
+D-025 freezes this claim payload. The proof-derived claim signer is not accepted merely because it produced a valid claim signature. Authority follows the current purchase-key rule or one of the two retained legacy rules below.
 
 ## Claimant authorization
 
-For self-authorization, the verified claim proof's derived address must byte-equal the independently verified purchase sender. This is an observed cryptographic equality, not an assumption based on account disclosure or UI selection. The claim can be accepted and evaluated atomically without a second proof.
+For a D-035 purchase, the verified claim proof's derived address must byte-equal the order's immutable pre-payment purchase claim key. The server accepts and evaluates that claim without requiring or assuming equality with the independently observed chain sender.
 
-When the derived claim signer differs, the claim remains `authorization_pending`. The server issues this exact second challenge:
+For a legacy purchase without a claim key, self-authorization requires the verified claim proof's derived address to byte-equal the independently verified purchase sender. This is an observed cryptographic equality, not an assumption based on account disclosure or UI selection. The claim can be accepted and evaluated atomically without a second proof.
+
+When a legacy purchase's derived claim signer differs, the claim remains `authorization_pending`. The server issues this exact second challenge:
 
 ```json
 {
@@ -190,7 +214,7 @@ For every proof:
 7. SHA-256 that framed preimage, then require `publicKey.verify(signature, digest)` to be true.
 8. Derive the actual signer with `publicKey.toAddress()`. Compare its parsed address bytes to the server-bound signer when one is established. For a first-policy bootstrap only, atomically establish that derived address as the merchant policy signer; never use a client-selected account as the expected signer.
 9. Recompute BLAKE2b-256 over the unframed `messageBytes` and compare to stored `payload_hash`.
-10. Enforce the action-specific authority rule, then consume the nonce and create/transition the target resource atomically. A claim uses observed signer/sender equality or the D-025 exact-claim authorization proof; no other binding is accepted.
+10. Enforce the action-specific authority rule, then consume the nonce and create/transition the target resource atomically. A current claim uses its verified pre-payment purchase claim key; a legacy claim uses observed signer/sender equality or the D-025 exact-claim authorization proof. No other binding is accepted.
 
 No fallback tries framed and unframed messages. The SHA-256 signing digest and the NR1 BLAKE2b-256 payload hash have separate purposes and must never be substituted for one another.
 
@@ -218,8 +242,8 @@ After Passport creation, an explicit reconciliation re-fetches the same hash and
 An accepted refund requires all purchase checks adapted as follows:
 
 - claim has one valid APPROVED merchant resolution;
-- sender equals the purchase-bound signed policy `settlementAddress`;
-- recipient equals the original verified purchase sender, even if another wallet is currently viewing;
+- for a D-035 purchase, recipient equals its verified pre-payment purchase claim key and the observed sender is retained as evidence without being treated as merchant identity;
+- for a legacy purchase without that key, sender equals the purchase-bound signed policy `settlementAddress` and recipient equals the original verified purchase sender;
 - value equals `approvedRefundLuna` and, for NR1 MVP, the full original price;
 - data equals `NR1:R:<claim-token>`;
 - hash is globally unused and state meets confirmation policy.

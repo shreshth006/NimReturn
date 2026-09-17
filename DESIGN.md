@@ -149,6 +149,6 @@ Buttons describe the wallet action: “Review and sign terms,” “Pay 5 NIM in
 
 35–48s: an authorized claimant signs a RETURN; the objective checklist yields “POLICY ELIGIBLE” with honest disclaimer. This scene is unavailable until the Phase 3 authorization gate closes.
 
-48–57s: the policy signer approves and the purchase-bound settlement address pays the original buyer; lifecycle distinguishes approval from verified refund.
+48–57s: the policy signer approves and the wallet refunds the verified pre-payment purchase claim key; lifecycle distinguishes the signed approval, observed transaction sender, and independently verified refund.
 
 57–60s: Promise Ledger summarizes factual verified behavior. The story should work without a blockchain explanation.

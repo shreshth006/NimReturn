@@ -17,7 +17,7 @@ Last updated: 2026-09-17 (IST)
 - Phase 6 — Real pilot: **0%**.
 - Phase 7 — Competition submission: **5%** (strategy/checklist drafted; no assets or submission).
 
-The public Promise Ledger explanation now matches D-035/D-036: current purchases refund the pre-payment claim key and record the observed sender, while legacy purchases retain their settlement-sender authorization rule. This copy correction changes no verification behavior or phase percentage.
+The public Promise Ledger explanation and current protocol/submission documentation now match D-035/D-036: current purchases use the pre-payment claim key for claims and refunds and record the observed refund sender, while legacy purchases retain their settlement-sender/chain-buyer rule. These documentation corrections change no verification behavior or phase percentage.
 
 Percentages are planning estimates, not earned rubric points.
 

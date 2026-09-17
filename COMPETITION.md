@@ -137,7 +137,7 @@ Use a pre-prepared low-risk merchant/product and current deployed release:
 3. Buyer pays merchant directly; show sent→verifying→passport only after chain check.
 4. Passport shows payment, signed policy, deadlines, and expandable evidence.
 5. Buyer signs RETURN; checklist shows original buyer, verified purchase, active window, verified policy → POLICY ELIGIBLE.
-6. Merchant signs approval and sends 5 NIM to original buyer.
+6. Merchant signs approval and sends the exact refund to the verified pre-payment purchase claim key; NimReturn records the observed sender and independently verifies the transaction.
 7. Show approval distinct from refund pending, then refund verified.
 8. End on factual Promise Ledger and one-sentence limitation.
 

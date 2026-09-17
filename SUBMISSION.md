@@ -63,17 +63,7 @@ This checklist is operational, not permanent truth. Recheck live pages and the a
 
 ## Candidate ≤250-word description
 
-> Crypto payments are final, but the promises around a purchase should not disappear. NimReturn is the consumer-protection layer for Nimiq Pay: it turns a direct NIM merchant payment into a verifiable Purchase Passport.
->
-> Before checkout, the merchant signs the exact product price, return window, warranty terms, and settlement address with their Nimiq wallet. The buyer then pays that address directly in NIM—NimReturn never holds funds or private keys. We independently verify the transaction's sender, recipient, Luna amount, order reference, network, and status before creating the Passport.
->
-> A signed RETURN or WARRANTY claim is accepted only through the buyer-authorization protocol finalized in Phase 3. NimReturn checks objective eligibility against the policy version locked at purchase. The merchant policy signer approves or rejects; an approved refund goes directly from the purchase-bound settlement address to the original buyer and is complete only after on-chain verification.
->
-> A factual Promise Ledger derives verified purchase, claim, resolution, and refund activity without arbitrary reviews or an opaque trust score.
->
-> NimReturn cannot reverse transactions or force a merchant to refund. It makes the promise, the payment, the decision, and the refund inspectable—using Nimiq Pay as the identity, signing, and payment layer throughout.
-
-Word count must be rechecked after any edit and against the live portal.
+Use the current 238-word candidate in [`docs/submission-drafts.md`](./docs/submission-drafts.md). It reflects the deployed D-035/D-036 purchase-key claim and refund flow. Recheck its word count and the authenticated portal schema immediately before submission; do not revive older settlement-sender/original-buyer copy.
 
 ## Final ten-minute audit
 

@@ -57,8 +57,8 @@ Use one merchant signer, one intentionally distinct settlement account, and one 
 1. Phase 0 is complete: T-001, T-002, and T-020 passed on Android by explicit project-lead reports on 2026-09-16; do not repeat them unless a regression appears.
 2. Merchant v1: sign/publish v1, change one term, publish v2, and confirm v1 remains immutable.
 3. Purchase: make one new tiny buyer payment, verify exact recipient/value/tag, wait for macro finality, and confirm one independently verified Passport. Reload once before finality to prove safe recovery. T-020 cancellation is already complete and need not be repeated.
-4. Claims: file one self-signed claim. On a second Passport, sign with a different claim key and then complete the exact authorization with the chain-derived buyer. Treat inability to route the buyer signer as FAIL.
-5. Decision/refund: sign approval with the policy signer, cancel one refund, then pay from the policy-bound settlement account to the original buyer. Treat inability to route that sender or any mismatched observed sender as FAIL. Wait for independent macro finality.
+4. Claims: file a claim with the verified pre-payment purchase claim key and confirm the claim is policy eligible. Legacy exact-claim delegation remains a separate compatibility path and must not be presented as the authority for a D-035 purchase.
+5. Decision/refund: sign approval with the policy signer, cancel one refund, then pay the exact expected amount/tag to the purchase claim key. Record the observed sender as evidence; do not require it to equal the policy settlement address. Wait for independent macro finality. A legacy fixture retains the original settlement-sender/chain-buyer rule.
 6. Promise Ledger: reconcile every count to those records, confirm approved/pending becomes verified exactly once, and verify all signer/sender roles remain distinct.
 7. Reload the key pages; inspect 320/375/430 px plus 200% text; use keyboard/screen reader/reduced motion; then run the 60-second story with five unbriefed observers.
 

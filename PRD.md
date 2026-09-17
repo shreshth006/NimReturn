@@ -92,7 +92,7 @@ The policy signer and settlement address may be equal or different. The signed p
 2. UI shows the relevant deadline and whether it appears open, without declaring final eligibility before verification.
 3. Server creates claim ID and nonce, and returns the canonical payload.
 4. Claimant signs it in Nimiq Pay.
-5. Server derives the claim signer, verifies the Phase 3 authorization binding it to the purchase sender, then checks payload, order/passport state, nonce, uniqueness, and eligibility.
+5. Server derives the claim signer and verifies authority through the purchase-bound claim key for current purchases, or through the applicable legacy purchase-sender equality/exact-claim proof path, then checks payload, order/passport state, nonce, uniqueness, and eligibility.
 6. Eligibility is stored as a reproducible result with rule outputs and evaluation time.
 7. Merchant queue receives the claim; reloads do not duplicate it.
 
@@ -102,8 +102,8 @@ The policy signer and settlement address may be equal or different. The signed p
 2. Merchant selects APPROVE or REJECT and a reason; server provides a canonical resolution payload.
 3. Merchant signs. Server requires the proof-derived signer to match the merchant's established policy signer and ensures the claim has no prior final resolution.
 4. Approval records an expected refund amount but remains distinct from payment.
-5. Merchant initiates a direct NIM transaction from the purchase-bound settlement address to the original buyer using a compact refund tag.
-6. Server independently verifies transaction sender, recipient, exact Luna value, data, network, state, and unique hash.
+5. Merchant initiates a direct NIM transaction to the pre-payment purchase claim key using a compact refund tag. Legacy purchases without a claim key retain the original settlement-sender/chain-buyer rule.
+6. Server independently verifies the applicable D-036 sender/recipient rule, exact Luna value, data, network, state, and unique hash. For claim-key purchases, the observed sender is evidence and is not treated as merchant identity.
 7. Only successfully executed, macro-final matching evidence changes the lifecycle to refunded.
 
 ## Functional requirements
@@ -137,15 +137,15 @@ Requirement IDs are stable. Tests should refer to them where useful.
 
 - **FR-020:** Only RETURN and WARRANTY are accepted MVP claim types.
 - **FR-021:** Claim reason shall be a bounded code; note is optional, normalized, and length-limited.
-- **FR-022:** A candidate claim shall include a server-issued unique nonce and the server-copied purchase sender, and its proof signer shall be derived from the returned public key.
-- **FR-023:** Before claim writes are enabled, Phase 3 shall specify and implement a signed, replay-resistant authorization binding the derived claim signer to the purchase sender. Verification shall reject missing/invalid authorization, altered payload, replayed nonce, prohibited duplicate active claim, or invalid order; direct signer/sender equality is not assumed.
+- **FR-022:** A candidate claim shall include a server-issued unique nonce and server-copied purchase evidence, and its proof signer shall be derived from the returned public key.
+- **FR-023:** Claim authority shall be replay-resistant and purchase-bound: current purchases use the verified key signed over the exact unpaid order before payment; legacy purchases use observed signer/sender equality or an exact-claim proof from the purchase sender. Verification shall reject missing/invalid authority, altered payload, replayed nonce, prohibited duplicate active claim, or invalid order; signer/sender equality is never inferred.
 - **FR-024:** Eligibility shall be deterministic from verified purchase time, signed window, claim timestamp/evaluation policy, and claim type.
 - **FR-025:** Boundary behavior is inclusive: a claim at its exact deadline is eligible; one millisecond later is not.
 - **FR-026:** The UI shall label the result “policy eligible” or “policy ineligible” and explain it is not a guaranteed remedy.
 - **FR-027:** A merchant resolution shall require a valid signature from the established policy signer and shall be final for MVP.
 - **FR-028:** Repeated resolution requests shall be idempotent; conflicting second decisions shall fail.
 - **FR-029:** Refund approval and refund payment shall be separate states.
-- **FR-030:** A refund shall be verified independently for network, state, purchase-bound settlement sender, original buyer recipient, exact amount, correct tag, and unique hash.
+- **FR-030:** A refund shall be verified independently for network, state, the applicable D-036 sender/recipient rule, exact amount, correct tag, execution, finality, and unique hash. Current claim-key purchases require that key as recipient and record the observed sender; legacy purchases require the purchase-bound settlement sender and original chain buyer recipient.
 - **FR-031:** A rejected or unresolved claim shall remain historically visible.
 
 ### Promise Ledger and instrumentation
