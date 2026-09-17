@@ -1,0 +1,45 @@
+name: Keep staging warm
+
+# The free Render plan puts the service to sleep after about 15 minutes of
+# inactivity, and waking it costs a visitor roughly 25 seconds plus Render's
+# spin-up interstitial. Judges and first-time users should never meet that, so
+# this pings the health endpoint often enough that the instance stays up.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping /health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the service and report how long it took
+        env:
+          URL: https://nimreturn-staging-cycle2.onrender.com/health
+        run: |
+          for attempt in 1 2 3; do
+            read -r code total < <(
+              curl -sS -o /tmp/health.json -w '%{http_code} %{time_starttransfer}' \
+                --max-time 120 "$URL" || echo "000 0"
+            )
+            echo "attempt $attempt: HTTP $code in ${total}s"
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              echo
+              awk -v t="$total" 'BEGIN { if (t > 5) print "::warning::Service was asleep (" t "s to first byte)" }'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Health check failed three times"
+          exit 1
