@@ -1,5 +1,6 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 
 import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
 
@@ -239,15 +240,23 @@ export function MerchantRefundJourney({
       {busy === 'load' && !attempt && <div className="empty-queue" role="status" aria-live="polite" aria-busy="true"><strong>Loading refund evidence…</strong><span>Approval remains separate from verified payment while this read completes.</span></div>}
 
       {attempt && (
-        <dl className="refund-expectation">
-          <div><dt>{usesClaimKey ? 'Signed settlement address · sender recorded, not required' : 'Required chain sender'}</dt><dd><code>{attempt.expectedPayment.sender}</code></dd></div>
-          <div><dt>{usesClaimKey ? 'Recipient · purchase claim key' : 'Original buyer recipient'}</dt><dd><code>{attempt.expectedPayment.recipient}</code></dd></div>
-          <div><dt>Exact amount</dt><dd>{formatNim(attempt.expectedPayment.valueLuna)} NIM <small>{attempt.expectedPayment.valueLuna.toLocaleString()} Luna</small></dd></div>
-          <div><dt>Exact data</dt><dd><code>{attempt.expectedPayment.data}</code></dd></div>
-          <div><dt>Attempt state</dt><dd>{attempt.state.replaceAll('_', ' ')}</dd></div>
-          <div><dt>Sender selection</dt><dd>{usesClaimKey ? 'Wallet-controlled · recorded as evidence' : 'Wallet-controlled · independently checked'}</dd></div>
-          {attempt.outcome.ruledOutAt && <div><dt>Previous request</dt><dd>Ruled out at block {attempt.outcome.ruledOutHeight?.toLocaleString()}</dd></div>}
-        </dl>
+        <>
+          <dl className="refund-expectation">
+            <div><dt>{usesClaimKey ? 'Recipient · purchase claim key' : 'Original buyer recipient'}</dt><dd><code>{short(attempt.expectedPayment.recipient)}</code></dd></div>
+            <div><dt>Exact amount</dt><dd>{formatNim(attempt.expectedPayment.valueLuna)} NIM</dd></div>
+            <div><dt>Attempt state</dt><dd>{attempt.state.replaceAll('_', ' ')}</dd></div>
+            {attempt.outcome.ruledOutAt && <div><dt>Previous request</dt><dd>Ruled out at block {attempt.outcome.ruledOutHeight?.toLocaleString()}</dd></div>}
+          </dl>
+          <ProofDisclosure>
+            <dl className="refund-expectation">
+              <div><dt>{usesClaimKey ? 'Signed settlement address · sender recorded, not required' : 'Required chain sender'}</dt><dd><code>{attempt.expectedPayment.sender}</code></dd></div>
+              <div><dt>Recipient</dt><dd><code>{attempt.expectedPayment.recipient}</code></dd></div>
+              <div><dt>Exact amount</dt><dd>{attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div>
+              <div><dt>Exact data</dt><dd><code>{attempt.expectedPayment.data}</code></dd></div>
+              <div><dt>Sender selection</dt><dd>{usesClaimKey ? 'Wallet-controlled · recorded as evidence' : 'Wallet-controlled · independently checked'}</dd></div>
+            </dl>
+          </ProofDisclosure>
+        </>
       )}
 
       {ambiguous && <div className="ambiguity-lock"><strong>Do not send another refund.</strong><span>Check the chain for this refund. A matching transaction is recovered automatically; otherwise a new refund unlocks only after the original request can no longer be accepted{attempt.outcome.safeAfterHeight ? ` (block ${attempt.outcome.safeAfterHeight.toLocaleString()})` : ''}.</span></div>}
@@ -264,7 +273,8 @@ export function MerchantRefundJourney({
       {attempt?.transaction && (
         <div className={attempt.state === 'refunded' ? 'refund-receipt refund-receipt--verified' : 'refund-receipt'}>
           <p className="eyebrow">Independent chain evidence</p><strong>{attempt.state === 'refunded' ? 'Paid and macro-final' : attempt.transaction.reason}</strong>
-          <dl><div><dt>Hash</dt><dd><code>{attempt.transaction.hash}</code></dd></div><div><dt>Observed sender</dt><dd><code>{attempt.transaction.sender ?? 'Pending'}</code></dd></div><div><dt>Execution</dt><dd>{attempt.transaction.executionResult === null ? 'Pending' : String(attempt.transaction.executionResult)}</dd></div><div><dt>Finalizing macro</dt><dd>{attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></dl>
+          <dl><div><dt>Execution</dt><dd>{attempt.transaction.executionResult === null ? 'Pending' : attempt.transaction.executionResult ? 'Successful' : 'Failed'}</dd></div><div><dt>Finality</dt><dd>{attempt.state === 'refunded' ? 'Final on Nimiq' : 'Pending'}</dd></div></dl>
+          <ProofDisclosure><dl><div><dt>Hash</dt><dd><code>{attempt.transaction.hash}</code></dd></div><div><dt>Observed sender</dt><dd><code>{attempt.transaction.sender ?? 'Pending'}</code></dd></div><div><dt>Finalizing macro</dt><dd>{attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></dl></ProofDisclosure>
           {attempt.transaction.reconciliation && <p>{attempt.transaction.reconciliation.reason}</p>}
         </div>
       )}

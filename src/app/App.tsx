@@ -34,7 +34,7 @@ export function App() {
           <a className="utility-link" href={diagnostics || buyerJourney || publicLedger ? '/' : '/?diagnostics=1'}>
             {diagnostics || buyerJourney || publicLedger ? 'Merchant studio' : 'Diagnostics'}
           </a>
-          <span className="phase-badge">{publicLedger ? 'Phase 5 · Promise Ledger' : passportPublicId ? 'Phase 4 · Passport' : buyerJourney ? 'Phase 2 · Purchase' : diagnostics ? 'Phase 0 · Diagnostics' : 'Phase 5 · Merchant'}</span>
+          <span className="phase-badge">{publicLedger ? 'Promise Ledger' : passportPublicId ? 'Purchase Passport' : buyerJourney ? 'Protected purchase' : diagnostics ? 'Diagnostics' : 'Merchant studio'}</span>
         </nav>
       </header>
       <NetworkNotice />

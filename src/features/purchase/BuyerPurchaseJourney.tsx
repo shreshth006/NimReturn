@@ -30,6 +30,7 @@ import {
 } from './purchase-session.js'
 import { BuyerClaimJourney } from '../claims/BuyerClaimJourney.js'
 import { PassportLifecycle } from './PassportLifecycle.js'
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 import { buildClaimProof } from '../claims/claim-proof.js'
 
 type BusyAction = 'binding' | 'loading' | 'paying' | 'preparing' | 'verifying' | null
@@ -456,15 +457,23 @@ function purchaseExplanation(order: PurchaseOrder): string {
 
 function OrderEvidence({ order }: { order: PurchaseOrder }) {
   return (
-    <dl className="order-evidence">
-      <div><dt>Order</dt><dd><code>{order.publicId}</code></dd></div>
-      <div><dt>Policy frozen</dt><dd>v{order.policy.version} · <code>{short(order.policy.payloadHash)}</code></dd></div>
-      <div><dt>Recipient</dt><dd><code>{short(order.expectedPayment.recipient)}</code></dd></div>
-      {order.claimKey?.status === 'verified' && order.claimKey.signerAddress && <div><dt>Claim key</dt><dd><code>{short(order.claimKey.signerAddress)}</code></dd></div>}
-      <div><dt>NR1 data</dt><dd><code>{order.expectedPayment.data}</code></dd></div>
-      {order.transaction && <div><dt>Transaction</dt><dd><code>{short(order.transaction.hash)}</code></dd></div>}
-      {order.transaction && <div><dt>Observed</dt><dd>{order.transaction.observedState}</dd></div>}
-    </dl>
+    <>
+      <dl className="order-evidence">
+        <div><dt>Terms locked</dt><dd>Policy v{order.policy.version} · {formatNim(order.expectedPayment.valueLuna)} NIM</dd></div>
+        <div><dt>Purchase key</dt><dd>{order.claimKey?.status === 'verified' ? '✓ Signed' : 'Not signed yet'}</dd></div>
+        {order.transaction && <div><dt>Payment</dt><dd>{order.transaction.observedState}</dd></div>}
+      </dl>
+      <ProofDisclosure>
+        <dl className="order-evidence">
+          <div><dt>Order</dt><dd><code>{order.publicId}</code></dd></div>
+          <div><dt>Policy payload hash</dt><dd><code>{order.policy.payloadHash}</code></dd></div>
+          <div><dt>Recipient</dt><dd><code>{order.expectedPayment.recipient}</code></dd></div>
+          {order.claimKey?.status === 'verified' && order.claimKey.signerAddress && <div><dt>Claim key</dt><dd><code>{order.claimKey.signerAddress}</code></dd></div>}
+          <div><dt>NR1 data</dt><dd><code>{order.expectedPayment.data}</code></dd></div>
+          {order.transaction && <div><dt>Transaction</dt><dd><code>{order.transaction.hash}</code></dd></div>}
+        </dl>
+      </ProofDisclosure>
+    </>
   )
 }
 
@@ -493,20 +502,23 @@ function PassportPanel({
       <dl className="passport__facts">
         <PassportFact label="Product" value={passport.product.name} />
         <PassportFact label="Paid" value={`${formatNim(passport.payment.valueLuna)} NIM`} detail={`${passport.payment.valueLuna.toLocaleString()} Luna`} />
-        <PassportFact label="Buyer · chain sender" value={short(passport.payment.buyerAddress)} mono />
-        <PassportFact label="Claim key · signed before payment" value={passport.claimKeySignerAddress ? short(passport.claimKeySignerAddress) : 'Not bound · chain sender only'} mono={Boolean(passport.claimKeySignerAddress)} />
-        <PassportFact label="Merchant" value={passport.merchant.displayName} detail={short(passport.payment.recipient)} />
-        <PassportFact label="Policy at purchase" value={`v${passport.policy.version}`} detail={short(passport.policy.payloadHash)} />
+        <PassportFact label="Merchant" value={passport.merchant.displayName} detail="Signed these terms with their Nimiq wallet" />
+        <PassportFact label="Terms you bought under" value={`Policy v${passport.policy.version}`} detail="Later policy changes do not apply" />
         <PassportFact label="Return window" value={formatDuration(payload.returnWindowSeconds)} {...(passport.deadlines.return ? { detail: `Until ${formatDate(passport.deadlines.return)}` } : {})} />
         <PassportFact label="Warranty" value={formatDuration(payload.warrantyWindowSeconds)} {...(passport.deadlines.warranty ? { detail: `Until ${formatDate(passport.deadlines.warranty)}` } : {})} />
-        <PassportFact label="Finality" value={hasVerificationException ? 'Exception · recheck required' : 'Verified'} detail={`Macro ${passport.payment.finality.finalizingBlockNumber.toLocaleString()} · head ${passport.payment.finality.headBlockNumber.toLocaleString()}`} />
+        <PassportFact label="Payment" value={hasVerificationException ? 'Exception · recheck required' : 'Verified on Nimiq'} detail={`${formatDate(passport.payment.purchaseTime)} · final`} />
+        <PassportFact label="Claims" value={passport.claimKeySignerAddress ? 'Protected by your purchase key' : 'Protected by the paying account'} />
       </dl>
       <div className="passport__evidence">
         <div className="evidence-heading">
-          <div><span>Public chain receipt</span><h2>Independent evidence</h2></div>
+          <div><span>Public chain receipt</span><h2>Independently checked on Nimiq</h2></div>
           <button className="text-button" type="button" disabled={busy} onClick={onReconcile}>{busy ? 'Rechecking…' : 'Recheck on Nimiq'}</button>
         </div>
+        <ProofDisclosure>
         <dl>
+          <PassportFact label="Buyer · chain sender" value={passport.payment.buyerAddress} mono />
+          <PassportFact label="Claim key · signed before payment" value={passport.claimKeySignerAddress ?? 'Not bound · chain sender only'} mono={Boolean(passport.claimKeySignerAddress)} />
+          <PassportFact label="Finality" value={`Macro ${passport.payment.finality.finalizingBlockNumber.toLocaleString()}`} detail={`Head ${passport.payment.finality.headBlockNumber.toLocaleString()}`} />
           <PassportFact label="Transaction" value={passport.payment.transactionHash} mono />
           <PassportFact label="Purchase timestamp" value={formatDate(passport.payment.purchaseTime)} />
           <PassportFact label="Execution result" value="Successful · true" />
@@ -517,6 +529,7 @@ function PassportPanel({
           <PassportFact label="Confirmation rule" value={passport.payment.confirmationPolicy} mono />
           <PassportFact label="Latest reconciliation" value={passport.reconciliation.status} detail={passport.reconciliation.checkedAt ? formatDate(passport.reconciliation.checkedAt) : 'Original verification'} />
         </dl>
+        </ProofDisclosure>
       </div>
       <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance. <a href={`/?merchant=${passport.merchant.publicId}`}>View this merchant&apos;s factual Promise Ledger →</a></p>
     </section>

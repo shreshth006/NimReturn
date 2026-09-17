@@ -18,6 +18,7 @@ import { initializeNimiqProvider, normalizeWalletError, requestSignature } from 
 import type { PurchasePassport } from '../../lib/api/purchase.js'
 import { getRefund, RefundApiError, type Refund } from '../../lib/api/refunds.js'
 import { buildClaimProof } from './claim-proof.js'
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 import { clearClaimSession, loadClaimSession, saveClaimSession } from './claim-session.js'
 
 type Notice = { kind: 'error' | 'info' | 'success'; message: string }
@@ -211,7 +212,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
   return (
     <section className="claim-journey" aria-labelledby="claim-title">
       <div className="claim-journey__header">
-        <div><p className="eyebrow">Phase 3 · signed lifecycle</p><h2 id="claim-title">Use the policy attached to this payment.</h2></div>
+        <div><p className="eyebrow">If something goes wrong</p><h2 id="claim-title">Use the policy attached to this payment.</h2></div>
         {claim && <button className="text-button" type="button" disabled={busy !== null} onClick={() => void refresh()}>{busy === 'restore' ? 'Refreshing…' : 'Refresh status'}</button>}
       </div>
       <p className="claim-boundary">NimReturn evaluates the signed time window and records the merchant decision. It cannot prove condition or guarantee a refund.</p>
@@ -244,8 +245,7 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
               ? <>Accepted directly when signed by this purchase&apos;s claim key <code>{short(passport.claimKeySignerAddress)}</code> or the paying account <code>{short(claim.purchaseSenderAddress)}</code>.</>
               : <>Accepted directly when signed by the paying account <code>{short(claim.purchaseSenderAddress)}</code>. Another account needs a second approval from it.</>}
           </p>
-          <details className="evidence-details canonical-preview"><summary>Inspect exact claim bytes</summary><pre>{claim.challenge.canonicalMessage}</pre></details>
-          <div className="hash-callout"><span>Claim payload hash</span><code>{claim.payloadHash}</code></div>
+          <ProofDisclosure><dl><div><dt>Claim payload hash</dt><dd><code>{claim.payloadHash}</code></dd></div></dl><pre className="proof-message">{claim.challenge.canonicalMessage}</pre></ProofDisclosure>
           <button type="button" disabled={busy !== null} onClick={() => void sign()}>{busy === 'sign' ? 'Waiting for Nimiq Pay…' : 'Sign claim with Nimiq Pay'}</button>
         </div>
       )}
@@ -253,7 +253,8 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
       {claim?.workflowState === 'authorization_pending' && claim.authorization && (
         <div className="authorization-card">
           <p className="eyebrow">Second proof required</p><h3>Authorize this exact claim from the purchase wallet.</h3>
-          <dl><div><dt>Claim signer</dt><dd><code>{claim.claimSignerAddress}</code></dd></div><div><dt>Required purchaser</dt><dd><code>{claim.authorization.requiredSignerAddress}</code></dd></div><div><dt>Claim hash</dt><dd><code>{claim.payloadHash}</code></dd></div></dl>
+          <dl><div><dt>Approve with account</dt><dd><code>{short(claim.authorization.requiredSignerAddress)}</code></dd></div></dl>
+          <ProofDisclosure><dl><div><dt>Claim signer</dt><dd><code>{claim.claimSignerAddress}</code></dd></div><div><dt>Required purchaser</dt><dd><code>{claim.authorization.requiredSignerAddress}</code></dd></div><div><dt>Claim hash</dt><dd><code>{claim.payloadHash}</code></dd></div></dl></ProofDisclosure>
           <p>This grants no general account access. It binds only this immutable claim and signer. Switch Nimiq Pay to the required purchaser account before approving.</p>
           {authorizationExpired(claim)
             ? <button type="button" disabled={busy !== null} onClick={() => void renewAuthorization()}>{busy === 'renew' ? 'Preparing a fresh approval…' : 'Approval window ended · request a fresh one'}</button>
@@ -263,28 +264,31 @@ export function BuyerClaimJourney({ passport }: { passport: PurchasePassport }) 
 
       {claim?.eligibility && (
         <div className={claim.eligibility.eligible ? 'eligibility-card eligibility-card--yes' : 'eligibility-card eligibility-card--no'}>
-          <span>{claim.eligibility.eligible ? '✓' : '—'}</span><div><p className="eyebrow">Deterministic NR1 result</p><h3>Policy {claim.eligibility.eligible ? 'eligible' : 'ineligible'}</h3><p>{claim.eligibility.eligible ? 'The signed policy window includes this claim time. This does not guarantee a remedy.' : 'The signed policy rules do not include this claim time. Physical or legal rights are not inferred.'}</p></div>
-          <dl><div><dt>Authorization</dt><dd>{claim.authorization?.mode === 'self' ? 'Signer = chain purchaser' : claim.authorization?.mode === 'purchase_key' ? 'Signer = purchase claim key' : 'Purchase-sender delegation verified'}</dd></div><div><dt>Evaluator</dt><dd>{claim.eligibility.evaluatorVersion}</dd></div><div><dt>Inclusive deadline</dt><dd>{claim.eligibility.deadlineMs ? new Date(claim.eligibility.deadlineMs).toLocaleString() : 'Unavailable'}</dd></div><div><dt>Status</dt><dd>{claim.workflowState.replaceAll('_', ' ')}</dd></div></dl>
+          <span>{claim.eligibility.eligible ? '✓' : '—'}</span><div><p className="eyebrow">Checked against your original terms</p><h3>Policy {claim.eligibility.eligible ? 'eligible' : 'ineligible'}</h3><p>{claim.eligibility.eligible ? 'The signed policy window includes this claim time. This does not guarantee a remedy.' : 'The signed policy rules do not include this claim time. Physical or legal rights are not inferred.'}</p></div>
+          <dl><div><dt>Claim window ends</dt><dd>{claim.eligibility.deadlineMs ? new Date(claim.eligibility.deadlineMs).toLocaleString() : 'Unavailable'}</dd></div><div><dt>Status</dt><dd>{claim.workflowState.replaceAll('_', ' ')}</dd></div></dl>
+          <ProofDisclosure><dl><div><dt>Authorization</dt><dd>{claim.authorization?.mode === 'self' ? 'Signer = chain purchaser' : claim.authorization?.mode === 'purchase_key' ? 'Signer = purchase claim key' : 'Purchase-sender delegation verified'}</dd></div><div><dt>Evaluator</dt><dd>{claim.eligibility.evaluatorVersion}</dd></div><div><dt>Claim payload hash</dt><dd><code>{claim.payloadHash}</code></dd></div></dl></ProofDisclosure>
         </div>
       )}
 
       {resolution && (
         <div className={resolution.decision === 'APPROVED' ? 'resolution-card resolution-card--approved' : 'resolution-card'}>
           <p className="eyebrow">Merchant-signed decision</p><h3>{resolution.decision !== 'APPROVED' ? 'Rejected' : refund?.refund ? 'Approved · refund verified' : 'Approved · refund not yet paid'}</h3><p>{resolution.note || resolution.reasonCode.replaceAll('_', ' ')}</p>
-          <dl><div><dt>Signer</dt><dd><code>{resolution.policySignerAddress}</code></dd></div><div><dt>Proof</dt><dd>{resolution.status}</dd></div><div><dt>Expected refund</dt><dd>{resolution.approvedRefundLuna.toLocaleString()} Luna</dd></div><div><dt>Payload hash</dt><dd><code>{short(resolution.payloadHash)}</code></dd></div></dl>
+          <dl><div><dt>Refund owed</dt><dd>{(resolution.approvedRefundLuna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 })} NIM</dd></div><div><dt>Merchant signature</dt><dd>{resolution.status === 'verified' ? '✓ Verified' : resolution.status}</dd></div></dl>
+          <ProofDisclosure><dl><div><dt>Signer</dt><dd><code>{resolution.policySignerAddress}</code></dd></div><div><dt>Payload hash</dt><dd><code>{resolution.payloadHash}</code></dd></div><div><dt>Expected refund</dt><dd>{resolution.approvedRefundLuna.toLocaleString()} Luna</dd></div></dl></ProofDisclosure>
         </div>
       )}
 
       {resolution?.decision === 'APPROVED' && refund && (
         <div className={refund.refund ? 'buyer-refund buyer-refund--verified' : 'buyer-refund'}>
-          <p className="eyebrow">Phase 4 · independent payment evidence</p>
+          <p className="eyebrow">Refund</p>
           <h3>{refund.refund ? 'Refund paid and verified' : 'Approved · refund still pending'}</h3>
           <p>{!refund.refund
             ? 'A signed approval is not a payment. This changes only after matching finalized chain evidence exists.'
             : refund.attempt?.recipientRule === 'claim-key-v2'
               ? 'NimReturn independently matched your purchase claim key as recipient, the exact amount and refund tag, execution, and macro finality. The sender is shown as recorded evidence.'
               : 'NimReturn independently matched the purchase-bound settlement sender, original buyer, exact amount and data, execution, and macro finality.'}</p>
-          {refund.attempt && <dl><div><dt>{refund.attempt.recipientRule === 'claim-key-v2' ? 'Observed sender' : 'Required sender'}</dt><dd><code>{refund.attempt.recipientRule === 'claim-key-v2' ? refund.attempt.transaction?.sender ?? 'Pending' : refund.attempt.expectedPayment.sender}</code></dd></div><div><dt>Recipient</dt><dd><code>{refund.attempt.expectedPayment.recipient}</code></dd></div><div><dt>Amount</dt><dd>{refund.attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div><div><dt>State</dt><dd>{refund.attempt.state.replaceAll('_', ' ')}</dd></div>{refund.attempt.transaction && <><div><dt>Transaction</dt><dd><code>{short(refund.attempt.transaction.hash)}</code></dd></div><div><dt>Finalizing macro</dt><dd>{refund.attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></>}</dl>}
+          {refund.attempt && <dl><div><dt>Amount</dt><dd>{(refund.attempt.expectedPayment.valueLuna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 })} NIM</dd></div><div><dt>State</dt><dd>{refund.attempt.state.replaceAll('_', ' ')}</dd></div></dl>}
+          {refund.attempt && <ProofDisclosure><dl><div><dt>{refund.attempt.recipientRule === 'claim-key-v2' ? 'Observed sender' : 'Required sender'}</dt><dd><code>{refund.attempt.recipientRule === 'claim-key-v2' ? refund.attempt.transaction?.sender ?? 'Pending' : refund.attempt.expectedPayment.sender}</code></dd></div><div><dt>Recipient</dt><dd><code>{refund.attempt.expectedPayment.recipient}</code></dd></div><div><dt>Amount</dt><dd>{refund.attempt.expectedPayment.valueLuna.toLocaleString()} Luna</dd></div>{refund.attempt.transaction && <><div><dt>Transaction</dt><dd><code>{refund.attempt.transaction.hash}</code></dd></div><div><dt>Finalizing macro</dt><dd>{refund.attempt.transaction.finalizingBlockNumber ?? 'Pending'}</dd></div></>}</dl></ProofDisclosure>}
         </div>
       )}
 

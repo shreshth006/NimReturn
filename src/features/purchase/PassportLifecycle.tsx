@@ -8,6 +8,7 @@ import {
   type PublicPassportClaim,
 } from '../../lib/api/claims.js'
 import { getRefund, RefundApiError, type Refund } from '../../lib/api/refunds.js'
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 
 interface LifecycleEntry {
   claim: PublicPassportClaim
@@ -98,8 +99,7 @@ export function PassportLifecycle({ passportPublicId }: { passportPublicId: stri
                   <span>{refunded ? `✓ ${formatNim(resolution.approvedRefundLuna)} NIM refund verified on Nimiq` : 'Approved · refund not yet verified'}</span>
                 </div>
               )}
-              <details className="evidence-details">
-                <summary>View proof</summary>
+              <ProofDisclosure>
                 <dl>
                   <div><dt>Claim payload hash</dt><dd><code>{claim.payloadHash}</code></dd></div>
                   <div><dt>Claim authorization</dt><dd>{claim.authorization?.mode ?? 'pending'}</dd></div>
@@ -108,7 +108,7 @@ export function PassportLifecycle({ passportPublicId }: { passportPublicId: stri
                   {refund?.attempt?.transaction && <div><dt>Refund transaction</dt><dd><code>{refund.attempt.transaction.hash}</code></dd></div>}
                   {refund?.attempt?.transaction?.finalizingBlockNumber && <div><dt>Finalizing macro block</dt><dd>{refund.attempt.transaction.finalizingBlockNumber}</dd></div>}
                 </dl>
-              </details>
+              </ProofDisclosure>
             </li>
           )
         })}

@@ -522,3 +522,13 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .passport-lifecycle .evidence-details dl { display: grid; gap: 8px; margin: 0; padding: 12px; border-top: 1px solid var(--line); }
 .passport-lifecycle .evidence-details dd { margin: 0; overflow-wrap: anywhere; font-size: 0.78rem; }
 .lifecycle-note { margin-top: 20px; color: #6f2b27; }
+
+.proof-disclosure { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #f7f7f2; }
+.proof-disclosure > summary { min-height: 44px; padding: 12px 14px; cursor: pointer; color: var(--green); font-size: 0.82rem; font-weight: 800; list-style: none; }
+.proof-disclosure > summary::-webkit-details-marker { display: none; }
+.proof-disclosure > summary::before { content: '▸ '; }
+.proof-disclosure[open] > summary::before { content: '▾ '; }
+.proof-disclosure__body { display: grid; gap: 12px; padding: 12px 14px 14px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.proof-disclosure__body dl { margin: 0; }
+.proof-disclosure__body code { font-size: 0.74rem; }
+.proof-message { max-height: 300px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.72rem; line-height: 1.55; }

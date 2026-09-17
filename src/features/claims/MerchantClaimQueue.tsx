@@ -1,5 +1,6 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useCallback, useEffect, useState } from 'react'
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 
 import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
 
@@ -226,9 +227,9 @@ export function MerchantClaimQueue({
             <dl>
               <div><dt>Claim time</dt><dd>{formatTime(item.claim.claimTime)}</dd></div>
               <div><dt>Authorization</dt><dd>{item.claim.authorizationMode === 'self' ? 'Self · chain purchaser' : item.claim.authorizationMode === 'purchase_key' ? 'Purchase claim key · signed before payment' : 'Delegated by chain purchaser'}</dd></div>
-              <div><dt>Claim signer</dt><dd><code>{short(item.claim.claimSignerAddress)}</code></dd></div>
               <div><dt>Workflow</dt><dd>{item.claim.workflowState.replaceAll('_', ' ')}</dd></div>
             </dl>
+            <ProofDisclosure><dl><div><dt>Claim signer</dt><dd><code>{item.claim.claimSignerAddress}</code></dd></div><div><dt>Chain purchaser</dt><dd><code>{item.claim.purchaseSenderAddress}</code></dd></div></dl></ProofDisclosure>
             {item.resolution?.status === 'verified'
               ? <>
                   <div className="queue-resolution">Signed {item.resolution.decision.toLowerCase()} decision published.</div>
@@ -257,13 +258,11 @@ export function MerchantClaimQueue({
           <p className="eyebrow">Exact merchant-signed result</p>
           <h3>{challenge.decision === 'APPROVED' ? 'Approve full refund' : 'Reject claim'}</h3>
           <dl>
-            <div><dt>Required policy signer</dt><dd><code>{challenge.policySignerAddress}</code></dd></div>
-            <div><dt>Approved amount</dt><dd>{challenge.approvedRefundLuna.toLocaleString()} Luna</dd></div>
+            <div><dt>Refund to approve</dt><dd>{(challenge.approvedRefundLuna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 })} NIM</dd></div>
             <div><dt>Reason</dt><dd>{challenge.reasonCode.replaceAll('_', ' ')}</dd></div>
             <div><dt>Challenge expires</dt><dd>{formatTime(challenge.expiresAt)}</dd></div>
           </dl>
-          <div className="hash-callout"><span>Resolution payload hash</span><code>{challenge.payloadHash}</code></div>
-          <details className="evidence-details canonical-preview"><summary>Inspect exact resolution bytes</summary><pre>{challenge.canonicalMessage}</pre></details>
+          <ProofDisclosure><dl><div><dt>Required policy signer</dt><dd><code>{challenge.policySignerAddress}</code></dd></div><div><dt>Resolution payload hash</dt><dd><code>{challenge.payloadHash}</code></dd></div><div><dt>Approved amount</dt><dd>{challenge.approvedRefundLuna.toLocaleString()} Luna</dd></div></dl><pre className="proof-message">{challenge.canonicalMessage}</pre></ProofDisclosure>
           <button type="button" disabled={busy !== null} onClick={() => void signAndPublish()}>{busy === 'sign' ? 'Waiting for Nimiq Pay…' : 'Sign exact decision with Nimiq Pay'}</button>
           <button className="text-button" type="button" disabled={busy !== null} onClick={() => setChallenge(null)}>Change decision</button>
         </div>
@@ -273,7 +272,8 @@ export function MerchantClaimQueue({
         <div className="resolution-card resolution-card--approved">
           <p className="eyebrow">Verified merchant signature</p>
           <h3>{verified.decision === 'APPROVED' ? 'Approved · payment is tracked in the refund section' : 'Rejected'}</h3>
-          <dl><div><dt>Signer</dt><dd><code>{verified.signerAddress}</code></dd></div><div><dt>Resolution ID</dt><dd><code>{verified.publicId}</code></dd></div><div><dt>Payload hash</dt><dd><code>{verified.payloadHash}</code></dd></div><div><dt>Server verification</dt><dd>{verified.verifiedAt ? formatTime(verified.verifiedAt) : verified.status}</dd></div></dl>
+          <dl><div><dt>Signature verified</dt><dd>{verified.verifiedAt ? formatTime(verified.verifiedAt) : verified.status}</dd></div></dl>
+          <ProofDisclosure><dl><div><dt>Signer</dt><dd><code>{verified.signerAddress}</code></dd></div><div><dt>Resolution ID</dt><dd><code>{verified.publicId}</code></dd></div><div><dt>Payload hash</dt><dd><code>{verified.payloadHash}</code></dd></div></dl></ProofDisclosure>
         </div>
       )}
     </section>

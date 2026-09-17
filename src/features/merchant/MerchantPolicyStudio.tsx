@@ -1,6 +1,7 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { ProofDisclosure } from '../proof/ProofDisclosure.js'
 import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
 
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
@@ -885,20 +886,21 @@ function VerifiedPolicyPanel({
         </div>
         <dl className="proof-grid">
           <ProofItem label="Status" value="Verified" accent />
-          <ProofItem label="Protocol" value="NR1" />
           <ProofItem label="Policy version" value={`v${payload.version}`} />
+          <ProofItem label="Server verified" value={formatTimestamp(product.policy.verifiedAt)} />
+        </dl>
+        <ProofDisclosure>
+        <dl className="proof-grid">
+          <ProofItem label="Protocol" value="NR1" />
           <ProofItem label="Policy ID" value={product.policy.publicId} mono />
           <ProofItem label="Cryptographic signer" value={product.policy.signerAddress} mono />
           <ProofItem label="Settlement address" value={payload.settlementAddress} mono />
           <ProofItem label="Policy timestamp" value={formatTimestamp(payload.createdAt)} />
-          <ProofItem label="Server verified" value={formatTimestamp(product.policy.verifiedAt)} />
           <ProofItem label="Payload hash · BLAKE2b-256" value={proof.payloadHash} mono wide />
           <ProofItem label="Public key" value={proof.publicKey} mono wide />
         </dl>
-        <details className="evidence-details canonical-preview">
-          <summary>Exact signed canonical message</summary>
-          <pre>{proof.canonicalMessage}</pre>
-        </details>
+        <pre className="proof-message">{proof.canonicalMessage}</pre>
+        </ProofDisclosure>
       </div>
 
       <div className="version-history">
@@ -917,8 +919,8 @@ function VerifiedPolicyPanel({
               <div className="version-number">v{version.payload.version}</div>
               <div>
                 <strong>{version.active ? 'Active verified policy' : 'Preserved verified policy'}</strong>
-                <span>{formatNim(version.payload.priceLuna)} NIM · {formatDuration(version.payload.returnWindowSeconds)} returns</span>
-                <code>{version.proof.payloadHash}</code>
+                <span>{formatNim(version.payload.priceLuna)} NIM · {formatDuration(version.payload.returnWindowSeconds)} returns · {formatDuration(version.payload.warrantyWindowSeconds)} warranty</span>
+                <ProofDisclosure><code>{version.proof.payloadHash}</code></ProofDisclosure>
               </div>
               <time>{formatTimestamp(version.verifiedAt)}</time>
             </li>
