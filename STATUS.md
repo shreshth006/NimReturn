@@ -67,7 +67,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-17: `npm run lint`, `npm run typecheck`, 213 hermetic tests, all 32 PostgreSQL-backed tests (245 total), and `npm run build`. The production dependency audit reports zero known vulnerabilities. GitHub Actions verification for this batch remains pending until push.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-17: `npm run lint`, `npm run typecheck`, 213 hermetic tests, all 32 PostgreSQL-backed tests (245 total), and `npm run build`. The production dependency audit reports zero known vulnerabilities. GitHub Actions run `35167099687` passed the same lint/typecheck/test/build gate for `ed3c6fc`.
 
 Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage. Production configuration now also fails closed without RPC, and the staging package has validated API/web image builds, Caddy configuration, headers/cache policy, Compose interpolation, and a local containerized API smoke test.
 
@@ -88,7 +88,7 @@ Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence recon
 
 ## Deployment and RPC
 
-Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on one free Render Docker service in Singapore, backed by a free managed PostgreSQL instance that expires on 2026-10-16. Render supplies HTTPS and a generated session secret. Migrations ran with the database owner; the app uses a separate `nimreturn_app` login that inherits only `nimreturn_runtime`, cannot create in `public`, has no admin attributes or owned relations, and cannot mutate either Promise Ledger view. Public checks pass for the app, `/health`, the OG image, a database-backed 404, CSP/HSTS and related headers, and the RPC diagnostic. The Android lifecycle passed through this HTTPS/WebView/CSP deployment. The configured public development RPC has no SLA and is not an operated production primary/failover verifier; the free service may cold-start after inactivity.
+Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on commit `ed3c6fc`, backed by one free Render Docker service and managed PostgreSQL instance in Singapore. The database expires on 2026-10-16. Render supplies HTTPS and a generated session secret. Migrations ran with the database owner; the app uses a separate `nimreturn_app` login that inherits only `nimreturn_runtime`, cannot create in `public`, has no admin attributes or owned relations, and cannot mutate either Promise Ledger view. Public checks pass for the app, `/health`, the OG image, a database-backed 404, CSP/HSTS and related headers, and the RPC diagnostic. A server-only configured real refunded Passport passes fresh reprojection and powers the no-wallet completed-example journey; its identifier and raw evidence are not stored in Git. The Android lifecycle passed through this HTTPS/WebView/CSP deployment. The configured public development RPC has no SLA and is not an operated production primary/failover verifier; the free service may cold-start after inactivity.
 
 ## Current blockers
 

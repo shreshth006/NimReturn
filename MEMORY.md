@@ -26,7 +26,7 @@ Phase 5 includes PostgreSQL security-barrier views and a strict public API that 
 
 # Verification status
 
-Local lint, typecheck, 213 hermetic tests, all 32 PostgreSQL tests (245 total), production builds, and the production dependency audit pass on 2026-09-17. Vendor-neutral API/web container builds, Caddy validation/header checks, Compose parsing, a local containerized API smoke test, and the live Render preflight pass. Automation does not infer any remaining device, accessibility, reload, cancellation, ledger, operations, or first-minute result.
+Local lint, typecheck, 213 hermetic tests, all 32 PostgreSQL tests (245 total), production builds, and the production dependency audit pass on 2026-09-17. GitHub Actions run `35167099687` is green. Render staging is live on `ed3c6fc`; health/network/example smoke checks pass, and the server-reverified completed example renders a real policy → Passport → claim → signed decision → verified refund lifecycle with no raw identifier committed. Automation does not infer any remaining device, accessibility, reload, cancellation, ledger, operations, or first-minute result.
 
 # Important implementation details
 
