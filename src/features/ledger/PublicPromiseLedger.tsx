@@ -6,6 +6,7 @@ import {
   type PromiseLedger,
   type PromiseLedgerCountMetric,
 } from '../../lib/api/promise-ledger.js'
+import { CLAIM_AUTHORITY_DESCRIPTION, PROOF_STEPS } from './promise-ledger-copy.js'
 
 function formatNim(valueLuna: number): string {
   return (valueLuna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 })
@@ -33,16 +34,6 @@ function formatResponseTime(value: number | null): string {
 function short(value: string): string {
   return `${value.slice(0, 8)}…${value.slice(-6)}`
 }
-
-const PROOF_STEPS = [
-  ['Policy locked', 'Wallet signature', 'The policy signer attests to exact versioned terms and a separate settlement address.'],
-  ['Purchase verified', 'Nimiq transaction', 'The chain proves who paid the signed settlement address, how much, and under which order tag.'],
-  ['Passport issued', 'Derived record', 'NimReturn binds the verified payment to the policy version active at purchase.'],
-  ['Claim filed', 'Wallet signature', 'The claim signer attests to the request; purchaser authority is verified separately.'],
-  ['Decision recorded', 'Wallet signature', 'The original policy signer attests to approval or rejection.'],
-  ['Refund verified', 'Nimiq transaction', 'Only exact settlement-sender, buyer-recipient, value, tag, execution, and finality evidence counts.'],
-  ['Ledger derived', 'Read-only aggregate', 'These figures are recomputed from the verified records above and cannot be edited here.'],
-] as const
 
 export function PublicPromiseLedger({ merchantPublicId }: { merchantPublicId: string }) {
   const [ledger, setLedger] = useState<PromiseLedger | null>(null)
@@ -184,7 +175,7 @@ export function PublicPromiseLedger({ merchantPublicId }: { merchantPublicId: st
           <div>
             <dt>Claim signer · attestation authority</dt>
             <dd>Verified per claim</dd>
-            <small>Authorized by exact equality with—or a one-claim proof from—the purchase sender.</small>
+            <small>{CLAIM_AUTHORITY_DESCRIPTION}</small>
           </div>
         </dl>
       </section>

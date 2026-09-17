@@ -17,6 +17,8 @@ Last updated: 2026-09-17 (IST)
 - Phase 6 — Real pilot: **0%**.
 - Phase 7 — Competition submission: **5%** (strategy/checklist drafted; no assets or submission).
 
+The public Promise Ledger explanation now matches D-035/D-036: current purchases refund the pre-payment claim key and record the observed sender, while legacy purchases retain their settlement-sender authorization rule. This copy correction changes no verification behavior or phase percentage.
+
 Percentages are planning estimates, not earned rubric points.
 
 ## Phase 1 implementation
@@ -67,7 +69,7 @@ Percentages are planning estimates, not earned rubric points.
 
 ## Build and test status
 
-Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-17: `npm run lint`, `npm run typecheck`, 213 hermetic tests, all 32 PostgreSQL-backed tests (245 total), and `npm run build`. The production dependency audit reports zero known vulnerabilities. GitHub Actions run `35167099687` passed the same lint/typecheck/test/build gate for `ed3c6fc`.
+Local Node 24.13.1/npm 11.8.0 gates pass on 2026-09-17: `npm run lint`, `npm run typecheck`, 215 hermetic tests, all 32 PostgreSQL-backed tests (247 total), and `npm run build`. The production dependency audit reports zero known vulnerabilities. GitHub Actions run `35167099687` passed the same lint/typecheck/test/build gate for `ed3c6fc`.
 
 Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence reconciliation, runtime-role immutability, timing samples, exception visibility/recovery, and health/cache/rate-limit coverage. Production configuration now also fails closed without RPC, and the staging package has validated API/web image builds, Caddy configuration, headers/cache policy, Compose interpolation, and a local containerized API smoke test.
 

@@ -19,6 +19,7 @@
     "server/config.ts",
     "server/http/**/*.ts",
     "src/features/diagnostics/**/*.ts",
+    "src/features/ledger/**/*.ts",
     "src/features/claims/**/*.ts",
     "src/features/merchant/**/*.ts",
     "src/features/purchase/**/*.ts",

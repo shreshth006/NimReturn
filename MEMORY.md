@@ -10,6 +10,8 @@ A Purchase Passport will join merchant-signed policy-at-purchase, independently 
 
 Phases 0 and 1 are 100% complete. Phase 2 is 95%, Phase 3 is 95%, Phase 4 is 93%, and Phase 5 is 90% experimental/code-complete at its external-validation boundary. The project lead explicitly reported the complete Android purchase → claim → signed approval → independently verified refund lifecycle PASS on 2026-09-17 after D-035/D-036. Remaining named reload, refund-cancellation, mobile/accessibility, Promise Ledger, first-minute, and operations results stay open until separately performed and reported. Phase 6 is not started or authorized.
 
+On 2026-09-17, stale judge-facing Promise Ledger copy from the pre-D-035/D-036 refund model was corrected. It now explains that current purchases refund the purchase-bound claim key and record the observed sender, while legacy purchases retain their purchaser/settlement authorization path. No protocol behavior, physical result, or phase percentage changed.
+
 # What is complete
 
 Phase 0 diagnostics cover provider/account/network state, exact framed message verification, public-key/address derivation, guarded transaction-with-data, independent RPC verification, reload-safe uncertainty, and sanitized private evidence. The prior Android artifact proves exact framed signing plus one real 1000-Luna TestAlbatross transaction with matching chain-derived sender/recipient/value/data, `executionResult=true`, and macro finality.
@@ -26,7 +28,7 @@ Phase 5 includes PostgreSQL security-barrier views and a strict public API that 
 
 # Verification status
 
-Local lint, typecheck, 213 hermetic tests, all 32 PostgreSQL tests (245 total), production builds, and the production dependency audit pass on 2026-09-17. GitHub Actions run `35167099687` is green. Render staging is live on `ed3c6fc`; health/network/example smoke checks pass, and the server-reverified completed example renders a real policy → Passport → claim → signed decision → verified refund lifecycle with no raw identifier committed. Automation does not infer any remaining device, accessibility, reload, cancellation, ledger, operations, or first-minute result.
+Local lint, typecheck, 215 hermetic tests, all 32 PostgreSQL tests (247 total), production builds, and the production dependency audit pass on 2026-09-17. GitHub Actions run `35167099687` is green. Render staging is live on `ed3c6fc`; health/network/example smoke checks pass, and the server-reverified completed example renders a real policy → Passport → claim → signed decision → verified refund lifecycle with no raw identifier committed. Automation does not infer any remaining device, accessibility, reload, cancellation, ledger, operations, or first-minute result.
 
 # Important implementation details
 
