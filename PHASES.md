@@ -2,7 +2,7 @@
 
 ## Operating rule
 
-Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-022 keeps the device gates open/pending; D-023 explicitly permits Phase 2 implementation, D-025 permits Phase 3 implementation after closing its claimant-authorization design gate, D-029 explicitly permits Phase 4 after correcting D-027's false attribution of blanket authority, and D-030 records the project lead's explicit Phase 5 instruction. Physical checks remain batched for a later session. Percentages live in `STATUS.md`; this file defines scope and exits.
+Phases are sequential security gates, not themes running in parallel. A later phase can be designed but not implemented while a critical prerequisite remains unproven unless the project lead accepts a narrow, recorded deferral with an explicit later test gate. D-023, D-025, D-029, and D-030 record the scoped deferrals that produced Phases 2–5; D-032, D-034, and D-037 record the later explicit physical results. Remaining physical checks stay open until individually reported. Percentages live in `STATUS.md`; this file defines scope and exits.
 
 ## Phase 0 — Technical proof
 
@@ -63,8 +63,8 @@ Pending order; immutable expected payment; exact Luna parser; direct payment; ha
 ### Exit criteria
 
 - [x] End-to-end device purchase creates exactly one passport only after valid evidence. Passed by explicit project-lead report on 2026-09-17.
-- [x] Wrong network/sender/recipient/value/data/state and duplicate hashes fail in automated verification; physical purchase remains separately open.
-- [ ] Cancel, pending, inconclusive, invalid, and verified are distinct and recover on reload. Automated coverage passes; device cancellation/reload remains open.
+- [x] Wrong network/sender/recipient/value/data/state and duplicate hashes fail in automated verification; the real purchase/chain verification passed on 2026-09-17.
+- [x] Cancel, pending, inconclusive, invalid, and verified are distinct and recover on reload. Automated coverage and the Phase 2 device reload result pass.
 - [x] Race/idempotency tests pass and append-only chain reconciliation is operational.
 - [ ] Passport clearly shows purchase-bound policy and first-minute test passes through passport creation.
 
@@ -80,7 +80,7 @@ First close the D-018 claimant-authorization design gate: define how a proof-der
 
 ### Exit criteria
 
-- [x] Automated authorized equal/distinct signer cases pass according to D-025; unrelated/invalid/altered/replayed/duplicate claims fail. Physical equal/distinct-account validation remains open.
+- [x] Automated chain-sender, purchase-key, and delegated authority cases pass under D-025/D-035; unrelated/invalid/altered/replayed/duplicate claims fail. Physical distinct-signer purchase-key validation passed on 2026-09-17.
 - [x] Eligibility unit matrix and exact boundary tests pass.
 - [x] Policy eligible copy never promises outcome.
 - [x] Only policy merchant can resolve; one final resolution under concurrency.
@@ -92,17 +92,17 @@ Phase 3 implementation is code-complete but cannot formally exit until the conso
 
 ### Build
 
-Approved refund expectation; direct purchase-bound settlement address→original buyer NIM transaction/tag; cancellation/pending/retry UI; independent verification; global hash uniqueness; complete lifecycle and reconciliation.
+Approved refund expectation; D-036 claim-key or legacy recipient rule; cancellation/pending/retry and hashless-outcome recovery UI; independent verification; global hash uniqueness; complete lifecycle and reconciliation.
 
 ### Exit criteria
 
 - [x] Low-value device refund verifies end to end. Passed on 2026-09-17, paid to the purchase claim key under D-036.
-- [x] Wrong network/sender/recipient/value/data/state/duplicate fail in automated verification; physical exact-sender validation remains open.
+- [x] Wrong network/applicable sender/recipient/value/data/state/duplicate fail in automated verification; claim-key routing and independent finality passed physically on 2026-09-17. Settlement-sender routing was superseded, not passed.
 - [x] Approved is never confused with refunded.
 - [x] Reload-safe identifiers, RPC outage, cancellation/unknown recovery, double-submit, and concurrent verifier tests pass; actual WebView reload remains open.
 - [ ] Full purchase→claim→decision→refund story completes reliably on target devices. One complete Android run passed on 2026-09-17; cancellation and reload paths remain open.
 
-Phase 4 implementation is code-complete but cannot formally exit until the consolidated low-value exact-sender refund, independent finality, recovery/reload, and mobile checks pass. The project lead subsequently authorized the narrowly scoped Phase 5 work recorded in D-030; that later instruction does not close Phase 4.
+Phase 4 implementation is code-complete but cannot formally exit until native cancellation, recovery/reload, and mobile/accessibility checks pass. Independent finality passed on Android under D-036. The project lead subsequently authorized the narrowly scoped Phase 5 work recorded in D-030; that later instruction does not close Phase 4.
 
 ## Phase 5 — Promise Ledger + polish
 

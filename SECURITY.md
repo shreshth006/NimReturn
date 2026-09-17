@@ -8,7 +8,7 @@
 2. Never create a successful purchase/refund from client or database assertion alone.
 3. Prevent one signature, nonce, transaction, order, or resolution from being replayed in another context.
 4. Preserve the exact signed historical policy and its relationship to a purchase.
-5. Attribute policy/resolution signatures to the established policy signer, purchases/refunds to the signed settlement address, and claims only through a reviewed authorization to the verified purchase sender.
+5. Keep policy signer, settlement address, purchase sender, purchase claim key, claim signer, and refund sender distinct. Apply the D-035/D-036 claim-key rules without treating wallet account lists or client selections as authority.
 6. Fail visibly and recoverably when wallet, network, API, RPC, or database state is uncertain.
 7. Minimize user data and avoid turning public blockchain data into unnecessary profiles.
 
@@ -118,13 +118,13 @@ Controls: 128-bit order tag; check network, observed sender validity/account sem
 
 Threat: compromised UI requests payment/refund to attacker or wrong value; server later accepts it.
 
-Controls: API returns the expected wallet request from immutable order/resolution evidence; purchase recipient and NR1 refund sender come from the purchase-bound signed settlement address. Pre-approval UI repeats the request; server independently compares parsed addresses and safe-integer Luna. Never infer acceptance from approximate decimal display or assume the signer and settlement address are equal.
+Controls: API returns the expected wallet request from immutable order/resolution evidence. The purchase recipient comes from the purchase-bound signed settlement address. A claim-key refund recipient comes from the key proven over the exact order before payment; legacy refunds retain the settlement-sender/original-buyer rule. Pre-approval UI repeats the request; server independently compares parsed addresses and safe-integer Luna. Never infer acceptance from approximate decimal display or assume signer, settlement address, transaction sender, and claim key are equal.
 
 ### Forged/non-buyer claim
 
 Threat: an unrelated signer files against a known passport, or the system rejects a legitimate payer by assuming Nimiq Pay signed with a client-selected account.
 
-Controls: private/unpredictable IDs reduce discovery but do not authorize. D-025 permits self-authorization only when the claim proof's derived signer is observed to byte-equal the independently verified purchase sender. A distinct signer remains unaccepted until an exact `CLAIM_AUTHORIZATION` proof derives to the purchase sender and binds the claim ID, immutable claim hash, both addresses, expiry, and one-time nonce. Unrestricted signing, wallet account disclosure/selection, cookies, and Passport possession grant no claim authority. Invalid authorization leaves no accepted claim or eligibility result; nonce, active-claim uniqueness, transactional acceptance, and rate limits constrain replay and spam.
+Controls: private/unpredictable IDs reduce discovery but do not authorize. D-025 permits self-authorization when the claim proof's derived signer byte-equals the independently verified purchase sender. D-035 additionally permits a signer whose key was proven over the exact unpaid order before payment began. Otherwise a distinct signer remains unaccepted until an exact `CLAIM_AUTHORIZATION` proof derives to the purchase sender and binds the claim ID, immutable claim hash, both addresses, expiry, and one-time nonce. Wallet account disclosure/selection, cookies, and Passport possession grant no claim authority. Invalid authorization leaves no accepted claim or eligibility result; nonce, active-claim uniqueness, transactional acceptance, and rate limits constrain replay and spam.
 
 ### Forged/duplicate merchant resolution
 
@@ -136,9 +136,9 @@ Controls: resolution challenge binds the established policy signer; proof-derive
 
 Threat: merchant claims a refund, pays another wallet/wrong amount, reuses purchase/refund hash, or attaches a different claim tag.
 
-Controls: approval separate from payment; independent chain check; sender equals the purchase-bound signed settlement address; recipient equals the original verified purchase sender; exact full Luna amount; refund claim tag; successful execution and macro finality; global unique hash; no partial-credit aggregation in NR1.
+Controls: approval remains separate from payment. For D-035 purchases, independent chain verification requires the pre-payment claim key as recipient and records the actual sender without trusting it as merchant identity. Legacy purchases require the purchase-bound settlement sender and original chain buyer recipient. Both paths require the exact full Luna amount, refund claim tag, configured network, successful execution, following-macro finality, and a globally unique hash; NR1 does not aggregate partial credits.
 
-The authenticated merchant session may request a server-derived refund attempt and submit the wallet-returned hash, but it cannot assert the sender or a successful payment. Because the SDK has no sender-selection argument, a wallet transaction from any other account safely fails verification. One open attempt prevents duplicate prompts; hashless ambiguous outcomes block blind retry; cancelled or terminal-invalid attempts permit a new immutable attempt while old hashes remain globally reserved. Finalized refund reconciliation is append-only.
+The authenticated merchant session may request a server-derived refund attempt and submit the wallet-returned hash, but it cannot assert the sender or a successful payment. One open attempt prevents duplicate prompts; a hashless ambiguous outcome can be recovered only from exact chain history or ruled out after the transaction validity window plus margin. Cancelled, proven-absent, or terminal-invalid attempts permit a new immutable attempt while old hashes remain globally reserved. Finalized refund reconciliation is append-only.
 
 ### Database/operator manipulation
 
@@ -199,7 +199,7 @@ Controls: chain block timestamp anchors purchase; server-issued challenge time a
 
 ## Privacy
 
-Wallet addresses and transaction relationships are public-chain data but remain personal/pseudonymous context when indexed with products and claims. Collect no names, emails, phone numbers, passwords, KYC, photos, or delivery evidence in MVP. Notes are optional, bounded, and warn users not to include sensitive information. Public Passport visibility and raw notes default private-to-parties unless an explicit share action is later designed. Publish a privacy notice covering purpose, retention, public-chain permanence, processors, and rights before pilot.
+Wallet addresses and transaction relationships are public-chain data but remain personal/pseudonymous context when indexed with products and claims. Collect no names, emails, phone numbers, passwords, KYC, photos, or delivery evidence in MVP. Notes are optional, bounded, and warn users not to include sensitive information. The public Passport lifecycle lists only a minimal verified projection; it does not enumerate the signed free-text note or canonical claim message. Raw notes remain accessible only through already-known evidence identifiers or protected merchant views. Publish a privacy notice covering purpose, retention, public-chain permanence, processors, and rights before pilot.
 
 Authoritative actual-device evidence remains outside the public repository with a companion checksum. A public evidence summary may retain the SHA-256 digest and non-identifying pass/fail facts, but never full wallet addresses, transaction hashes, public keys, signatures, nonces, tags, user-agent/build identifiers, or raw JSON. Narrow repository ignore rules are defense in depth; pre-push tracked-content inspection remains required.
 
@@ -219,7 +219,7 @@ Pin lockfile; use official Nimiq packages; review new install scripts, licenses,
 - [ ] Mini App SDK/core versions pinned and current behavior re-reviewed.
 - [x] Actual-device sign fixture validates exact NR1 bytes and address binding on target Nimiq Pay versions. Phase 0 diagnostic proof passed; the Phase 1 physical policy flow passed by explicit project-lead report on 2026-09-16.
 - [x] Known-good/tampered/wrong-address signature tests pass.
-- [x] Purchase/refund wrong network/sender/recipient/value/data/state/hash automated tests pass; actual-device exact-sender evidence remains open.
+- [x] Purchase/refund wrong network/applicable sender/recipient/value/data/state/hash automated tests pass; the D-036 claim-key refund passed independently verified device finality. Legacy exact-sender behavior remains automated-only.
 - [x] Global hash/nonces and one-to-one constraints verified under PostgreSQL concurrency tests.
 - [x] Historical policy update/delete denied at database level.
 - [x] RPC failure/reorg/timeout is inconclusive, never success, in automated tests; production failover remains open.

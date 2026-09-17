@@ -446,3 +446,14 @@ Append-only. Corrections supersede an earlier decision with a new ID; do not rew
 
 **Consequences:** Phase 2 is 95% (first-minute test deferred), Phase 3 95% (reload/mobile open), and Phase 4 93% (cancellation, reload/recovery, and mobile open). Phase 5 results and Phase 6 remain untouched.
 
+## D-038 — 2026-09-17 — Make a completed proof judgeable without weakening network or privacy boundaries
+
+**Decision:** Add an optional completed-example entry that resolves only to an operator-configured Passport which freshly re-verifies as `refunded`. On the Passport, list only a minimal verified claim lifecycle projection and then read each public signed decision/refund through its existing fail-closed reader; do not enumerate the claim's free-text note or canonical message. Before every wallet signature or payment prompt, require consensus and compare the wallet head with the configured verifier-network head inside a bounded window. Treat that comparison as a fail-closed mismatch guard only; exact server-side network and chain verification remains authoritative.
+
+**Context:** The working lifecycle was difficult for a first-time judge to discover without creating new wallet evidence, while the SDK reports only the constant network name `nimiq` in both Testnet and Mainnet. A broad public claim response would also make optional signed notes discoverable from a Passport even though the judge story does not need them.
+
+**Alternatives:** ship a hard-coded or synthetic demo; link any active Passport without re-verification; expose full claim records in the Passport history; trust a wallet network label; allow native prompts when the verifier network cannot be checked.
+
+**Rationale:** A real refunded Passport demonstrates the implemented path without fabricating success. Fresh server reprojection keeps the link subordinate to cryptographic and chain evidence, while the minimal claim projection reduces avoidable privacy expansion. Head separation catches the practical Android wrong-network failure before a native prompt, and failing closed avoids implying certainty the SDK cannot provide.
+
+**Consequences:** `FEATURED_PASSPORT_ID` is optional, server-only deployment configuration and is never committed with a real identifier. `/api/v1/featured-example`, `/api/v1/passports/:passportPublicId/claims`, and `/api/v1/network` are bounded public read routes with strict schemas and no-store responses. The network guard can refuse a legitimate action during RPC/head uncertainty and must be retried; it is not a cryptographic network proof. No Phase percentage or physical test changes from this decision, and Phase 6 remains locked.

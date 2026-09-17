@@ -1,6 +1,6 @@
 # Consolidated Nimiq Pay device validation
 
-Status: **PARTIAL — Phase 0 is complete after T-001, T-002, and T-020 passed by explicit project-lead reports on 2026-09-16. Phase 1 and every later named item remain pending until personally performed and explicitly reported.**
+Status: **PARTIAL — Phases 0 and 1 are closed. Phase 2 payment/chain/Passport/reload/mobile, Phase 3 self/distinct-signer/resolution, and Phase 4 independent refund verification passed by explicit project-lead reports. Only the open items named below remain.**
 
 This single TestAlbatross session covers the deferred Phase 0/1 gates and the Phase 2–5 physical/manual boundaries. Automated tests, CI, desktop browsers, deterministic keys, and implementation completeness do not satisfy it.
 
@@ -31,6 +31,8 @@ Status: **PASS — project lead, Android, 2026-09-16.** The completed run used a
 
 ### C–E. Phase 1 physical signing, publishing, and immutable v2
 
+Status: **PASS — project lead, Android, 2026-09-16.**
+
 Create the unpublished draft and finish its first signed publication within the displayed 15-minute bootstrap lifetime. If that authorization expires, confirm the server issues no signing bytes, use **Discard inaccessible draft and start over**, and create a fresh draft; the recovery action clears only the local pointer and is not a publication.
 
 1. Review v1's product, 1,000-Luna price, settlement address, return/warranty terms, version, timestamp, and payload hash; approve `sign()`.
@@ -40,14 +42,16 @@ Create the unpublished draft and finish its first signed publication within the 
 
 ### F. T-020 — native payment cancellation and safe retry
 
-Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a bridge-normalization bug; after the focused fix, rejecting the native payment produced a cancelled/non-approved state with safe retry. The one approved retry was independently verified through execution and following-macro finality. This closes only T-020; named Phase 2 results remain independently open.
+Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a bridge-normalization bug; after the focused fix, rejecting the native payment produced a cancelled/non-approved state with safe retry. The one approved retry was independently verified through execution and following-macro finality.
 
-1. Open the public v2 buyer link and tap **Pay 0.01 NIM with Nimiq Pay**.
+1. Open the public v2 buyer link, sign the exact purchase claim key over the unpaid order, then tap **Pay 0.01 NIM with Nimiq Pay**.
 2. In the native dialog verify the exact merchant settlement recipient, **1,000 Luna / 0.01 NIM**, and exact `NR1:P:<22-character-order-id>` data; confirm no sender field was invented by NimReturn.
 3. Cancel the native payment. Confirm the order says cancelled, no Passport exists, and retry is offered for that same order.
 4. Retry once and approve the tiny payment. Do not initiate another payment after approval.
 
 ### G–H. Real chain verification and Purchase Passport
+
+Status: **PASS — project lead, Android, 2026-09-17.**
 
 1. Confirm the UI progresses through submitted → chain verification → finality; pending/included must not appear verified.
 2. After the following Albatross macro block, confirm exactly one Passport appears.
@@ -57,6 +61,8 @@ Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a 
 
 ### I. Reload/recovery and first-minute/mobile check
 
+Status: **reload/recovery and mobile/accessibility PASS — project lead, Android, 2026-09-16/17. First-minute observer test remains OPEN.**
+
 1. While the approved transaction is still pending or pre-macro, close/background Nimiq Pay, reopen the same public product URL, and refresh once.
 2. Confirm the same public order/hash is recovered, no second native payment dialog opens, and **Check transaction again/Recheck finality** resumes verification.
 3. If a test interruption occurs after the native request began but before a hash returns, confirm the UI blocks another payment and explains the unknown outcome; reconcile from Nimiq Pay history instead of paying again.
@@ -65,17 +71,23 @@ Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a 
 
 ### J. Phase 3 self-authorized claim
 
+Status: **PASS — project lead, Android, 2026-09-17.**
+
 1. From the verified Passport, create an available RETURN or WARRANTY claim and review its type, reason, claim time, purchase-bound policy version, and payload hash.
-2. Sign the exact canonical claim with the same account that independently sent the purchase. Confirm the proof-derived claim signer exactly matches the chain-derived buyer, no second authorization is requested, and deterministic eligibility is displayed without promising a remedy.
+2. Sign the exact canonical claim with an accepted authority: the verified pre-payment purchase claim key for new purchases, or the independently observed chain sender where that key can sign. Confirm no unrelated account is accepted and deterministic eligibility is displayed without promising a remedy.
 3. Reload the Passport URL. Confirm the same public claim is recovered without another signature and the eligibility evidence remains identical.
 
 ### K. Phase 3 distinct-signer authorization
 
-1. On a separate eligible fixture, sign the claim with an account different from the chain-derived buyer. Confirm it remains authorization pending and is absent from the merchant queue.
-2. Review the exact second authorization: claim ID/hash, derived claim signer, required chain purchaser, nonce, and expiry. Sign it with the original purchase-sender account.
-3. Confirm an unrelated account is rejected, while the exact purchase-sender proof authorizes only this claim and makes it eligible/ineligible once. If the wallet cannot select the necessary account, report FAIL; do not bypass the check.
+Status: **PASS through the D-035 purchase claim key — project lead, Android, 2026-09-17. The legacy chain-sender delegation path remains fail-closed but is not usable in the tested wallet.**
+
+1. Before payment, confirm the buyer signed the exact D-035 claim-key message and the Passport displays that verified key separately from the chain sender.
+2. Sign the later claim with that key. Confirm the derived claim signer differs from the chain sender but matches the purchase-bound claim key, so no unrelated account or `listAccounts()` membership grants authority.
+3. For a legacy/non-key fixture, a different signer must remain authorization pending until an exact authorization is signed by the chain sender. If the wallet cannot select that key, record the wallet limitation; do not bypass the check.
 
 ### L. Phase 3 merchant resolution
+
+Status: **signing/publication PASS — project lead, Android, 2026-09-17. Reload and mobile/accessibility remain OPEN.**
 
 1. In the protected merchant queue, confirm the authorized claim shows its true policy eligibility, signer/authorization mode, reason, and note. Confirm no pending unsigned decision is visible from the public claim URL.
 2. Prepare an approval and confirm the canonical result uses the full original purchase value. Cancel once; reload and confirm the exact pending decision can be resumed only in the merchant session.
@@ -85,17 +97,19 @@ Status: **PASS — project lead, Android, 2026-09-16.** The first run exposed a 
 
 ### M. Phase 4 direct refund and cancellation
 
-1. On an approved low-value claim, open the protected merchant refund action and verify the displayed expectation: sender is the purchase-bound signed settlement address, recipient is the independently observed original buyer, value is the full approved purchase value, and data is exact `NR1:R:<claim-id>`.
+Status: **independent verified refund PASS — project lead, Android, 2026-09-17. Native cancellation remains OPEN. Settlement-sender routing is SUPERSEDED by D-036, not PASS or FAIL.**
+
+1. On an approved D-035 claim, open the protected merchant refund action and verify the displayed expectation: recipient is the pre-payment purchase claim key, value is the full approved purchase value, and data is exact `NR1:R:<claim-id>`. The observed sender is evidence, not merchant identity. A legacy purchase retains the settlement-sender/original-buyer rule.
 2. Start the refund once and cancel the native payment dialog. Confirm the attempt says cancelled, the buyer still sees approved/not paid, no refund transaction exists, and a deliberate retry creates a fresh attempt.
-3. Retry from the settlement account and approve exactly one payment. Nimiq Pay exposes no caller-selected sender: if the required settlement account cannot be used or the resulting chain sender differs, report FAIL and do not bypass verification or send another blind payment.
-4. Confirm submitted/included/pre-macro states remain pending. After the following macro, independently retrieve the hash and compare network, settlement sender, original-buyer recipient, exact value, refund tag, `executionResult=true`, inclusion block/timestamp, finalizing macro, and head.
+3. Retry and approve exactly one payment to the claim key. Do not send another blind payment after an unknown outcome; use **Check the chain for this refund** and permit a new attempt only if the old validity window is provably over with complete recipient history.
+4. Confirm submitted/included/pre-macro states remain pending. After the following macro, independently retrieve the hash and compare network, observed sender, exact claim-key recipient, value, refund tag, `executionResult=true`, inclusion block/timestamp, finalizing macro, and head.
 5. Confirm exactly one immutable refund record exists, the signed resolution still says approved, the Passport now separately says refunded, and the buyer view shows the exact verified chain evidence.
 
 ### N. Phase 4 recovery, replay, and mobile behavior
 
 1. On a separate tiny approved fixture, background/reload after the native request begins. If no hash was returned, confirm another payment is blocked and the UI asks for recovery from wallet history; attach only the recovered 64-hex hash.
 2. If a hash is returned before reload, confirm the same public attempt/hash resumes verification without another native dialog. Exercise recheck during an RPC outage and confirm it stays inconclusive/pending rather than paid or failed.
-3. Confirm a wrong-sender or otherwise mismatched test hash is rejected and does not mark the Passport refunded. Confirm reusing any purchase/refund hash is rejected globally and double-submit/concurrent rechecks do not create a second refund.
+3. Confirm a wrong recipient/value/tag (and wrong sender for a legacy fixture) is rejected and does not mark the Passport refunded. Confirm reusing any purchase/refund hash is rejected globally and double-submit/concurrent rechecks do not create a second refund.
 4. At 320–430 CSS pixels and 200% zoom, confirm the merchant expectation, cancellation/recovery actions, pending/failure states, and buyer refund proof remain readable without horizontal clipping.
 
 ### O. Phase 5 Promise Ledger reconciliation
@@ -136,7 +150,7 @@ Phase 3 merchant resolution PASS|FAIL
 Phase 3 claim/resolution reload PASS|FAIL
 Phase 3 mobile/accessibility PASS|FAIL
 Phase 4 native refund cancellation PASS|FAIL
-Phase 4 settlement-sender routing PASS|FAIL
+Phase 4 settlement-sender routing SUPERSEDED (D-036)
 Phase 4 independent refund verification PASS|FAIL
 Phase 4 refund reload/recovery PASS|FAIL
 Phase 4 mobile/accessibility PASS|FAIL

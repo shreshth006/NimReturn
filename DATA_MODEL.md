@@ -66,6 +66,14 @@ Indexes: `(product_id, version desc)`, `(merchant_id, verification_status)`, uni
 
 Indexes: partial `(buyer_address, created_at desc) where buyer_address is not null`, `(merchant_id, payment_state, created_at)`, `(payment_state, updated_at)` for retries. A constraint/transaction guard permits setting `buyer_address` only during the `purchased` transition and requires it thereafter. Expected data must equal protocol encoder output via application/check constraint where practical.
 
+## purchase_claim_keys
+
+- `id uuid primary key`, `order_id uuid references orders` — BACKEND immutable order binding.
+- `nonce char(22) unique`, `payload jsonb`, `canonical_message text`, `payload_hash char(64)`, `expires_at` — BACKEND/SIGNATURE immutable `PURCHASE_CLAIM_KEY` challenge over the exact unpaid order.
+- `signer_address`, `public_key`, `signature`, `verifier_version`, `verified_at` — DERIVED/SIGNATURE immutable proof. At most one verified key exists per order.
+
+The server accepts the proof only while the order is still unpaid and before a wallet payment request begins. Database guards require a verified key before a new order can enter `wallet_request_started`. The key is claimant/refund-recipient authority, not evidence of the chain payment sender and not merchant identity.
+
 ## chain_transactions (shared replay registry)
 
 - `id uuid primary key` — BACKEND.
@@ -118,12 +126,13 @@ Indexes: buyer chronology, merchant chronology, active deadlines. Product/policy
 - `workflow_state` (`authorization_pending`, `eligible`, `ineligible`, `decision_pending`, `approved`, `rejected`) — BACKEND/DERIVED constrained. A valid claim proof is not accepted as filed while authorization is pending. The signed final decision remains immutable; joined refund lifecycle is derived from `refund_attempts`/`refund_transactions` rather than rewriting it.
 - timestamps — BACKEND.
 
-Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. One accepted unresolved claim per Passport/type is enforced by a partial unique index. D-025 allows observed claim-signer/purchase-sender equality or a verified exact-claim authorization; no other relationship is authoritative.
+Indexes: merchant queue via join or denormalized immutable `merchant_id`, purchase-sender/passport history, workflow/retry. One accepted unresolved claim per Passport/type is enforced by a partial unique index. D-025/D-035 allow observed claim-signer/purchase-sender equality, the order's verified pre-payment claim key, or a verified exact-claim authorization; no other relationship is authoritative.
 
 ## claim_authorizations
 
 - `id uuid primary key`, `public_id char(22) unique`, `claim_id uuid references claims` — BACKEND immutable identity and exact claim binding.
-- `authorization_mode` (`self`, `delegated`) — DERIVED. `self` records observed claim-signer/purchase-sender equality and carries no second proof. `delegated` requires the complete proof fields below.
+- `authorization_mode` (`self`, `purchase_key`, `delegated`) — DERIVED. `self` records observed claim-signer/purchase-sender equality. `purchase_key` references the verified key bound to the claim's order. `delegated` requires the complete proof fields below.
+- `claim_key_id uuid null references purchase_claim_keys` — required only for `purchase_key`; database triggers validate order/key/signer equality.
 - `purchase_sender_address`, `claim_signer_address`, `claim_payload_hash` — CHAIN/DERIVED/SIGNATURE immutable copies that must equal the referenced claim.
 - `challenge_nonce char(22) unique`, `payload jsonb`, `canonical_message`, `payload_hash` — BACKEND/SIGNATURE immutable. Delegated challenges are domain-separated `CLAIM_AUTHORIZATION`; self rows use the claim nonce/hash as their audit binding and no fabricated second message.
 - `public_key`, `signature`, `authorization_signer_address`, `verifier_version`, `verified_at` — SIGNATURE/DERIVED immutable and required only for delegated authorization. The derived authorization signer must equal `purchase_sender_address`.
@@ -147,12 +156,14 @@ Unique partial index allows one current evaluation per claim. Inputs include ver
 - `challenge_nonce`, `payload`, `canonical_message`, `payload_hash`, `public_key`, `signature`, `verifier_version` — SIGNATURE immutable and nonce unique.
 - `verification_status`, `verified_at`, `created_at` — BACKEND one-way.
 
-Constraints enforce rejected amount `0`, approved amount equals order price at domain layer plus transaction/trigger, and signer equals the policy signer. Refund transaction verification separately requires its sender to equal the purchase-bound policy settlement address; no signer/settlement equality is required.
+Constraints enforce rejected amount `0`, approved amount equals order price at domain layer plus transaction/trigger, and signer equals the policy signer. Refund transaction verification applies the D-036 recipient rule independently; no signer/settlement/transaction-sender equality is assumed for claim-key purchases.
 
 ## refund_attempts
 
 - `id uuid primary key`, `public_id char(22) unique`, `claim_id`, `resolution_id`, `passport_id`, `merchant_id` — BACKEND immutable resource binding.
-- `network`, `expected_sender`, `expected_recipient`, `expected_value_luna`, `expected_data` — DERIVED immutable from the purchase-bound verified evidence; never accepted from the client.
+- `network`, `expected_sender`, `expected_recipient`, `expected_value_luna`, `expected_data` — DERIVED immutable from the purchase-bound verified evidence; never accepted from the client. `expected_sender` remains authoritative only for the legacy rule.
+- `recipient_rule` (`purchase-sender-v1`, `claim-key-v1`), `claim_key_id` — DERIVED immutable selection of the D-036 verification rule.
+- `outcome_reference_height`, `outcome_ruled_out_at`, `outcome_ruled_out_height` — append-only evidence used to unlock a hashless-unknown attempt only after the transaction validity window plus safety margin and complete chain-history coverage.
 - `wallet_state` (`payment_requested`, `wallet_request_started`, `payment_cancelled`, `submission_outcome_unknown`, `payment_verifying`, `payment_pending`, `payment_failed`, `refunded`) — BACKEND constrained.
 - `transaction_hash char(64) null`, `failure_code`, `row_version`, timestamps — CHAIN/BACKEND. One attempt accepts at most one normalized hash.
 
@@ -195,11 +206,13 @@ erDiagram
     MERCHANTS ||--o{ PRODUCTS : owns
     PRODUCTS ||--o{ POLICY_VERSIONS : versions
     POLICY_VERSIONS ||--o{ ORDERS : binds
+    ORDERS ||--o| PURCHASE_CLAIM_KEYS : authorizes
     ORDERS ||--o| PURCHASE_TRANSACTIONS : verified_by
     PURCHASE_TRANSACTIONS ||--|| CHAIN_TRANSACTIONS : observes
     CHAIN_TRANSACTIONS ||--o{ CHAIN_RECONCILIATIONS : rechecked_by
     ORDERS ||--o| PURCHASE_PASSPORTS : creates
     PURCHASE_PASSPORTS ||--o{ CLAIMS : receives
+    PURCHASE_CLAIM_KEYS ||--o{ CLAIM_AUTHORIZATIONS : proves
     CLAIMS ||--o{ CLAIM_ELIGIBILITY_EVALUATIONS : evaluated_by
     CLAIMS ||--o| CLAIM_RESOLUTIONS : resolved_by
     CLAIM_RESOLUTIONS ||--o| REFUND_TRANSACTIONS : authorizes
@@ -215,7 +228,7 @@ No ledger table accepts manual counts. Security-barrier view `promise_ledger_v1`
 - eligible/ineligible: the current evaluation result for those filed claims;
 - approved/rejected/unresolved: verified policy-signer resolutions or the absence of one for a filed claim;
 - refund pending: verified approvals without a verified refund transaction;
-- verified refunds: exact finalized refund transactions with `executionResult=true` and a verified attempt;
+- verified refunds: exact finalized refund transactions with `executionResult=true`, the attempt's D-036 recipient rule satisfied, and a verified attempt;
 - median resolution time: `percentile_cont(0.5)` from filed-at to verified resolved-at, with the contributing sample count.
 
 `promise_ledger_reconciliation_v1` separately counts accepted purchase/refund transactions whose latest append-only independent recheck is exceptional. A later confirmed recheck changes the current exception projection without rewriting the original evidence or its reconciliation history. Definitions, sample sizes, and application read-time `as_of` accompany every public response. Application invariants reject internally inconsistent aggregates before serialization. Runtime receives `SELECT` only; direct writes and a metric mutation API do not exist.

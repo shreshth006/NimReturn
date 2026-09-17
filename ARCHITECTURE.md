@@ -2,7 +2,7 @@
 
 ## Status and principles
 
-This document describes the implemented MVP architecture through Phase 5. Phase 0 supplies the wallet/cryptographic/transaction diagnostic slice; Phase 1 the policy trust core and merchant studio; Phase 2 immutable purchase orders, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation; Phase 3 proof-derived claimant authorization, deterministic eligibility, protected merchant review, and policy-signer resolutions; Phase 4 exact-sender direct refunds; and Phase 5 a read-only verified-evidence Promise Ledger plus judge-facing polish. All unconfirmed device scenarios remain explicitly open for a later consolidated physical session.
+This document describes the implemented MVP architecture through Phase 5. Phase 0 supplies the wallet/cryptographic/transaction diagnostic slice; Phase 1 the policy trust core and merchant studio; Phase 2 immutable purchase orders, pre-payment claim-key binding, direct wallet payment, independent chain verification, Purchase Passports, and append-only reconciliation; Phase 3 proof-derived claimant authorization, deterministic eligibility, protected merchant review, and policy-signer resolutions; Phase 4 independently verified direct refunds under the D-036 claim-key/legacy rules; and Phase 5 a read-only verified-evidence Promise Ledger plus judge-facing polish. Only explicitly reported physical results are closed; the remaining device scenarios stay open.
 
 The system is deliberately one mobile web frontend, one TypeScript API, one PostgreSQL database, and one Nimiq chain-read boundary. No microservices, application treasury, server wallet, smart contract, queue, or cache is required for MVP.
 
@@ -53,6 +53,7 @@ The SPA is organized by user-visible capability, not framework ceremony:
 - `src/features/claims`: Phase 3 claim signing, purchase-sender authorization when required, eligibility, merchant queue, and signed resolution UI;
 - `src/features/refunds`: Phase 4 server-derived refund request, native-payment recovery, independent verification, and public evidence UI;
 - `src/features/ledger`: Phase 5 public merchant proof surface, factual definitions/sample sizes, one-minute lifecycle map, and reconciliation visibility;
+- `src/features/judge`: a network notice and an optional link to a server-reverified completed Passport;
 - `src/lib/nimiq`: provider initialization and normalized wallet results;
 - `src/lib/crypto`: official-core verification adapter;
 - `src/lib/protocol`: canonical payload and transaction-tag codecs;
@@ -75,7 +76,7 @@ Fastify exposes versioned `/api/v1` routes plus `/health`. Each route:
 
 Phase 1 writer routes are `POST /api/v1/merchants`, `POST /api/v1/merchants/:merchantPublicId/products/:productPublicId/policies/challenges`, and `POST .../policies/publish`. `GET /api/v1/products/:productPublicId` re-verifies the active proof and every verified historical version before returning any public policy. Production writer requests require an exact configured Origin, same-site cookies, bounded bodies, and per-IP limits. The first publish consumes the database-hashed bootstrap and rotates to an eight-hour HMAC-authenticated merchant session. That session authorizes challenge allocation only; the established Nimiq signature remains mandatory for publication. If the session is lost, `POST /api/v1/merchants/:merchantPublicId/session/challenges` issues a five-minute, one-time, origin-bound `NIMRETURN/AUTH/1/MERCHANT_SESSION` challenge, and `POST /api/v1/merchants/:merchantPublicId/session` issues a fresh session only for a proof whose derived signer equals the established policy signer (D-033).
 
-Phase 2 routes create/read an order, record wallet state, attach one hash, explicitly recheck it, and read a public Passport. The attachment body contains only a hash—never a sender or payment terms. The server loads immutable expectations, reads RPC evidence, and atomically creates the purchase/Passport only on exact successful macro-final verification. Rechecking a purchased order appends reconciliation evidence; it never edits the original finalized record. Phase 3 and 4 routes similarly preserve exact signed decisions and independently verified refunds. Phase 5 adds only `GET /api/v1/merchants/:merchantPublicId/promise-ledger`; it has no writer counterpart, strictly reconciles returned counts, and uses bounded public caching plus per-IP read limits.
+Phase 2 routes create/read an order, bind one verified purchase claim key before wallet payment begins, record wallet state, attach one hash, explicitly recheck it, and read a public Passport. The attachment body contains only a hash—never a sender or payment terms. The server loads immutable expectations, reads RPC evidence, and atomically creates the purchase/Passport only on exact successful macro-final verification. Rechecking a purchased order appends reconciliation evidence; it never edits the original finalized record. Phase 3 and 4 routes similarly preserve exact signed decisions and independently verified refunds. Phase 5 includes `GET /api/v1/merchants/:merchantPublicId/promise-ledger`, a minimal verified claim-history projection for a public Passport, and an optional configured completed-example route. The example is returned only when a fresh fail-closed Passport read reports `refunded`; no writer counterpart or client-supplied featured identifier exists.
 
 MVP does not require a separate queue. A verification attempt runs synchronously with a short timeout. Pending or unavailable results are persisted and retried by a bounded scheduled process or explicit idempotent status request. If volume later demands a queue, that is a new decision, not assumed infrastructure.
 
@@ -102,7 +103,9 @@ Confirmed contract facts are kept separate from device observations. The install
 
 Merchant identity is consequently split into two explicit roles. The policy signer is always derived from the returned public key; a new merchant's first valid policy proof establishes that signer with an atomic compare-and-set, and later policy/resolution proofs must match it. The settlement address is separate signed policy content used as the purchase recipient and NR1 refund sender. These addresses may differ. Account discovery may assist display/data entry but supplies authority for neither role.
 
-Claim identity follows D-025. A purchase sender comes only from verified chain evidence, while a claim signer comes only from its proof public key. Observed address equality self-authorizes a claim. A distinct signer requires a second exact-claim proof whose derived signer equals the purchase sender and whose signed bytes bind the immutable claim hash plus both addresses. Account discovery and UI selection grant no authority. Physical multiple-account behavior remains pending and cannot be bypassed if Nimiq Pay returns the wrong signing key.
+Claim identity follows D-025 and D-035. A purchase sender comes only from verified chain evidence, while a claim signer comes only from its proof public key. Observed address equality self-authorizes a claim. For new purchases, a verified key signed over the exact unpaid order before payment is an independent purchase-bound claim authority. Otherwise a distinct signer requires a second exact-claim proof derived to the purchase sender and bound to the immutable claim hash plus both addresses. Account discovery and UI selection grant no authority.
+
+Before every signature or payment prompt, the client reads Nimiq Pay consensus/head state and compares it with the API's configured verifier-network head. The SDK exposes no discriminating network ID, so the bounded head comparison is a practical fail-closed mismatch guard, not cryptographic network proof. Authoritative acceptance still comes only from server-side RPC evidence with an exact configured network match.
 
 ## Nimiq chain reads
 
@@ -175,6 +178,10 @@ sequenceDiagram
     B->>W: Buy verified product
     W->>A: Create pending order
     A->>D: Bind policy settlement, value, network, token
+    A-->>W: Exact PURCHASE_CLAIM_KEY challenge
+    W->>P: sign(exact unpaid order binding)
+    P-->>W: publicKey + signature
+    W->>A: Submit and verify claim key
     A-->>W: Expected transaction request
     W->>P: sendBasicTransactionWithData()
     P-->>W: hash or cancellation
@@ -206,6 +213,8 @@ sequenceDiagram
     A->>A: Verify proof and derive claim signer
     alt signer equals verified purchase sender
         A->>D: Accept claim + store rule results atomically
+    else signer equals pre-payment purchase claim key
+        A->>D: Accept claim + store rule results atomically
     else signer differs
         A-->>W: Exact CLAIM_AUTHORIZATION challenge
         W->>P: purchase sender signs exact authorization
@@ -230,11 +239,11 @@ sequenceDiagram
     M->>W: Approve claim
     W->>A: Request and submit signed resolution
     A->>D: Store one final resolution; refund pending
-    W->>P: Pay from policy settlement to exact buyer/value/tag
+    W->>P: Pay exact claim-key/legacy recipient, value, and tag
     P-->>W: hash or cancellation
     W->>A: Attach untrusted hash
     A->>R: Fetch transaction independently
-    A->>A: Verify network, state, settlement sender, recipient, value, data
+    A->>A: Verify network, state, D-036 sender/recipient rule, value, data
     A->>D: Store unique refund and lifecycle event
     A-->>W: Refund verified
 ```
