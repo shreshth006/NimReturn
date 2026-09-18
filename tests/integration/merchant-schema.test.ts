@@ -179,8 +179,8 @@ describe.skipIf(databaseUrl === undefined)('Phase 1 merchant database foundation
 
   async function insertProduct(merchantId: string, publicId: string, name = 'Fixture Product') {
     const rows = await client<{ id: string }[]>`
-      insert into products (public_id, merchant_id, name)
-      values (${publicId}, ${merchantId}, ${name})
+      insert into products (public_id, merchant_id, name, network)
+      values (${publicId}, ${merchantId}, ${name}, 'TestAlbatross')
       returning id
     `
     const product = rows[0]

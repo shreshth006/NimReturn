@@ -12,6 +12,8 @@ const createMerchantDraftInputSchema = z.object({
   defaultSettlementAddress: z.string().min(1).max(64),
   description: z.string().max(2_048).optional().default(''),
   displayName: z.string().min(1).max(512),
+  // The chain this product sells on, taken from the merchant's wallet at draft time.
+  network: z.string().min(1).max(24).default('TestAlbatross'),
   productName: z.string().min(1).max(512),
 }).strict()
 
@@ -134,9 +136,9 @@ export async function createMerchantDraft(
     const product = requireOne(
       await transaction<{ id: string }[]>`
         insert into products (
-          public_id, merchant_id, name, description, created_at, updated_at
+          public_id, merchant_id, name, description, network, created_at, updated_at
         ) values (
-          ${productPublicId}, ${merchant.id}, ${productName}, ${description},
+          ${productPublicId}, ${merchant.id}, ${productName}, ${description}, ${input.network},
           ${databaseNow}, ${databaseNow}
         )
         returning id

@@ -1,7 +1,7 @@
 import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useEffect, useState } from 'react'
 
-import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+import { assertWalletOnExpectedNetwork, identifyWalletNetwork } from '../../lib/nimiq/network-gate.js'
 
 import { getPublicProduct, type PublicVerifiedProduct } from '../../lib/api/merchant.js'
 import {
@@ -164,8 +164,13 @@ export function BuyerPurchaseJourney({
     try {
       let currentOrder = order
       if (!orderReusable(currentOrder)) {
+        // Identify the wallet's chain first, so a wallet on the wrong one is told
+        // before an order exists rather than after a payment fails to verify.
+        const activeProvider = provider ?? await initializeNimiqProvider()
+        setProvider(activeProvider)
+        const { network } = await identifyWalletNetwork(activeProvider)
         clearPurchaseSession()
-        currentOrder = await createOrder(productPublicId)
+        currentOrder = await createOrder(productPublicId, network)
         savePurchaseSession({ orderPublicId: currentOrder.publicId, productPublicId })
         setOrder(currentOrder)
       }

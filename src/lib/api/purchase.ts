@@ -190,9 +190,10 @@ async function requestJson<T>(
   return parsed.data
 }
 
-export function createOrder(productPublicId: string): Promise<PurchaseOrder> {
+/** `network` is the wallet's chain; the server checks it against the product's own chain. */
+export function createOrder(productPublicId: string, network?: string): Promise<PurchaseOrder> {
   return requestJson(`/api/v1/products/${publicTokenSchema.parse(productPublicId)}/orders`, purchaseOrderSchema, {
-    body: '{}',
+    body: JSON.stringify(network ? { network } : {}),
     method: 'POST',
   })
 }

@@ -228,6 +228,8 @@ export const products = pgTable('products', {
     .references(() => merchants.id, { onDelete: 'restrict' }),
   name: varchar('name', { length: 100 }).notNull(),
   description: varchar('description', { length: 500 }).default('').notNull(),
+  // The chain this product is sold on; a purchase must be paid and verified there.
+  network: varchar('network', { length: 24 }).notNull(),
   status: productStatus('status').default('draft').notNull(),
   activePolicyVersionId: uuid('active_policy_version_id')
     .references((): AnyPgColumn => policyVersions.id, { onDelete: 'restrict' }),
@@ -238,6 +240,8 @@ export const products = pgTable('products', {
   unique('products_public_id_unique').on(table.publicId),
   unique('products_id_merchant_unique').on(table.id, table.merchantId),
   index('products_merchant_status_index').on(table.merchantId, table.status),
+  index('products_network_status_index').on(table.network, table.status),
+  check('products_network_not_blank', sql`btrim(${table.network}) <> ''`),
   check('products_public_id_format', sql`${table.publicId} ~ '^[A-Za-z0-9_-]{22}$'`),
   check(
     'products_name_format',

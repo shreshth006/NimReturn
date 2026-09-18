@@ -12,7 +12,9 @@ const ORDER_TTL_MS = 20 * 60 * 1000
 const PUBLIC_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/u
 
 const createPurchaseOrderInputSchema = z.object({
-  network: z.string().min(1).max(24),
+  // The chain the buyer's wallet is on. It never selects the chain: it is checked
+  // against the product's own chain so a mismatch fails before anything is signed.
+  network: z.string().min(1).max(24).optional(),
   productPublicId: z.string().regex(PUBLIC_TOKEN_PATTERN),
 }).strict()
 
@@ -21,6 +23,7 @@ interface BoundProductRow {
   active_policy_version_id: string
   description: string
   merchant_id: string
+  network: string
   product_id: string
 }
 
@@ -104,6 +107,7 @@ export type PurchaseOrderErrorCode =
   | 'CLAIM_KEY_REQUIRED'
   | 'EVIDENCE_INTEGRITY'
   | 'INVALID_REQUEST'
+  | 'NETWORK_MISMATCH'
   | 'ORDER_EXPIRED'
   | 'ORDER_NOT_FOUND'
   | 'PERSISTENCE_CONFLICT'
@@ -162,6 +166,7 @@ export async function createPurchaseOrder(
           products.id as product_id,
           products.merchant_id,
           products.description,
+          products.network,
           products.active_policy_version_id,
           policy_versions.public_id as active_policy_public_id
         from products
@@ -176,6 +181,11 @@ export async function createPurchaseOrder(
     )
     if (boundProduct.active_policy_public_id !== publicProduct.policy.publicId) {
       fail('PERSISTENCE_CONFLICT', 'The active policy changed during order creation.')
+    }
+    // The product decides the chain. A wallet on another chain is refused here rather
+    // than allowed to settle a mainnet promise with testnet funds.
+    if (input.network && input.network !== boundProduct.network) {
+      fail('NETWORK_MISMATCH', 'This product is sold on a different Nimiq network than the connected wallet.')
     }
 
     const databaseNow = requireOne(
@@ -203,7 +213,7 @@ export async function createPurchaseOrder(
           ${boundProduct.description}, ${publicProduct.merchant.displayName},
           ${publicProduct.policy.proof.payloadHash}, ${publicProduct.policy.payload.version},
           ${publicProduct.policy.payload.protocol}, ${publicProduct.policy.payload.settlementAddress},
-          ${publicProduct.policy.payload.priceLuna}, ${expectedData}, ${input.network},
+          ${publicProduct.policy.payload.priceLuna}, ${expectedData}, ${boundProduct.network},
           ${expiresAt}, ${databaseNow}, ${databaseNow}
         )
         on conflict (public_id) do nothing
@@ -235,7 +245,7 @@ export async function createPurchaseOrder(
       expiresAt,
       expectedPayment: {
         data: encodePurchaseTag(orderPublicId),
-        network: input.network,
+        network: boundProduct.network,
         recipient: publicProduct.policy.payload.settlementAddress,
         valueLuna: publicProduct.policy.payload.priceLuna,
       },

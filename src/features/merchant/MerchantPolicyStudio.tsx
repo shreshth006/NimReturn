@@ -2,7 +2,7 @@ import type { NimiqProvider } from '@nimiq/mini-app-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ProofDisclosure } from '../proof/ProofDisclosure.js'
-import { assertWalletOnExpectedNetwork } from '../../lib/nimiq/network-gate.js'
+import { assertWalletOnExpectedNetwork, identifyWalletNetwork } from '../../lib/nimiq/network-gate.js'
 
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
@@ -311,10 +311,21 @@ export function MerchantPolicyStudio() {
     setNotice(null)
     try {
       const settlementAddress = normalizeNimiqAddress(draftForm.settlementAddress)
+      // The product is created on the chain this merchant's wallet is on, and buyers
+      // must pay there. No wallet, no chain: the draft stays on the default network.
+      let network: string | undefined
+      try {
+        const activeProvider = provider ?? await initializeNimiqProvider()
+        setProvider(activeProvider)
+        network = (await identifyWalletNetwork(activeProvider)).network
+      } catch {
+        network = undefined
+      }
       const created = await createMerchant({
         defaultSettlementAddress: settlementAddress,
         description: draftForm.description,
         displayName: draftForm.displayName,
+        ...(network ? { network } : {}),
         productName: draftForm.productName,
       })
       const nextWorkspace: MerchantWorkspace = {

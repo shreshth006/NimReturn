@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   assertWalletOnExpectedNetwork,
   fetchNetworkStatus,
+  identifyWalletNetwork,
   walletMatchesNetwork,
   WALLET_HEAD_TOLERANCE_BLOCKS,
 } from '../../src/lib/nimiq/network-gate.js'
@@ -29,8 +30,59 @@ const testnet = (headBlockNumber: number | null) => () => Promise.resolve({
   label: 'Nimiq Testnet',
 })
 
+const bothNetworks = (testHead: number | null, mainHead: number | null) => () => Promise.resolve({
+  expectedNetwork: 'TestAlbatross',
+  headBlockNumber: testHead,
+  label: 'Nimiq Testnet',
+  networks: [
+    { blockNumber: testHead, label: 'Nimiq Testnet', network: 'TestAlbatross' },
+    { blockNumber: mainHead, label: 'Nimiq Mainnet', network: 'MainAlbatross' },
+  ],
+})
+
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('wallet network identification', () => {
+  it('places a wallet on whichever verified chain its head matches', async () => {
+    const onMainnet = provider(61_875_500)
+    await expect(identifyWalletNetwork(onMainnet.provider, bothNetworks(11_600_000, 61_875_983)))
+      .resolves.toEqual({
+        label: 'Nimiq Mainnet',
+        network: 'MainAlbatross',
+        snapshot: { blockNumber: 61_875_500, consensus: true },
+      })
+
+    const onTestnet = provider(11_600_010)
+    await expect(identifyWalletNetwork(onTestnet.provider, bothNetworks(11_600_000, 61_875_983)))
+      .resolves.toMatchObject({ network: 'TestAlbatross' })
+    expect(onMainnet.sign).not.toHaveBeenCalled()
+    expect(onTestnet.sign).not.toHaveBeenCalled()
+  })
+
+  it('names every verified chain when the wallet is on none of them', async () => {
+    const wallet = provider(999_999_999)
+    await expect(identifyWalletNetwork(wallet.provider, bothNetworks(11_600_000, 61_875_983))).rejects.toMatchObject({
+      kind: 'wrong-network',
+      message: expect.stringContaining('Nimiq Testnet or Nimiq Mainnet') as unknown,
+    })
+  })
+
+  it('skips a chain whose head could not be read, and fails closed when none can', async () => {
+    const wallet = provider(61_875_500)
+    await expect(identifyWalletNetwork(wallet.provider, bothNetworks(null, 61_875_983)))
+      .resolves.toMatchObject({ network: 'MainAlbatross' })
+    await expect(identifyWalletNetwork(wallet.provider, bothNetworks(null, null)))
+      .rejects.toMatchObject({ kind: 'network-unverified' })
+  })
+
+  it('refuses to guess when one head matches two chains', async () => {
+    const wallet = provider(11_600_000)
+    await expect(identifyWalletNetwork(wallet.provider, bothNetworks(11_600_000, 11_600_100))).rejects.toMatchObject({
+      kind: 'network-unverified',
+    })
+  })
 })
 
 describe('wallet network gate', () => {

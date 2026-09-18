@@ -594,7 +594,7 @@ describe('server app', () => {
     expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' })
   })
 
-  it('creates a purchase order from only the public product identifier and server network', async () => {
+  it('creates a purchase order from the public product identifier, forwarding only the wallet chain', async () => {
     const inputs: unknown[] = []
     const app = await buildApp(config, {
       createOrder: (_database, input) => {
@@ -612,7 +612,23 @@ describe('server app', () => {
     })
 
     expect(response.statusCode).toBe(201)
-    expect(inputs).toEqual([{ network: 'TestAlbatross', productPublicId: PRODUCT_PUBLIC_ID }])
+    // No chain is invented for the caller: the product's own chain decides.
+    expect(inputs).toEqual([{ productPublicId: PRODUCT_PUBLIC_ID }])
+
+    // The wallet's chain is forwarded only so a mismatch can be refused before signing.
+    await app.inject({
+      method: 'POST',
+      payload: { network: 'MainAlbatross' },
+      url: `/api/v1/products/${PRODUCT_PUBLIC_ID}/orders`,
+    })
+    expect(inputs[1]).toEqual({ network: 'MainAlbatross', productPublicId: PRODUCT_PUBLIC_ID })
+
+    const rejected = await app.inject({
+      method: 'POST',
+      payload: { network: 'MainAlbatross', productPublicId: 'sneaky' },
+      url: `/api/v1/products/${PRODUCT_PUBLIC_ID}/orders`,
+    })
+    expect(rejected.statusCode).toBe(400)
     expect(response.json()).toMatchObject({
       expectedPayment: { data: `NR1:P:${ORDER_PUBLIC_ID}`, valueLuna: 1_000 },
       paymentState: 'payment_requested',

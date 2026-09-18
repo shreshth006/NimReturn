@@ -122,6 +122,8 @@ const createMerchantInputSchema = z.object({
   defaultSettlementAddress: z.string().min(1).max(64),
   description: z.string().max(2_048).optional(),
   displayName: z.string().min(1).max(512),
+  // The chain this product will sell on, read from the merchant's wallet.
+  network: z.string().min(1).max(24).optional(),
   productName: z.string().min(1).max(512),
 }).strict()
 

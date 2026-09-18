@@ -88,6 +88,7 @@ const createMerchantBodySchema = z.object({
   defaultSettlementAddress: z.string().min(1).max(64),
   description: z.string().max(2_048).optional(),
   displayName: z.string().min(1).max(512),
+  network: z.string().min(1).max(24).optional(),
   productName: z.string().min(1).max(512),
 }).strict()
 const policyTermsBodySchema = z.object({
@@ -113,6 +114,9 @@ const verifyBodySchema = z.object({
   valueLuna: z.number().int().positive().safe(),
 }).strict()
 const productParamsSchema = z.object({ productPublicId: publicToken }).strict()
+const createOrderBodySchema = z.object({
+  network: z.string().min(1).max(24).optional(),
+}).strict()
 const orderParamsSchema = z.object({ orderPublicId: publicToken }).strict()
 const passportParamsSchema = z.object({ passportPublicId: publicToken }).strict()
 const claimParamsSchema = z.object({ claimPublicId: publicToken }).strict()
@@ -250,6 +254,13 @@ function purchaseError(error: unknown): WriterError {
   }
   if (code === 'ORDER_EXPIRED') {
     return { code, message: 'The purchase request expired.', statusCode: 410 }
+  }
+  if (code === 'NETWORK_MISMATCH') {
+    return {
+      code,
+      message: 'This product is sold on a different Nimiq network. Switch Nimiq Pay to that network to buy it.',
+      statusCode: 409,
+    }
   }
   if (code === 'STATE_CONFLICT') {
     return { code, message: 'The purchase state conflicts with this action.', statusCode: 409 }
@@ -527,8 +538,17 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       return reply.code(503).send({ code: 'WRITER_UNAVAILABLE', message: 'Merchant creation is temporarily unavailable.' })
     }
 
+    // A product may only be created on a chain this deployment can actually verify.
+    const draftNetwork = body.data.network ?? config.NIMIQ_NETWORK
+    if (rpc && !rpc.has(draftNetwork)) {
+      return reply.code(409).send({
+        code: 'NETWORK_UNSUPPORTED',
+        message: 'NimReturn cannot verify that Nimiq network, so a product cannot be sold on it.',
+      })
+    }
+
     try {
-      const created = await createDraft(database, body.data)
+      const created = await createDraft(database, { ...body.data, network: draftNetwork })
       reply.setCookie(BOOTSTRAP_COOKIE, created.bootstrapCapability, {
         ...cookieOptions,
         expires: created.bootstrapExpiresAt,
@@ -782,15 +802,19 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
     }
     const params = productParamsSchema.safeParse(request.params)
+    const body = createOrderBodySchema.safeParse(request.body ?? {})
     if (!params.success) {
       return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The product identifier is invalid.' })
+    }
+    if (!body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The purchase request is invalid.' })
     }
     if (!database) {
       return reply.code(503).send({ code: 'PURCHASE_UNAVAILABLE', message: 'Purchase creation is temporarily unavailable.' })
     }
     try {
       const order = await createOrder(database, {
-        network: config.NIMIQ_NETWORK,
+        ...(body.success && body.data.network ? { network: body.data.network } : {}),
         productPublicId: params.data.productPublicId,
       })
       return reply.code(201).send(order)
