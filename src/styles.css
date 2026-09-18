@@ -42,7 +42,6 @@ main { width: min(100% - 32px, 1120px); margin: 0 auto; padding-bottom: max(40px
 .site-header { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid var(--line); }
 
 .wordmark { color: var(--ink); font-size: 1.12rem; font-weight: 850; letter-spacing: -0.045em; text-decoration: none; }
-.wordmark span { color: var(--orange); }
 .site-header nav { display: flex; align-items: center; gap: 14px; }
 .utility-link { color: var(--muted); font-size: 0.78rem; font-weight: 750; text-decoration: none; }
 .utility-link:hover { color: var(--ink); }
@@ -563,6 +562,7 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .wordmark { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; }
 .wordmark__mark { display: block; width: 28px; height: 28px; border-radius: 7px; }
 .wordmark__text { color: var(--ink); font-weight: 850; letter-spacing: -0.03em; }
+.wordmark__text::first-letter { color: var(--ink); }
 .network-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: #ebece7; color: #45504d; font-size: 0.72rem; font-weight: 750; white-space: nowrap; }
 .network-chip__dot { width: 7px; height: 7px; border-radius: 50%; background: #8c9692; }
 .network-chip--live .network-chip__dot { background: var(--green); }

@@ -16,6 +16,7 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:db": "vitest run tests/integration",
+    "audit:ux": "node tools/ux-audit.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build:web": "vite build",
