@@ -1,0 +1,81 @@
+name: Deploy staging
+
+# Deploying stays deliberate: never during a physical phone test, and never
+# before the migration when the schema changed. So this runs only when someone
+# asks for it, rather than on every push.
+#
+# Needs one repository secret, RENDER_DEPLOY_HOOK_URL, holding the deploy hook
+# from the Render service settings.
+
+on:
+  workflow_dispatch:
+    inputs:
+      migrated:
+        description: 'Schema unchanged, or migrations already applied?'
+        type: boolean
+        default: true
+      reason:
+        description: 'Why this deploy (shown in the run summary)'
+        type: string
+        default: 'Manual deploy'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Trigger and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE: https://nimreturn-staging-cycle2.onrender.com
+    steps:
+      - name: Refuse an unmigrated schema change
+        if: ${{ !inputs.migrated }}
+        run: |
+          echo "::error::Run the migration first, then deploy."
+          exit 1
+
+      - name: Trigger the Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL is not set in repository secrets."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/hook.json -w '%{http_code}' --max-time 30 "$HOOK")
+          echo "deploy hook returned HTTP $code"
+          [ "$code" = "200" ] || { echo "::error::Deploy hook rejected the request"; exit 1; }
+
+      - name: Wait for the service to answer again
+        run: |
+          sleep 45
+          for attempt in $(seq 1 30); do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 30 "$BASE/health" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "healthy after attempt $attempt"
+              cat /tmp/health.json
+              echo
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $code"
+            sleep 15
+          done
+          echo "::error::Service did not return to health within the window"
+          exit 1
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Staging deploy"
+            echo ""
+            echo "- Reason: ${{ inputs.reason }}"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
