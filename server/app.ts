@@ -194,6 +194,13 @@ function writerError(error: unknown): WriterError {
   if (code === 'BOOTSTRAP_MISMATCH' || code === 'BOOTSTRAP_REQUIRED') {
     return { code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.', statusCode: 401 }
   }
+  if (code === 'SIGNER_ALREADY_REGISTERED') {
+    return {
+      code,
+      message: 'This wallet already signs for another merchant. Reconnect that merchant, or sign with a different Nimiq account.',
+      statusCode: 409,
+    }
+  }
   if (code === 'CHALLENGE_EXPIRED') {
     return { code, message: 'The signing challenge expired. Request a fresh challenge.', statusCode: 410 }
   }

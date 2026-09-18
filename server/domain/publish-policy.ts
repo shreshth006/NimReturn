@@ -29,6 +29,7 @@ type PolicyPublishErrorCode =
   | 'INVALID_REQUEST'
   | 'POLICY_NOT_FOUND'
   | 'POLICY_STATE_CONFLICT'
+  | 'SIGNER_ALREADY_REGISTERED'
 
 interface ChallengeLocatorRow {
   merchant_id: string
@@ -82,6 +83,12 @@ export class PolicyPublishError extends Error {
     this.name = 'PolicyPublishError'
     this.code = code
   }
+}
+
+function uniqueViolation(error: unknown, constraint: string): boolean {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { code?: unknown; constraint_name?: unknown }
+  return candidate.code === '23505' && candidate.constraint_name === constraint
 }
 
 function fail(code: PolicyPublishErrorCode, message: string): never {
@@ -227,12 +234,23 @@ export async function publishVerifiedPolicy(
     }))
 
     if (firstPolicyForMerchant) {
-      const establishedRows = await transaction<{ id: string }[]>`
-        update merchants
-        set policy_signer_address = ${proof.actualSignerAddress}, updated_at = ${databaseNow}
-        where id = ${challenge.merchant_id} and policy_signer_address is null
-        returning id
-      `
+      // One wallet is one merchant. Signing a second merchant into existence with an
+      // address that already signs for another is refused by a unique index, and the
+      // signer deserves to be told that rather than a generic failure.
+      let establishedRows: { id: string }[]
+      try {
+        establishedRows = await transaction<{ id: string }[]>`
+          update merchants
+          set policy_signer_address = ${proof.actualSignerAddress}, updated_at = ${databaseNow}
+          where id = ${challenge.merchant_id} and policy_signer_address is null
+          returning id
+        `
+      } catch (error) {
+        if (uniqueViolation(error, 'merchants_policy_signer_address_unique')) {
+          fail('SIGNER_ALREADY_REGISTERED', 'This wallet already signs policies for another merchant.')
+        }
+        throw error
+      }
       if (establishedRows.length !== 1) {
         fail('POLICY_STATE_CONFLICT', 'Merchant signer establishment lost a concurrent race.')
       }

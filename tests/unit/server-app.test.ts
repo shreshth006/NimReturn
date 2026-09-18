@@ -2,6 +2,7 @@ import type postgres from 'postgres'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../../server/app.js'
+import { PolicyPublishError } from '../../server/domain/publish-policy.js'
 import type { ServerConfig } from '../../server/config.js'
 import type { PurchaseOrderView } from '../../server/domain/purchase-order.js'
 import {
@@ -748,6 +749,38 @@ describe('server app', () => {
     })
     apps.push(wrong)
     expect((await wrong.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: null })
+  })
+
+  it('tells a signer their wallet already belongs to another merchant', async () => {
+    const app = await buildApp(writerConfig, {
+      database: {} as postgres.Sql,
+      publishPolicy: () => Promise.reject(new PolicyPublishError(
+        'SIGNER_ALREADY_REGISTERED',
+        'This wallet already signs policies for another merchant.',
+      )),
+    })
+    apps.push(app)
+
+    const response = await app.inject({
+      cookies: { nimreturn_merchant_bootstrap: 'A'.repeat(43) },
+      headers: { origin: writerConfig.CORS_ORIGIN ?? '' },
+      method: 'POST',
+      payload: {
+        challengeNonce: POLICY_NONCE,
+        proof: {
+          canonicalMessage: 'NIMRETURN/1/POLICY\n{}',
+          payloadHash: 'a'.repeat(64),
+          publicKey: 'b'.repeat(64),
+          signature: 'c'.repeat(128),
+        },
+      },
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/products/${PRODUCT_PUBLIC_ID}/policies/publish`,
+    })
+
+    // A unique-index refusal used to surface as a generic 503 with no cause.
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toMatchObject({ code: 'SIGNER_ALREADY_REGISTERED' })
+    expect(response.json().message).toContain('already signs for another merchant')
   })
 
   it('offers a featured example only when the configured Passport re-verifies', async () => {
