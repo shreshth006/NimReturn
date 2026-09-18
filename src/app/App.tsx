@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 
 import { CompletedExampleLink, NetworkNotice } from '../features/judge/JudgeEntry.js'
+import { Landing } from '../features/judge/Landing.js'
 
 const PhaseZeroDiagnostics = lazy(async () => ({
   default: (await import('../features/diagnostics/PhaseZeroDiagnostics.js')).PhaseZeroDiagnostics,
@@ -23,6 +24,9 @@ export function App() {
   const productPublicId = params.get('product')
   const publicLedger = !diagnostics && Boolean(merchantPublicId)
   const buyerJourney = !diagnostics && !publicLedger && Boolean(passportPublicId || productPublicId)
+  // The merchant studio is a destination now, not the front door.
+  const merchantStudio = !diagnostics && !publicLedger && !buyerJourney && params.has('sell')
+  const landing = !diagnostics && !publicLedger && !buyerJourney && !merchantStudio
 
   return (
     <main>
@@ -31,14 +35,14 @@ export function App() {
           Nim<span>Return</span>
         </a>
         <nav aria-label="Utility navigation">
-          <a className="utility-link" href={diagnostics || buyerJourney || publicLedger ? '/' : '/?diagnostics=1'}>
-            {diagnostics || buyerJourney || publicLedger ? 'Merchant studio' : 'Diagnostics'}
+          <a className="utility-link" href={landing ? '/?sell=1' : '/'}>
+            {landing ? 'Merchant studio' : 'Home'}
           </a>
-          <span className="phase-badge">{publicLedger ? 'Promise Ledger' : passportPublicId ? 'Purchase Passport' : buyerJourney ? 'Protected purchase' : diagnostics ? 'Diagnostics' : 'Merchant studio'}</span>
+          <span className="phase-badge">{publicLedger ? 'Promise Ledger' : passportPublicId ? 'Purchase Passport' : buyerJourney ? 'Protected purchase' : diagnostics ? 'Diagnostics' : merchantStudio ? 'Merchant studio' : 'Proof of promise'}</span>
         </nav>
       </header>
       <NetworkNotice />
-      {!diagnostics && !publicLedger && !passportPublicId && <CompletedExampleLink />}
+      {merchantStudio && <CompletedExampleLink />}
 
       <Suspense fallback={<section className="buyer-loading" role="status">Loading the requested NimReturn proof surface…</section>}>
         {diagnostics ? (
@@ -57,7 +61,7 @@ export function App() {
             passportPublicId={passportPublicId}
             productPublicId={productPublicId}
           />
-        ) : <MerchantPolicyStudio />}
+        ) : landing ? <Landing /> : <MerchantPolicyStudio />}
       </Suspense>
 
       <footer>

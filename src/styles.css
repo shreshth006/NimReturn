@@ -532,3 +532,23 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .proof-disclosure__body dl { margin: 0; }
 .proof-disclosure__body code { font-size: 0.74rem; }
 .proof-message { max-height: 300px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.72rem; line-height: 1.55; }
+
+/* Landing: the front door. Two clear paths instead of a merchant form. */
+.landing-paths { display: grid; gap: 14px; margin: 8px 0 0; }
+.landing-card { display: grid; gap: 5px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); text-decoration: none; }
+.landing-card span { color: var(--muted); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.landing-card strong { font-size: 1.2rem; }
+.landing-card small { color: #45504d; font-size: 0.86rem; line-height: 1.5; }
+.landing-card--primary { border-color: #9dcbb0; background: var(--green-soft); }
+.landing-card--primary span { color: var(--green); }
+.landing-resume { display: grid; gap: 8px; margin: 18px 0 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.landing-resume p { margin: 0; font-size: 0.95rem; }
+.landing-resume__actions { display: flex; flex-wrap: wrap; gap: 16px; }
+.landing-resume small { color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
+.landing-how { margin: 30px 0 0; }
+.landing-how h2 { margin: 0 0 14px; font-size: 1.15rem; }
+.landing-how ol { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: landing-step; }
+.landing-how li { display: grid; gap: 3px; padding-left: 40px; position: relative; counter-increment: landing-step; }
+.landing-how li::before { content: counter(landing-step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: #fffdf7; font-size: 0.85rem; font-weight: 700; }
+.landing-how strong { font-size: 1rem; }
+.landing-how span { color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
