@@ -242,7 +242,10 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .policy-ticket dt { margin-bottom: 5px; color: #9bc6b0; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
 .policy-ticket dd { margin: 0; font-size: 0.78rem; font-weight: 750; overflow-wrap: anywhere; }
 .policy-ticket details { padding: 0 22px 6px; }
-.policy-ticket summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: #b9d7c7; font-size: 0.75rem; font-weight: 750; }
+.policy-ticket summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: #b9d7c7; font-size: 0.75rem; font-weight: 750; list-style: none; }
+.policy-ticket summary::-webkit-details-marker { display: none; }
+.policy-ticket summary::before { content: '\25B8'; font-size: 0.9rem; transition: transform 120ms ease; }
+.policy-ticket details[open] summary::before { transform: rotate(90deg); }
 .policy-ticket code { display: block; margin-top: 9px; overflow-wrap: anywhere; color: #d9e9e0; font-size: 0.7rem; line-height: 1.45; }
 .purchase-progress { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 0 24px; padding: 0; border: 1px solid var(--line); background: var(--surface); list-style: none; }
 .purchase-progress li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 15px; border-right: 1px solid var(--line); color: #929b98; }
@@ -437,6 +440,9 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
   .merchant-hero { grid-template-columns: 1fr; }
   .buyer-product { grid-template-columns: 1fr; }
   .policy-ticket { border-radius: 16px; overflow: hidden; box-shadow: 0 10px 26px rgb(21 39 36 / 14%); }
+  .policy-ticket dl { grid-template-columns: repeat(2, 1fr); }
+  .policy-ticket dl > div:nth-child(2n) { border-right: 0; }
+  .policy-ticket dl > div:nth-child(n+3) { border-top: 1px solid rgb(255 255 255 / 16%); }
   .purchase-progress { grid-template-columns: repeat(2, 1fr); }
   .purchase-progress li:nth-child(2) { border-right: 0; }
   .purchase-progress li:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
