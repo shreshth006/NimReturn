@@ -259,7 +259,7 @@ async function verifyReserved(
   attempt: AttemptRow,
 ): Promise<RefundView> {
   let observed: ObservedTransaction | null
-  try { observed = await reader.getTransaction(input.hash) } catch {
+  try { observed = await reader.getTransaction(input.hash, attempt.network) } catch {
     return persistEvidence(client, input, 'inconclusive', 'The configured RPC could not provide trustworthy refund evidence yet.', null, null)
   }
   if (!observed) return persistEvidence(client, input, 'absent', 'The configured RPC has not returned this refund yet.', null, null)
@@ -313,7 +313,9 @@ export async function recheckRefundTransaction(
   }
 
   let observed: ObservedTransaction | null
-  try { observed = await reader.getTransaction(hash) } catch { observed = null }
+  try {
+    observed = await reader.getTransaction(hash, view.attempt.expectedPayment.network)
+  } catch { observed = null }
   const { sender: expectedSender, ...expectedFields } = view.attempt.expectedPayment
   const verification = observed
     ? verifyObservedTransaction({
@@ -438,8 +440,12 @@ export async function reconcileRefundOutcome(
   let head: { blockNumber: number; network: string }
   let history: Awaited<ReturnType<AddressTransactionSearch['listTransactionsByAddress']>>
   try {
-    head = await search.getHead()
-    history = await search.listTransactionsByAddress(expectation.expected_recipient, HISTORY_PAGE_SIZE)
+    head = await search.getHead(expectation.network)
+    history = await search.listTransactionsByAddress(
+      expectation.expected_recipient,
+      HISTORY_PAGE_SIZE,
+      expectation.network,
+    )
   } catch {
     throw new RefundLifecycleError('RPC_UNAVAILABLE', 'Chain history is unavailable; the refund outcome stays unknown.')
   }

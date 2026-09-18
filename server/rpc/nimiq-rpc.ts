@@ -88,8 +88,8 @@ export interface AddressTransactionSummary {
 }
 
 export interface AddressTransactionSearch {
-  getHead(): Promise<{ blockNumber: number; network: string }>
-  listTransactionsByAddress(address: string, max: number): Promise<AddressTransactionSummary[]>
+  getHead(network: string): Promise<{ blockNumber: number; network: string }>
+  listTransactionsByAddress(address: string, max: number, network: string): Promise<AddressTransactionSummary[]>
 }
 
 export function summarizeRpcTransaction(value: unknown): AddressTransactionSummary {

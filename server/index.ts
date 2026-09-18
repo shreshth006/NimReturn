@@ -5,14 +5,15 @@ import fastifyStatic from '@fastify/static'
 import postgres from 'postgres'
 
 import { buildApp } from './app.js'
-import { parseServerConfig } from './config.js'
-import { NimiqRpcClient } from './rpc/nimiq-rpc.js'
+import { parseServerConfig, rpcUrlsByNetwork } from './config.js'
+import { NimiqRpcRegistry } from './rpc/registry.js'
 
 if (existsSync('.env')) loadEnvFile('.env')
 
 const config = parseServerConfig(process.env)
 const database = config.DATABASE_URL ? postgres(config.DATABASE_URL) : null
-const rpc = config.NIMIQ_RPC_URL ? new NimiqRpcClient(config.NIMIQ_RPC_URL) : null
+const registry = NimiqRpcRegistry.fromUrls(rpcUrlsByNetwork(config))
+const rpc = registry.configured ? registry : null
 const app = await buildApp(config, { database, rpc })
 
 if (config.STATIC_ROOT) {

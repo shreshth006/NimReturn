@@ -394,6 +394,8 @@ export async function createRefundAttempt(
 export async function recordRefundWalletState(
   client: postgres.Sql,
   rawInput: unknown,
+  /** Reads the head of the attempt's own chain, so the rule-out window is measured there. */
+  readHead?: (network: string) => Promise<number | undefined>,
 ): Promise<RefundView> {
   const parsed = stateSchema.safeParse(rawInput)
   if (!parsed.success) fail('INVALID_REQUEST', 'The refund wallet state is invalid.')
@@ -403,6 +405,23 @@ export async function recordRefundWalletState(
     : input.event === 'wallet-cancelled'
       ? 'payment_cancelled'
       : 'submission_outcome_unknown'
+  // Resolved before the transaction opens: a chain read must never be held inside a row lock.
+  let resolvedHeight = input.referenceHeight
+  if (target === 'wallet_request_started' && resolvedHeight === undefined && readHead) {
+    const [pending] = await client<{ network: string }[]>`
+      select refund_attempts.network
+      from refund_attempts
+      join claims on claims.id = refund_attempts.claim_id
+      join merchants on merchants.id = refund_attempts.merchant_id
+      where refund_attempts.public_id = ${input.attemptPublicId}
+        and claims.public_id = ${input.claimPublicId}
+        and merchants.public_id = ${input.merchantPublicId}
+    `
+    if (pending) {
+      try { resolvedHeight = await readHead(pending.network) } catch { resolvedHeight = undefined }
+    }
+  }
+
   return client.begin(async (transaction) => {
     const rows = await transaction<{ id: string; state: RefundAttemptState }[]>`
       select refund_attempts.id, refund_attempts.wallet_state as state
@@ -421,7 +440,7 @@ export async function recordRefundWalletState(
         || (target === 'payment_cancelled' && ['payment_requested', 'wallet_request_started'].includes(attempt.state))
         || (target === 'submission_outcome_unknown' && attempt.state === 'wallet_request_started')
       if (!allowed) fail('STATE_CONFLICT', 'The refund wallet state cannot move backward or skip required steps.')
-      const referenceHeight = target === 'wallet_request_started' ? input.referenceHeight ?? null : null
+      const referenceHeight = target === 'wallet_request_started' ? resolvedHeight ?? null : null
       await transaction`
         update refund_attempts set
           wallet_state = ${target},

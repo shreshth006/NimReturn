@@ -122,6 +122,7 @@ describe('refund routes', () => {
   it('reconciles unknown outcomes only for the merchant session with server-read chain height', async () => {
     const reconcileInputs: unknown[] = []
     const stateInputs: unknown[] = []
+    const headReaders: (((network: string) => Promise<number | undefined>) | undefined)[] = []
     const search = {
       getHead: () => Promise.resolve({ blockNumber: 12_345, network: 'TestAlbatross' }),
       listTransactionsByAddress: () => Promise.resolve([]),
@@ -132,7 +133,11 @@ describe('refund routes', () => {
         reconcileInputs.push(input)
         return Promise.resolve({ headBlockNumber: 12_345, refund: refundView(), result: 'waiting', safeAfterHeight: 20_145 })
       },
-      recordRefundState: (_database, input) => { stateInputs.push(input); return Promise.resolve(refundView()) },
+      recordRefundState: (_database, input, readHead) => {
+        stateInputs.push(input)
+        headReaders.push(readHead)
+        return Promise.resolve(refundView())
+      },
       refundSearch: search,
     })
     apps.push(app)
@@ -159,8 +164,10 @@ describe('refund routes', () => {
       claimPublicId: CLAIM_ID,
       event: 'wallet-request-started',
       merchantPublicId: MERCHANT_ID,
-      referenceHeight: 12_345,
     }])
+    // The height is read by the server on the attempt's own chain, never supplied by the client.
+    expect(await headReaders[0]?.('TestAlbatross')).toBe(12_345)
+    expect(await headReaders[0]?.('MainAlbatross')).toBeUndefined()
     expect((await app.inject({
       cookies,
       method: 'POST',

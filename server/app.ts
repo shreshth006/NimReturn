@@ -61,7 +61,8 @@ import {
   ResolutionLifecycleError,
 } from './domain/resolution-lifecycle.js'
 import { NimiqRpcError } from './rpc/nimiq-rpc.js'
-import type { AddressTransactionSearch, NimiqRpcClient } from './rpc/nimiq-rpc.js'
+import type { AddressTransactionSearch } from './rpc/nimiq-rpc.js'
+import type { NimiqRpcRegistry } from './rpc/registry.js'
 import {
   createRefundAttempt,
   getRefund,
@@ -376,7 +377,7 @@ export interface AppDependencies {
   recordWalletState?: typeof recordPurchaseWalletState
   createClaimKey?: typeof createPurchaseClaimKeyChallenge
   submitClaimKey?: typeof submitPurchaseClaimKeyProof
-  rpc?: NimiqRpcClient | null
+  rpc?: NimiqRpcRegistry | null
   verifyPurchase?: typeof verifyPurchaseTransaction
   submitClaim?: typeof submitClaimProof
   authorizeClaim?: typeof submitClaimAuthorization
@@ -471,6 +472,14 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     getTransaction: () => Promise.reject(new Error('RPC is not configured.')),
   }
   const refundSearch = dependencies.refundSearch ?? rpc
+  /** Fails closed: an absent node, or one answering for another chain, yields no height. */
+  const readHeadFor = async (network: string): Promise<number | undefined> => {
+    if (!refundSearch) return undefined
+    try {
+      const head = await refundSearch.getHead(network)
+      return head.network === network ? head.blockNumber : undefined
+    } catch { return undefined }
+  }
   const cookieOptions = {
     httpOnly: true,
     path: '/',
@@ -1309,15 +1318,10 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
     }
     try {
-      let referenceHeight: number | undefined
-      if (body.data.event === 'wallet-request-started' && refundSearch) {
-        try { referenceHeight = (await refundSearch.getHead()).blockNumber } catch { referenceHeight = undefined }
-      }
       return reply.send(await updateRefundState(database, {
         ...params.data,
         event: body.data.event,
-        ...(referenceHeight === undefined ? {} : { referenceHeight }),
-      }))
+      }, readHeadFor))
     } catch (error) {
       const response = refundError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
@@ -1386,31 +1390,46 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
   })
 
-  const networkLabel = config.NIMIQ_NETWORK === 'TestAlbatross'
+  const labelFor = (network: string): string => network === 'TestAlbatross'
     ? 'Nimiq Testnet'
-    : config.NIMIQ_NETWORK === 'MainAlbatross' ? 'Nimiq Mainnet' : `Nimiq ${config.NIMIQ_NETWORK}`
-  let cachedHead: { blockNumber: number; readAt: number } | null = null
+    : network === 'MainAlbatross' ? 'Nimiq Mainnet' : `Nimiq ${network}`
+  const networkLabel = labelFor(config.NIMIQ_NETWORK)
+  let cachedHeads: { readAt: number; value: { blockNumber: number | null; label: string; network: string }[] } | null = null
+
+  /**
+   * Reports every chain this deployment can verify against, with its current head.
+   * The wallet reports a constant network name, so the client identifies which chain
+   * a wallet is on by matching its head against these.
+   */
   app.get('/api/v1/network', {
     config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
   }, async (request, reply) => {
     reply.header('cache-control', 'no-store')
-    let headBlockNumber: number | null = null
-    if (rpc) {
-      if (cachedHead && Date.now() - cachedHead.readAt < 5_000) {
-        headBlockNumber = cachedHead.blockNumber
+    let networks: { blockNumber: number | null; label: string; network: string }[] = []
+    if (rpc?.configured) {
+      if (cachedHeads && Date.now() - cachedHeads.readAt < 5_000) {
+        networks = cachedHeads.value
       } else {
         try {
-          const head = await rpc.getHead()
-          if (head.network === config.NIMIQ_NETWORK) {
-            cachedHead = { blockNumber: head.blockNumber, readAt: Date.now() }
-            headBlockNumber = head.blockNumber
-          }
+          const heads = await rpc.heads()
+          networks = heads.map((head) => ({
+            blockNumber: head.blockNumber,
+            label: labelFor(head.network),
+            network: head.network,
+          }))
+          cachedHeads = { readAt: Date.now(), value: networks }
         } catch (error) {
           request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Network status head read failed')
         }
       }
     }
-    return reply.send({ expectedNetwork: config.NIMIQ_NETWORK, headBlockNumber, label: networkLabel })
+    const preferred = networks.find((entry) => entry.network === config.NIMIQ_NETWORK)
+    return reply.send({
+      expectedNetwork: config.NIMIQ_NETWORK,
+      headBlockNumber: preferred?.blockNumber ?? null,
+      label: networkLabel,
+      networks,
+    })
   })
 
   app.get('/api/v1/diagnostics/rpc', async (request, reply) => {
@@ -1423,7 +1442,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
 
     try {
-      const head = await rpc.getHead()
+      const head = await rpc.getHead(config.NIMIQ_NETWORK)
       const networkMatches = head.network === config.NIMIQ_NETWORK
       return reply.code(networkMatches ? 200 : 502).send({
         configured: true,
@@ -1462,7 +1481,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     }
 
     try {
-      const observed = await rpc.getTransaction(parsed.data.hash.toLowerCase())
+      const observed = await rpc.getTransaction(parsed.data.hash.toLowerCase(), config.NIMIQ_NETWORK)
       if (!observed) {
         return reply.code(202).send({
           outcome: 'pending-inclusion',

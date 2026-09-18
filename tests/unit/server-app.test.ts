@@ -689,21 +689,46 @@ describe('server app', () => {
     const noRpc = await offline.inject({ method: 'GET', url: '/api/v1/network' })
     expect(noRpc.statusCode).toBe(200)
     expect(noRpc.headers['cache-control']).toBe('no-store')
-    expect(noRpc.json()).toEqual({ expectedNetwork: 'TestAlbatross', headBlockNumber: null, label: 'Nimiq Testnet' })
+    expect(noRpc.json()).toEqual({
+      expectedNetwork: 'TestAlbatross',
+      headBlockNumber: null,
+      label: 'Nimiq Testnet',
+      networks: [],
+    })
 
     let reads = 0
     const app = await buildApp(config, {
       rpc: {
-        getHead: () => { reads += 1; return Promise.resolve({ blockNumber: 11_600_000, network: 'TestAlbatross' }) },
+        configured: true,
+        heads: () => {
+          reads += 1
+          return Promise.resolve([
+            { blockNumber: 11_600_000, network: 'TestAlbatross', observedNetwork: 'TestAlbatross' },
+            { blockNumber: 60_000_000, network: 'MainAlbatross', observedNetwork: 'MainAlbatross' },
+          ])
+        },
       } as never,
     })
     apps.push(app)
-    expect((await app.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: 11_600_000 })
+    // Both chains are reported so the client can tell which one a wallet is on.
+    expect((await app.inject({ method: 'GET', url: '/api/v1/network' })).json()).toEqual({
+      expectedNetwork: 'TestAlbatross',
+      headBlockNumber: 11_600_000,
+      label: 'Nimiq Testnet',
+      networks: [
+        { blockNumber: 11_600_000, label: 'Nimiq Testnet', network: 'TestAlbatross' },
+        { blockNumber: 60_000_000, label: 'Nimiq Mainnet', network: 'MainAlbatross' },
+      ],
+    })
     await app.inject({ method: 'GET', url: '/api/v1/network' })
     expect(reads).toBe(1)
 
+    // A node answering for a different chain than it is configured for reports no head.
     const wrong = await buildApp(config, {
-      rpc: { getHead: () => Promise.resolve({ blockNumber: 60_000_000, network: 'MainAlbatross' }) } as never,
+      rpc: {
+        configured: true,
+        heads: () => Promise.resolve([{ blockNumber: null, network: 'TestAlbatross', observedNetwork: 'MainAlbatross' }]),
+      } as never,
     })
     apps.push(wrong)
     expect((await wrong.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: null })

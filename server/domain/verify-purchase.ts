@@ -24,7 +24,8 @@ const inputSchema = z.object({
 }).strict()
 
 export interface PurchaseTransactionReader {
-  getTransaction(hash: string): Promise<ObservedTransaction | null>
+  /** The network is always the record's own; readers must never answer from another chain. */
+  getTransaction(hash: string, network: string): Promise<ObservedTransaction | null>
 }
 
 interface LockedOrderRow {
@@ -410,7 +411,7 @@ async function runIndependentVerification(
 ): Promise<PurchaseOrderView> {
   let observed: ObservedTransaction | null
   try {
-    observed = await reader.getTransaction(input.hash)
+    observed = await reader.getTransaction(input.hash, expected.network)
   } catch {
     return persistNonFinal(
       client,
@@ -520,7 +521,7 @@ async function reconcilePurchasedTransaction(
   }
   let observed: ObservedTransaction | null
   try {
-    observed = await reader.getTransaction(stored.hash)
+    observed = await reader.getTransaction(stored.hash, view.expectedPayment.network)
   } catch {
     return persistReconciliation(
       client,

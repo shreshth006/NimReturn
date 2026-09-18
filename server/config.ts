@@ -14,8 +14,12 @@ const configSchema = z.object({
     z.string().regex(/^[A-Za-z0-9_-]{22}$/u).optional(),
   ),
   HOST: z.string().min(1).default('127.0.0.1'),
+  // The network a wallet is assumed to be on when nothing else identifies it.
   NIMIQ_NETWORK: z.string().min(1).max(24).default('TestAlbatross'),
+  // Node for NIMIQ_NETWORK. The per-network URLs below take precedence when both are set.
   NIMIQ_RPC_URL: optionalUrl,
+  NIMIQ_RPC_URL_MAINALBATROSS: optionalUrl,
+  NIMIQ_RPC_URL_TESTALBATROSS: optionalUrl,
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
   SESSION_SECRET: z.preprocess(
@@ -58,4 +62,23 @@ export function parseServerConfig(environment: NodeJS.ProcessEnv): ServerConfig 
     throw new Error(`Invalid server environment: ${z.prettifyError(parsed.error)}`)
   }
   return parsed.data
+}
+
+export const MAIN_NETWORK = 'MainAlbatross'
+export const TEST_NETWORK = 'TestAlbatross'
+
+/**
+ * Which node answers for which chain. A single legacy NIMIQ_RPC_URL keeps serving
+ * NIMIQ_NETWORK, so an existing deployment behaves exactly as before until a
+ * second node is configured.
+ */
+export function rpcUrlsByNetwork(config: ServerConfig): Record<string, string | undefined> {
+  const urls: Record<string, string | undefined> = {
+    [MAIN_NETWORK]: config.NIMIQ_RPC_URL_MAINALBATROSS,
+    [TEST_NETWORK]: config.NIMIQ_RPC_URL_TESTALBATROSS,
+  }
+  if (config.NIMIQ_RPC_URL && !urls[config.NIMIQ_NETWORK]) {
+    urls[config.NIMIQ_NETWORK] = config.NIMIQ_RPC_URL
+  }
+  return urls
 }
