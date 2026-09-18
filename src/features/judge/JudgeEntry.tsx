@@ -4,20 +4,39 @@ import { getFeaturedExample } from '../../lib/api/purchase.js'
 import { fetchNetworkStatus } from '../../lib/nimiq/network-gate.js'
 
 export function NetworkNotice() {
-  const [label, setLabel] = useState<string | null>(null)
+  const [labels, setLabels] = useState<string[] | null>(null)
 
   useEffect(() => {
     let active = true
     fetchNetworkStatus()
-      .then((status) => { if (active) setLabel(status.label) })
-      .catch(() => { if (active) setLabel(null) })
+      .then((status) => {
+        if (!active) return
+        const verified = (status.networks ?? [])
+          .filter((entry) => entry.blockNumber !== null)
+          .map((entry) => entry.label)
+        setLabels(verified.length > 0 ? verified : [status.label])
+      })
+      .catch(() => { if (active) setLabels(null) })
     return () => { active = false }
   }, [])
 
-  if (!label) return null
+  if (!labels || labels.length === 0) return null
+
+  // With more than one chain verified there is nothing to switch to: the wallet's own
+  // network is detected, and each product is bought on the network it is sold on.
+  if (labels.length > 1) {
+    const readable = `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+    return (
+      <p className="network-notice" role="note">
+        <strong>Verified on {readable}.</strong> NimReturn detects which network your wallet is on.
+        Each product is bought on the network it is sold on.
+      </p>
+    )
+  }
+
   return (
     <p className="network-notice" role="note">
-      <strong>Runs on {label}.</strong> Switch Nimiq Pay to {label} before buying or signing. Viewing proofs works on any network.
+      <strong>Runs on {labels[0]}.</strong> Switch Nimiq Pay to {labels[0]} before buying or signing. Viewing proofs works on any network.
     </p>
   )
 }
