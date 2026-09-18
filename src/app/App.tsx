@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 
-import { CompletedExampleLink, NetworkNotice } from '../features/judge/JudgeEntry.js'
+import { CompletedExampleLink, NetworkIndicator } from '../features/judge/JudgeEntry.js'
 import { Landing } from '../features/judge/Landing.js'
 
 const PhaseZeroDiagnostics = lazy(async () => ({
@@ -32,16 +32,16 @@ export function App() {
     <main>
       <header className="site-header">
         <a className="wordmark" href="/" aria-label="NimReturn home">
-          Nim<span>Return</span>
+          <img className="wordmark__mark" src="/logo-96.png" alt="" width="28" height="28" />
+          <span className="wordmark__text">NimReturn</span>
         </a>
         <nav aria-label="Utility navigation">
           <a className="utility-link" href={landing ? '/?sell=1' : '/'}>
-            {landing ? 'Merchant studio' : 'Home'}
+            {landing ? 'Sell' : 'Home'}
           </a>
-          <span className="phase-badge">{publicLedger ? 'Promise Ledger' : passportPublicId ? 'Purchase Passport' : buyerJourney ? 'Protected purchase' : diagnostics ? 'Diagnostics' : merchantStudio ? 'Merchant studio' : 'Proof of promise'}</span>
+          <NetworkIndicator />
         </nav>
       </header>
-      <NetworkNotice />
       {merchantStudio && <CompletedExampleLink />}
 
       <Suspense fallback={<section className="buyer-loading" role="status">Loading the requested NimReturn proof surface…</section>}>

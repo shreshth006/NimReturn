@@ -133,14 +133,23 @@ describe('purchase API client', () => {
     await expect(getPassport(PASSPORT_ID)).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
   })
 
-  it('accepts only a strict public identifier for the server-reverified example', async () => {
+  it('accepts only strict public identifiers for the server-reverified example', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID }), { status: 200 }),
+    ))
+    await expect(getFeaturedExample()).resolves.toEqual({
+      passportPublicId: PASSPORT_ID,
+      productPublicId: PRODUCT_ID,
+    })
+
+    // The product is required: without it a visitor cannot repeat the purchase.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ passportPublicId: PASSPORT_ID }), { status: 200 }),
     ))
-    await expect(getFeaturedExample()).resolves.toBe(PASSPORT_ID)
+    await expect(getFeaturedExample()).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, trusted: true }), { status: 200 }),
+      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID, trusted: true }), { status: 200 }),
     ))
     await expect(getFeaturedExample()).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
 

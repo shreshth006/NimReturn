@@ -8,7 +8,7 @@ import { clearMerchantWorkspace, loadMerchantWorkspace } from '../merchant/merch
  * two things anyone could want next, rather than opening on a merchant form.
  */
 export function Landing() {
-  const [examplePassportId, setExamplePassportId] = useState<string | null>(null)
+  const [example, setExample] = useState<{ passportPublicId: string; productPublicId: string } | null>(null)
   // Read once at first render: this is device-local storage, not an external system to sync with.
   const [workspaceProduct, setWorkspaceProduct] = useState<string | null>(
     () => loadMerchantWorkspace()?.productName ?? null,
@@ -17,8 +17,8 @@ export function Landing() {
   useEffect(() => {
     let active = true
     getFeaturedExample()
-      .then((id) => { if (active) setExamplePassportId(id) })
-      .catch(() => { if (active) setExamplePassportId(null) })
+      .then((value) => { if (active) setExample(value) })
+      .catch(() => { if (active) setExample(null) })
     return () => { active = false }
   }, [])
 
@@ -40,20 +40,31 @@ export function Landing() {
       </section>
 
       <section className="landing-paths" aria-label="Choose how to start">
-        {examplePassportId && (
-          <a className="landing-card landing-card--primary" href={`/?passport=${examplePassportId}`}>
-            <span>Start here · no wallet needed</span>
-            <strong>See a real protected purchase</strong>
+        {example && (
+          <a className="landing-card landing-card--primary" href={`/?product=${example.productPublicId}`}>
+            <span>Buy something protected</span>
+            <strong>Make a protected purchase</strong>
             <small>
-              A genuine Purchase Passport: signed promise → verified payment → claim → signed approval
-              → refund verified on Nimiq.
+              A real product with merchant-signed terms. You pay the merchant directly in NIM and get a
+              Purchase Passport of your own.
+            </small>
+          </a>
+        )}
+
+        {example && (
+          <a className="landing-card" href={`/?passport=${example.passportPublicId}`}>
+            <span>No wallet needed</span>
+            <strong>Read a finished one first</strong>
+            <small>
+              Someone else&apos;s completed Passport: signed promise → verified payment → claim → signed
+              approval → refund verified on Nimiq.
             </small>
           </a>
         )}
 
         <a className="landing-card" href="/?sell=1">
           <span>For merchants</span>
-          <strong>Protect your buyers</strong>
+          <strong>Sell with protected terms</strong>
           <small>Sign your return and warranty terms with your Nimiq wallet. It takes about a minute and moves no funds.</small>
         </a>
       </section>

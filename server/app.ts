@@ -1018,7 +1018,9 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       // The Passport read re-verifies stored policy and chain evidence and fails closed.
       const passport = await readPassport(database, config.FEATURED_PASSPORT_ID)
       if (!passport || passport.status !== 'refunded') return reply.code(404).send(unavailable)
-      return reply.send({ passportPublicId: passport.publicId })
+      // The product is returned too, so a visitor can go from reading the example to
+      // making the same purchase themselves instead of hitting a dead end.
+      return reply.send({ passportPublicId: passport.publicId, productPublicId: passport.product.publicId })
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Featured example failed verification')
       return reply.code(404).send(unavailable)

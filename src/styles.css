@@ -558,3 +558,15 @@ footer span { flex: none; font-weight: 800; letter-spacing: 0.04em; text-transfo
 .landing-how li::before { content: counter(landing-step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: #fffdf7; font-size: 0.85rem; font-weight: 700; }
 .landing-how strong { font-size: 1rem; }
 .landing-how span { color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+
+/* Header: real mark, and a quiet network chip instead of a banner. */
+.wordmark { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; }
+.wordmark__mark { display: block; width: 28px; height: 28px; border-radius: 7px; }
+.wordmark__text { color: var(--ink); font-weight: 850; letter-spacing: -0.03em; }
+.network-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: #ebece7; color: #45504d; font-size: 0.72rem; font-weight: 750; white-space: nowrap; }
+.network-chip__dot { width: 7px; height: 7px; border-radius: 50%; background: #8c9692; }
+.network-chip--live .network-chip__dot { background: var(--green); }
+
+/* A Passport now offers the same purchase rather than ending the journey. */
+.passport__next { display: grid; gap: 12px; margin-top: 26px; }
+.evidence-recheck { margin-top: 14px; }

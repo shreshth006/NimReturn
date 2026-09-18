@@ -758,12 +758,17 @@ describe('server app', () => {
     const featured = { ...config, FEATURED_PASSPORT_ID: PASSPORT_PUBLIC_ID }
     const verified = await buildApp(featured, {
       database: {} as postgres.Sql,
-      readPassport: (_database, publicId) => Promise.resolve({ publicId, status: 'refunded' } as never),
+      readPassport: (_database, publicId) => Promise.resolve({
+        product: { publicId: PRODUCT_PUBLIC_ID },
+        publicId,
+        status: 'refunded',
+      } as never),
     })
     apps.push(verified)
     const ok = await verified.inject({ method: 'GET', url: '/api/v1/featured-example' })
     expect(ok.statusCode).toBe(200)
-    expect(ok.json()).toEqual({ passportPublicId: PASSPORT_PUBLIC_ID })
+    // The product travels with the example so the visitor can repeat the purchase.
+    expect(ok.json()).toEqual({ passportPublicId: PASSPORT_PUBLIC_ID, productPublicId: PRODUCT_PUBLIC_ID })
 
     for (const readPassport of [
       () => Promise.reject(new Error('evidence integrity failure')),

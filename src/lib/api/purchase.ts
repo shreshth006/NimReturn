@@ -247,7 +247,12 @@ export function recheckTransaction(orderPublicId: string): Promise<PurchaseOrder
   })
 }
 
-export async function getFeaturedExample(): Promise<string | null> {
+export interface FeaturedExample {
+  passportPublicId: string
+  productPublicId: string
+}
+
+export async function getFeaturedExample(): Promise<FeaturedExample | null> {
   const response = await fetch(`${baseUrl}/api/v1/featured-example`, { headers: { accept: 'application/json' } })
   if (response.status === 404) return null
   let body: unknown
@@ -256,11 +261,14 @@ export async function getFeaturedExample(): Promise<string | null> {
   } catch {
     throw new PurchaseApiError('INVALID_API_RESPONSE', 'NimReturn returned an unreadable example reference.', response.status)
   }
-  const parsed = z.object({ passportPublicId: publicTokenSchema }).strict().safeParse(body)
+  const parsed = z.object({
+    passportPublicId: publicTokenSchema,
+    productPublicId: publicTokenSchema,
+  }).strict().safeParse(body)
   if (!response.ok || !parsed.success) {
     throw new PurchaseApiError('INVALID_API_RESPONSE', 'NimReturn returned an invalid example reference.', response.status)
   }
-  return parsed.data.passportPublicId
+  return parsed.data
 }
 
 export function getPassport(passportPublicId: string): Promise<PurchasePassport> {

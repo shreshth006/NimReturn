@@ -517,8 +517,10 @@ function PassportPanel({
       <div className="passport__evidence">
         <div className="evidence-heading">
           <div><span>Public chain receipt</span><h2>Independently checked on Nimiq</h2></div>
-          <button className="text-button" type="button" disabled={busy} onClick={onReconcile}>{busy ? 'Rechecking…' : 'Recheck on Nimiq'}</button>
         </div>
+        <button className="button-secondary evidence-recheck" type="button" disabled={busy} onClick={onReconcile}>
+          {busy ? 'Rechecking…' : 'Recheck this payment on Nimiq'}
+        </button>
         <ProofDisclosure>
         <dl>
           <PassportFact label="Buyer · chain sender" value={passport.payment.buyerAddress} mono />
@@ -536,7 +538,19 @@ function PassportPanel({
         </dl>
         </ProofDisclosure>
       </div>
-      <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance. <a href={`/?merchant=${passport.merchant.publicId}`}>View this merchant&apos;s factual Promise Ledger →</a></p>
+      <section className="passport__next" aria-label="What you can do next">
+        <a className="landing-card landing-card--primary" href={`/?product=${passport.product.publicId}`}>
+          <span>Your turn</span>
+          <strong>Buy this yourself, protected</strong>
+          <small>Same product, same signed terms. You get a Purchase Passport of your own.</small>
+        </a>
+        <a className="landing-card" href={`/?merchant=${passport.merchant.publicId}`}>
+          <span>Counted from proof</span>
+          <strong>See this merchant&apos;s Promise Ledger</strong>
+          <small>Verified purchases, claims, decisions and refunds. No reviews, no star ratings.</small>
+        </a>
+      </section>
+      <p className="passport__boundary">NimReturn proves payment and the signed policy binding. It does not hold funds or guarantee future merchant performance.</p>
     </section>
   )
 }
