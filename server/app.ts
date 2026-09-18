@@ -212,6 +212,20 @@ function writerError(error: unknown): WriterError {
   }
 }
 
+/**
+ * Postgres rejections carry the constraint that refused the write. Names of schema
+ * objects are safe to log; row values are not, so only identifiers are included.
+ */
+function databaseFailureDetail(error: unknown): { constraint?: string; pgCode?: string; table?: string } {
+  if (!error || typeof error !== 'object') return {}
+  const candidate = error as { code?: unknown; constraint_name?: unknown; table_name?: unknown }
+  const detail: { constraint?: string; pgCode?: string; table?: string } = {}
+  if (typeof candidate.code === 'string') detail.pgCode = candidate.code
+  if (typeof candidate.constraint_name === 'string') detail.constraint = candidate.constraint_name
+  if (typeof candidate.table_name === 'string') detail.table = candidate.table_name
+  return detail
+}
+
 function merchantSessionRecoveryError(error: unknown): WriterError {
   const code = error instanceof MerchantSessionRecoveryError
     ? error.code
@@ -748,7 +762,11 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
           verified: true,
         })
       } catch (error) {
-        request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Policy publication failed')
+        // A bare error name is not enough to diagnose a database refusal in production.
+        request.log.warn({
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+          ...databaseFailureDetail(error),
+        }, 'Policy publication failed')
         const response = writerError(error)
         return reply.code(response.statusCode).send({ code: response.code, message: response.message })
       }
@@ -819,7 +837,11 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       })
       return reply.code(201).send(order)
     } catch (error) {
-      request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Purchase order creation failed')
+      request.log.warn({
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+        reason: error instanceof PurchaseOrderError ? error.code : undefined,
+        ...databaseFailureDetail(error),
+      }, 'Purchase order creation failed')
       const response = purchaseError(error)
       return reply.code(response.statusCode).send({ code: response.code, message: response.message })
     }
