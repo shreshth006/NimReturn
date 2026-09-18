@@ -779,8 +779,10 @@ describe('server app', () => {
 
     // A unique-index refusal used to surface as a generic 503 with no cause.
     expect(response.statusCode).toBe(409)
-    expect(response.json()).toMatchObject({ code: 'SIGNER_ALREADY_REGISTERED' })
-    expect(response.json().message).toContain('already signs for another merchant')
+    expect(response.json()).toMatchObject({
+      code: 'SIGNER_ALREADY_REGISTERED',
+      message: expect.stringContaining('already signs for another merchant') as unknown,
+    })
   })
 
   it('offers a featured example only when the configured Passport re-verifies', async () => {
