@@ -17,6 +17,9 @@ services:
         value: TestAlbatross
       - key: NIMIQ_RPC_URL
         sync: false
+      # Public community mainnet node. Trusted infrastructure, not proof: see D-039.
+      - key: NIMIQ_RPC_URL_MAINALBATROSS
+        value: https://rpc.nimiqwatch.com
       - key: NODE_ENV
         value: production
       - key: SESSION_SECRET
