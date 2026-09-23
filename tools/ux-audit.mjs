@@ -84,18 +84,29 @@ class Page {
     return result.value
   }
 
+  /**
+   * The header alone is enough text to look "loaded", so waiting on that screenshots a
+   * page mid-fetch and reports a healthy screen as an empty one. Wait for the main
+   * heading and for the height to stop changing.
+   */
   async goto(path) {
     await this.send('Page.navigate', { url: path.startsWith('http') ? path : BASE + path })
-    for (let i = 0; i < 80; i++) {
+    let lastHeight = -1
+    let stable = 0
+    for (let i = 0; i < 90; i++) {
       await sleep(500)
       const state = await this.eval(`
         const t = document.body ? document.body.innerText : ''
-        if (/START BUILDING ON RENDER/i.test(t)) return 'interstitial'
-        return document.querySelector('main') && t.trim().length > 40 ? 'ready' : 'waiting'
+        if (/START BUILDING ON RENDER/i.test(t)) return { phase: 'interstitial', height: 0 }
+        const ready = Boolean(document.querySelector('main h1, main h2')) && t.trim().length > 120
+        return { phase: ready ? 'ready' : 'waiting', height: Math.ceil(document.documentElement.scrollHeight) }
       `)
-      if (state === 'ready') { await sleep(800); return }
+      if (state.phase !== 'ready') { stable = 0; continue }
+      stable = state.height === lastHeight ? stable + 1 : 0
+      lastHeight = state.height
+      if (stable >= 2) { await sleep(400); return }
     }
-    throw new Error(`page never became ready: ${path}`)
+    throw new Error(`page never settled: ${path}`)
   }
 
   async shot(name) {

@@ -51,6 +51,8 @@ const promiseLedgerSchema = z.object({
   }).strict(),
   products: z.array(z.object({
     name: z.string().min(1).max(100),
+    // The chain this product sells on; a buyer must pay there.
+    network: z.string().min(1).max(24),
     payloadHash: hashSchema,
     policySignerAddress: nimiqAddressSchema,
     policyVersion: z.number().int().positive().safe(),

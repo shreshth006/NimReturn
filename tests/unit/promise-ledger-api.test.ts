@@ -43,7 +43,17 @@ function responseBody() {
       verifiedPurchases: count(3, 3),
       verifiedRefunds: count(1, 2),
     },
-    products: [],
+    products: [{
+      name: 'Cap',
+      network: 'TestAlbatross',
+      payloadHash: 'a'.repeat(64),
+      policySignerAddress: 'NQ15A4YFKG7PU2KLJ7R0K3HE36PLPCC9ND0F',
+      policyVersion: 1,
+      priceLuna: 1_000,
+      publicId: 'AAAAAAAAAAAAAAAAAAAAAA',
+      settlementAddress: 'NQ15A4YFKG7PU2KLJ7R0K3HE36PLPCC9ND0F',
+      verifiedAt: '2026-09-24T00:00:00.000Z',
+    }],
   }
 }
 
