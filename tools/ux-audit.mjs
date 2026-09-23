@@ -194,6 +194,10 @@ const passport = homeLinks.find((h) => h.includes('passport='))
 const product = homeLinks.find((h) => h.includes('product='))
 if (passport) screens.push(['passport-example', passport])
 if (product) screens.push(['product', product])
+// Every product the merchant sells, so a second chain's page is audited too.
+for (const extra of (process.env.NR_EXTRA_SCREENS ?? '').split(',').map((v) => v.trim()).filter(Boolean)) {
+  screens.push([`extra-${extra.replace(/[^a-z0-9]+/giu, '-').slice(0, 24)}`, extra])
+}
 
 let total = 0
 const bySeverity = { high: 0, medium: 0, low: 0 }

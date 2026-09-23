@@ -88,6 +88,28 @@ Phase 5 coverage includes strict ledger API/client parsing, mixed-evidence recon
 - The project lead explicitly reported **Phase 4 independent refund verification PASS** on Android 2026-09-17 under D-036. Settlement-sender routing was superseded, not passed; native cancellation, reload/recovery, and mobile/accessibility remain open.
 - The temporary Render staging origin loads and hydrates in a normal browser with no captured console warning/error; its HTTPS/API/database/RPC/security-header preflight passes. This is deployment readiness evidence only. No Phase 5 physical/mobile/accessibility, Promise Ledger lifecycle reconciliation, or unbriefed first-minute result is claimed.
 
+## Dual-network commerce (2026-09-18 to 2026-09-24)
+
+Chain reads now route through a per-network registry: every read names the network of the
+record it verifies, a network without a configured node fails closed, and a node reporting a
+different chain than it is configured for is not trusted for that chain (D-039). Migration
+0016 gives every product its own network, so a purchase is always recorded and verified on
+the product's chain and a wallet on another chain is refused before anything is signed.
+`/api/v1/network` reports every verified chain, and the client identifies which one a wallet
+is on by matching its head, because Nimiq Pay reports only the constant name `nimiq`.
+
+Mainnet verification is configured against the public community node `rpc.nimiqwatch.com`.
+That node is trusted infrastructure, not proof; the boundary and the intended second-source
+cross-check are recorded in D-039.
+
+D-040 lets an established merchant session add further products, because a merchant is one
+wallet and a product could previously only be created by creating a merchant. The merchant
+identity stays chain-agnostic. On 2026-09-24 the project lead used it to publish
+**Neutron Collider v1 on MainAlbatross** (1,000 Luna, 16-day returns, 365-day warranty) from
+the same wallet that owns the TestAlbatross `Cap` product; both are live and the testnet
+completed example is untouched. No mainnet purchase exists yet: the lead holds no mainnet NIM
+and every public faucet found was offline.
+
 ## Deployment and RPC
 
 Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on commit `ed3c6fc`, backed by one free Render Docker service and managed PostgreSQL instance in Singapore. The database expires on 2026-10-16. Render supplies HTTPS and a generated session secret. Migrations ran with the database owner; the app uses a separate `nimreturn_app` login that inherits only `nimreturn_runtime`, cannot create in `public`, has no admin attributes or owned relations, and cannot mutate either Promise Ledger view. Public checks pass for the app, `/health`, the OG image, a database-backed 404, CSP/HSTS and related headers, and the RPC diagnostic. A server-only configured real refunded Passport passes fresh reprojection and powers the no-wallet completed-example journey; its identifier and raw evidence are not stored in Git. The Android lifecycle passed through this HTTPS/WebView/CSP deployment. The configured public development RPC has no SLA and is not an operated production primary/failover verifier; the free service may cold-start after inactivity.
@@ -102,6 +124,20 @@ Temporary staging is live at `https://nimreturn-staging-cycle2.onrender.com` on 
 - **Phase 5 exit:** the manual WCAG/device matrix, Promise Ledger reconciliation against the real lifecycle, five unbriefed first-minute tests, and production operations criteria remain open.
 - **Deployment:** temporary HTTPS staging, managed database credentials, generated session secret, and a working public TestAlbatross development RPC are provisioned. Remaining release blockers are an operated primary/failover RPC, backup/restore proof, alerts, and an incident runbook. The free database expires on 2026-10-16 and the free web service cold-starts after inactivity. The current rate limiter is process-local, so staging must remain single-instance and any later multi-instance release needs a shared store.
 
+## Competition state
+
+The Cycle II submission was merged into the public showcase on 2026-09-18. Winners are
+announced on 2026-10-02, and the live app is tested during that window, so work after the
+deadline still counts. Availability is automated: UptimeRobot every five minutes and a
+GitHub Actions ping every ten keep the free instance awake, after a cold visit was measured
+at 23.4 seconds to first byte. Deploys are deliberate and one command (`npm run deploy`
+equivalent: the `deploy.yml` workflow), which refuses to run when a schema change is not yet
+migrated. `npm run audit:ux` walks every screen at phone size and `npm run audit:style`
+guards the design vocabulary; both are clean.
+
 ## Next milestone
 
-Continue the consolidated Phase 2–5 physical checklist on `https://nimreturn-staging-cycle2.onrender.com` inside Nimiq Pay, fixing only observed failures. Replace the development RPC and complete backup/alert/runbook proof before the public judge build. Do not begin the Phase 6 real-user pilot without a new explicit instruction.
+Highest priority is real usage before 2026-10-02: a third party completing a purchase on
+either chain. The mainnet product exists for buyers who hold NIM; testnet remains free and
+the product page now explains where NIM comes from on each chain. Then continue the
+consolidated Phase 2–5 physical checklist on `https://nimreturn-staging-cycle2.onrender.com` inside Nimiq Pay, fixing only observed failures. Replace the development RPC and complete backup/alert/runbook proof before the public judge build. Do not begin the Phase 6 real-user pilot without a new explicit instruction.

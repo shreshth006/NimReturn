@@ -42,8 +42,30 @@ A claim signer is derived from its public key. Exact equality with the independe
 
 Physical Android Nimiq Pay has passed T-001 provider failure/recovery, T-002 account-permission cancellation/recovery, and T-020 native payment cancellation/recovery by explicit project-lead reports. Phase 1 signing/publication and immutable v1→v2 also passed. Nimiq Pay pays from a hashed-timelock contract and signs with its owner account, so D-035 binds a purchase claim key before payment and D-036 refunds that key while recording the actual sender. With those deployed, the project lead reported PASS for Phase 2 payment/chain/Passport, Phase 3 self and distinct-signer claims plus merchant resolution, and Phase 4 independent refund verification (2026-09-17). Remaining: Phase 2 first-minute (deferred), Phase 3 claim/resolution reload and mobile/accessibility, Phase 4 cancellation/reload/mobile/accessibility, and all Phase 5 manual checks. The distinct-signer and refund-routing architecture has passed once on Android under D-035/D-036; no unperformed case is inferred. iOS is explicitly deferred by D-016. Temporary HTTPS staging is live at `https://nimreturn-staging-cycle2.onrender.com` with a free managed PostgreSQL database (expires 2026-10-16), generated session secret, least-privilege runtime login, and passing Phase-5/TestAlbatross preflight. Managed backup/restore proof, alerting/runbooks, and an operated primary/failover RPC are absent. Multi-instance rate limiting is not supported. The public development RPC is not production-grade.
 
+# Dual-network commerce
+
+Chain reads route through a per-network registry (D-039): each read names the record's own
+network, a missing node fails closed, and a node answering for another chain is not trusted
+for that chain. Migration 0016 gives every product a network, so a purchase is recorded and
+verified on the product's chain and a wallet on another chain is refused before signing —
+otherwise a mainnet promise could be settled with worthless testnet NIM. Mainnet verifies
+against the public community node `rpc.nimiqwatch.com`, which is trusted infrastructure, not
+proof. The client identifies a wallet's chain by matching its head against the chains
+`/api/v1/network` reports, because Nimiq Pay reports only the constant name `nimiq`.
+
+D-040 lets an authorized merchant session add further products, since a merchant is one
+wallet and a product could previously only be created by creating a merchant. On 2026-09-24
+the project lead published **Neutron Collider v1 on MainAlbatross** (1,000 Luna, 16/365 days)
+from the wallet that owns the TestAlbatross `Cap`; both are live. No mainnet purchase exists:
+the lead holds no mainnet NIM and every public faucet found was offline. A merchant whose
+browser storage is cleared is no longer locked out — opening the studio with their product
+offers the policy signer the existing reconnect, and authority is unchanged.
+
 # Next actions
 
-1. Continue only the remaining Phase 3–5 physical checklist on `https://nimreturn-staging-cycle2.onrender.com`, fixing observed failures.
+1. Real usage before 2026-10-02 is the highest priority: a third party completing a purchase
+   on either chain. Mainnet needs a buyer holding NIM; testnet NIM is free and the product
+   page now says where to get it.
+2. Continue only the remaining Phase 3–5 physical checklist on `https://nimreturn-staging-cycle2.onrender.com`, fixing observed failures.
 2. Fix only concrete failures, then replace the development RPC with an operated primary/failover TestAlbatross source and validate backups, alerts, CSP, and the release smoke suite.
 3. Record only explicit project-lead results in sanitized evidence; keep wallet/proof/transaction identifiers outside Git. Do not start Phase 6 until it is explicitly authorized.
