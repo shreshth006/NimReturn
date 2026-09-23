@@ -1114,9 +1114,25 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
       // The Passport read re-verifies stored policy and chain evidence and fails closed.
       const passport = await readPassport(database, config.FEATURED_PASSPORT_ID)
       if (!passport || passport.status !== 'refunded') return reply.code(404).send(unavailable)
-      // The product is returned too, so a visitor can go from reading the example to
-      // making the same purchase themselves instead of hitting a dead end.
-      return reply.send({ passportPublicId: passport.publicId, productPublicId: passport.product.publicId })
+      // Every chain the merchant sells on is offered, not just the example's own. A
+      // visitor already on Mainnet would otherwise never learn a Mainnet product exists.
+      let products: { name: string; network: string; priceLuna: number; publicId: string }[] = []
+      try {
+        const ledger = await readPromiseLedger(database, passport.merchant.publicId)
+        products = (ledger?.products ?? []).map((product) => ({
+          name: product.name,
+          network: product.network,
+          priceLuna: product.priceLuna,
+          publicId: product.publicId,
+        }))
+      } catch {
+        products = []
+      }
+      return reply.send({
+        passportPublicId: passport.publicId,
+        productPublicId: passport.product.publicId,
+        products,
+      })
     } catch (error) {
       request.log.warn({ errorType: error instanceof Error ? error.name : 'UnknownError' }, 'Featured example failed verification')
       return reply.code(404).send(unavailable)

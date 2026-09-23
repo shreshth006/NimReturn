@@ -135,12 +135,23 @@ describe('purchase API client', () => {
 
   it('accepts only strict public identifiers for the server-reverified example', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID }), { status: 200 }),
+      new Response(JSON.stringify({
+        passportPublicId: PASSPORT_ID,
+        productPublicId: PRODUCT_ID,
+        products: [{ name: 'Cap', network: 'TestAlbatross', priceLuna: 1_000, publicId: PRODUCT_ID }],
+      }), { status: 200 }),
     ))
     await expect(getFeaturedExample()).resolves.toEqual({
       passportPublicId: PASSPORT_ID,
       productPublicId: PRODUCT_ID,
+      products: [{ name: 'Cap', network: 'TestAlbatross', priceLuna: 1_000, publicId: PRODUCT_ID }],
     })
+
+    // An older server that lists no products still yields a usable example.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID }), { status: 200 }),
+    ))
+    await expect(getFeaturedExample()).resolves.toMatchObject({ products: [] })
 
     // The product is required: without it a visitor cannot repeat the purchase.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
@@ -149,7 +160,9 @@ describe('purchase API client', () => {
     await expect(getFeaturedExample()).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID, trusted: true }), { status: 200 }),
+      new Response(JSON.stringify({
+        passportPublicId: PASSPORT_ID, productPublicId: PRODUCT_ID, trusted: true,
+      }), { status: 200 }),
     ))
     await expect(getFeaturedExample()).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' })
 

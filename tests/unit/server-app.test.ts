@@ -887,8 +887,37 @@ describe('server app', () => {
     apps.push(verified)
     const ok = await verified.inject({ method: 'GET', url: '/api/v1/featured-example' })
     expect(ok.statusCode).toBe(200)
-    // The product travels with the example so the visitor can repeat the purchase.
-    expect(ok.json()).toEqual({ passportPublicId: PASSPORT_PUBLIC_ID, productPublicId: PRODUCT_PUBLIC_ID })
+    // The product travels with the example so the visitor can repeat the purchase, and
+    // every chain the merchant sells on is listed so none is invisible.
+    expect(ok.json()).toEqual({
+      passportPublicId: PASSPORT_PUBLIC_ID,
+      productPublicId: PRODUCT_PUBLIC_ID,
+      products: [],
+    })
+
+    const withProducts = await buildApp(featured, {
+      database: {} as postgres.Sql,
+      readPassport: (_database, publicId) => Promise.resolve({
+        merchant: { publicId: MERCHANT_PUBLIC_ID },
+        product: { publicId: PRODUCT_PUBLIC_ID },
+        publicId,
+        status: 'refunded',
+      } as never),
+      readPromiseLedger: () => Promise.resolve({
+        products: [
+          { name: 'Cap', network: 'TestAlbatross', priceLuna: 1_000, publicId: PRODUCT_PUBLIC_ID },
+          { name: 'Collider', network: 'MainAlbatross', priceLuna: 1_000, publicId: MERCHANT_PUBLIC_ID },
+        ],
+      } as never),
+    })
+    apps.push(withProducts)
+    const listed = await withProducts.inject({ method: 'GET', url: '/api/v1/featured-example' })
+    expect(listed.json()).toMatchObject({
+      products: [
+        { name: 'Cap', network: 'TestAlbatross' },
+        { name: 'Collider', network: 'MainAlbatross' },
+      ],
+    })
 
     for (const readPassport of [
       () => Promise.reject(new Error('evidence integrity failure')),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { getFeaturedExample } from '../../lib/api/purchase.js'
+import { getFeaturedExample, type FeaturedExample } from '../../lib/api/purchase.js'
 import { clearMerchantWorkspace, loadMerchantWorkspace } from '../merchant/merchant-workspace.js'
 
 /**
@@ -8,7 +8,7 @@ import { clearMerchantWorkspace, loadMerchantWorkspace } from '../merchant/merch
  * two things anyone could want next, rather than opening on a merchant form.
  */
 export function Landing() {
-  const [example, setExample] = useState<{ passportPublicId: string; productPublicId: string } | null>(null)
+  const [example, setExample] = useState<FeaturedExample | null>(null)
   // Read once at first render: this is device-local storage, not an external system to sync with.
   const [workspaceProduct, setWorkspaceProduct] = useState<string | null>(
     () => loadMerchantWorkspace()?.productName ?? null,
@@ -21,6 +21,14 @@ export function Landing() {
       .catch(() => { if (active) setExample(null) })
     return () => { active = false }
   }, [])
+
+  // One card per chain, so a visitor already on Mainnet is not offered only a Testnet
+  // product and left believing there is nothing to buy.
+  const buyable = (example?.products ?? []).length > 0
+    ? (example?.products ?? [])
+    : example
+      ? [{ name: 'this product', network: '', priceLuna: 0, publicId: example.productPublicId }]
+      : []
 
   function forgetWorkspace() {
     clearMerchantWorkspace()
@@ -40,16 +48,20 @@ export function Landing() {
       </section>
 
       <section className="landing-paths" aria-label="Choose how to start">
-        {example && (
-          <a className="landing-card landing-card--primary" href={`/?product=${example.productPublicId}`}>
-            <span>Buy something protected</span>
-            <strong>Make a protected purchase</strong>
+        {buyable.map((product, index) => (
+          <a
+            className={index === 0 ? 'landing-card landing-card--primary' : 'landing-card'}
+            href={`/?product=${product.publicId}`}
+            key={product.publicId}
+          >
+            <span>{networkOffer(product.network)}</span>
+            <strong>Buy {product.name}, protected</strong>
             <small>
-              A real product with merchant-signed terms. You pay the merchant directly in NIM and get a
-              Purchase Passport of your own.
+              {formatNim(product.priceLuna)} NIM with merchant-signed return and warranty terms. You
+              pay the merchant directly and get a Purchase Passport of your own.
             </small>
           </a>
-        )}
+        ))}
 
         {example && (
           <a className="landing-card" href={`/?passport=${example.passportPublicId}`}>
@@ -103,4 +115,14 @@ export function Landing() {
       </section>
     </>
   )
+}
+
+function formatNim(valueLuna: number): string {
+  return (valueLuna / 100_000).toLocaleString(undefined, { maximumFractionDigits: 5 })
+}
+
+function networkOffer(network: string): string {
+  if (network === 'TestAlbatross') return 'On Nimiq Testnet · NIM is free'
+  if (network === 'MainAlbatross') return 'On Nimiq Mainnet · real NIM'
+  return 'Buy something protected'
 }

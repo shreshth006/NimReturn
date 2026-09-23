@@ -250,6 +250,8 @@ export function recheckTransaction(orderPublicId: string): Promise<PurchaseOrder
 export interface FeaturedExample {
   passportPublicId: string
   productPublicId: string
+  /** Everything this merchant sells, so each chain can be offered by name. */
+  products: { name: string; network: string; priceLuna: number; publicId: string }[]
 }
 
 export async function getFeaturedExample(): Promise<FeaturedExample | null> {
@@ -264,6 +266,12 @@ export async function getFeaturedExample(): Promise<FeaturedExample | null> {
   const parsed = z.object({
     passportPublicId: publicTokenSchema,
     productPublicId: publicTokenSchema,
+    products: z.array(z.object({
+      name: z.string().min(1).max(100),
+      network: z.string().min(1).max(24),
+      priceLuna: z.number().int().positive().safe(),
+      publicId: publicTokenSchema,
+    }).strict()).max(20).default([]),
   }).strict().safeParse(body)
   if (!response.ok || !parsed.success) {
     throw new PurchaseApiError('INVALID_API_RESPONSE', 'NimReturn returned an invalid example reference.', response.status)

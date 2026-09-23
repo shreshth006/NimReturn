@@ -57,6 +57,8 @@ export interface PromiseLedgerView {
   }
   products: Array<{
     name: string
+    /** The chain this product sells on; a buyer must pay there. */
+    network: string
     payloadHash: string
     policySignerAddress: string
     policyVersion: number
@@ -88,6 +90,7 @@ type LedgerRow = {
 
 type ProductRow = {
   name: string
+  network: string
   payload_hash: string
   policy_signer_address: string
   policy_version: number
@@ -145,6 +148,7 @@ export async function getPromiseLedger(
   const products = await database<ProductRow[]>`
     select
       products.public_id,
+      products.network,
       policies.product_name as name,
       policies.version as policy_version,
       policies.price_luna,
@@ -227,6 +231,7 @@ export async function getPromiseLedger(
     },
     products: products.map((product) => ({
       name: product.name,
+      network: product.network,
       payloadHash: product.payload_hash,
       policySignerAddress: product.policy_signer_address,
       policyVersion: product.policy_version,
