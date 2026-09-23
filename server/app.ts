@@ -12,6 +12,10 @@ import {
   MerchantDraftCreationError,
 } from './domain/create-merchant-draft.js'
 import {
+  createMerchantProduct,
+  MerchantProductCreationError,
+} from './domain/create-merchant-product.js'
+import {
   createPolicyChallenge,
   PolicyChallengeCreationError,
 } from './domain/create-policy-challenge.js'
@@ -83,6 +87,11 @@ const publicToken = z.string().regex(/^[A-Za-z0-9_-]{22}$/u)
 const resourceParamsSchema = z.object({
   merchantPublicId: publicToken,
   productPublicId: publicToken,
+}).strict()
+const createProductBodySchema = z.object({
+  description: z.string().max(2_048).optional(),
+  network: z.string().min(1).max(24).optional(),
+  productName: z.string().min(1).max(512),
 }).strict()
 const createMerchantBodySchema = z.object({
   defaultSettlementAddress: z.string().min(1).max(64),
@@ -395,6 +404,7 @@ function refundError(error: unknown): WriterError {
 export interface AppDependencies {
   createMerchantSessionChallenge?: typeof createMerchantSessionChallenge
   createDraft?: typeof createMerchantDraft
+  createProduct?: typeof createMerchantProduct
   createOrder?: typeof createPurchaseOrder
   createPolicyChallenge?: typeof createPolicyChallenge
   database?: postgres.Sql | null
@@ -469,6 +479,7 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
 
   const database = dependencies.database ?? null
   const createDraft = dependencies.createDraft ?? createMerchantDraft
+  const createProduct = dependencies.createProduct ?? createMerchantProduct
   const issueMerchantSessionChallenge = dependencies.createMerchantSessionChallenge
     ?? createMerchantSessionChallenge
   const createOrder = dependencies.createOrder ?? createPurchaseOrder
@@ -544,6 +555,62 @@ export async function buildApp(config: ServerConfig, dependencies: AppDependenci
     service: 'nimreturn-api',
     status: 'ok',
   }))
+
+  /**
+   * Adds a product to an existing merchant. A merchant is one wallet, so without this
+   * a wallet could only ever sell one thing, on one chain.
+   */
+  app.post('/api/v1/merchants/:merchantPublicId/products', {
+    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+  }, async (request, reply) => {
+    if (!writerOriginAllowed(request.headers.origin)) {
+      return reply.code(403).send({ code: 'ORIGIN_FORBIDDEN', message: 'The request origin is not allowed.' })
+    }
+    const params = merchantParamsSchema.safeParse(request.params)
+    const body = createProductBodySchema.safeParse(request.body)
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'The product request is invalid.' })
+    }
+    if (!database || !config.SESSION_SECRET) {
+      return reply.code(503).send({ code: 'WRITER_UNAVAILABLE', message: 'Product creation is temporarily unavailable.' })
+    }
+    if (!merchantAuthorization(request.cookies, params.data.merchantPublicId)?.sessionAuthorized) {
+      return reply.code(401).send({ code: 'MERCHANT_AUTH_REQUIRED', message: 'Merchant authorization is missing or expired.' })
+    }
+    const network = body.data.network ?? config.NIMIQ_NETWORK
+    if (rpc && !rpc.has(network)) {
+      return reply.code(409).send({
+        code: 'NETWORK_UNSUPPORTED',
+        message: 'NimReturn cannot verify that Nimiq network, so a product cannot be sold on it.',
+      })
+    }
+
+    try {
+      const created = await createProduct(database, {
+        ...body.data,
+        merchantPublicId: params.data.merchantPublicId,
+        network,
+      })
+      return reply.code(201).send(created)
+    } catch (error) {
+      request.log.warn({
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+        reason: error instanceof MerchantProductCreationError ? error.code : undefined,
+        ...databaseFailureDetail(error),
+      }, 'Product creation failed')
+      const code = error instanceof MerchantProductCreationError ? error.code : 'WRITER_UNAVAILABLE'
+      if (code === 'INVALID_REQUEST') {
+        return reply.code(400).send({ code, message: 'The product request is invalid.' })
+      }
+      if (code === 'MERCHANT_NOT_FOUND') {
+        return reply.code(404).send({ code, message: 'The merchant was not found.' })
+      }
+      return reply.code(503).send({
+        code: 'WRITER_UNAVAILABLE',
+        message: 'The product could not be created safely.',
+      })
+    }
+  })
 
   app.post('/api/v1/merchants', {
     config: { rateLimit: { max: 5, timeWindow: '1 hour' } },

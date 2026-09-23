@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../../server/app.js'
 import { PolicyPublishError } from '../../server/domain/publish-policy.js'
+import { createMerchantSessionToken } from '../../server/http/merchant-session.js'
 import type { ServerConfig } from '../../server/config.js'
 import type { PurchaseOrderView } from '../../server/domain/purchase-order.js'
 import {
@@ -749,6 +750,90 @@ describe('server app', () => {
     })
     apps.push(wrong)
     expect((await wrong.inject({ method: 'GET', url: '/api/v1/network' })).json()).toMatchObject({ headBlockNumber: null })
+  })
+
+  it('adds another product to an existing merchant only for an authorized session', async () => {
+    const inputs: unknown[] = []
+    const app = await buildApp(writerConfig, {
+      createProduct: (_database, input) => {
+        inputs.push(input)
+        return Promise.resolve({
+          merchantPublicId: MERCHANT_PUBLIC_ID,
+          network: 'TestAlbatross',
+          productName: 'Second thing',
+          productPublicId: PRODUCT_PUBLIC_ID,
+        })
+      },
+      database: {} as postgres.Sql,
+    })
+    apps.push(app)
+    const url = `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/products`
+    const origin = writerConfig.CORS_ORIGIN ?? ''
+
+    // Without a merchant session nothing is created.
+    const anonymous = await app.inject({ headers: { origin }, method: 'POST', payload: { productName: 'Second thing' }, url })
+    expect(anonymous.statusCode).toBe(401)
+    expect(inputs).toEqual([])
+
+    const token = createMerchantSessionToken({
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+      secret: writerConfig.SESSION_SECRET ?? '',
+    }).token
+    const cookies = { nimreturn_merchant_session: token }
+
+    const created = await app.inject({
+      cookies, headers: { origin }, method: 'POST',
+      payload: { network: 'TestAlbatross', productName: 'Second thing' }, url,
+    })
+    expect(created.statusCode).toBe(201)
+    expect(created.json()).toMatchObject({ productPublicId: PRODUCT_PUBLIC_ID })
+    expect(inputs).toEqual([{
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+      network: 'TestAlbatross',
+      productName: 'Second thing',
+    }])
+
+    // A session for one merchant cannot create products for another.
+    const other = await app.inject({
+      cookies, headers: { origin }, method: 'POST',
+      payload: { productName: 'Not mine' },
+      url: `/api/v1/merchants/${PASSPORT_PUBLIC_ID}/products`,
+    })
+    expect(other.statusCode).toBe(401)
+    expect(inputs).toHaveLength(1)
+  })
+
+  it('refuses a product on a chain it cannot verify', async () => {
+    const inputs: unknown[] = []
+    const app = await buildApp(writerConfig, {
+      createProduct: (_database, input) => {
+        inputs.push(input)
+        return Promise.resolve({
+          merchantPublicId: MERCHANT_PUBLIC_ID,
+          network: 'TestAlbatross',
+          productName: 'Second thing',
+          productPublicId: PRODUCT_PUBLIC_ID,
+        })
+      },
+      database: {} as postgres.Sql,
+      rpc: { configured: true, has: (network: string) => network === 'TestAlbatross' } as never,
+    })
+    apps.push(app)
+    const token = createMerchantSessionToken({
+      merchantPublicId: MERCHANT_PUBLIC_ID,
+      secret: writerConfig.SESSION_SECRET ?? '',
+    }).token
+
+    const refused = await app.inject({
+      cookies: { nimreturn_merchant_session: token },
+      headers: { origin: writerConfig.CORS_ORIGIN ?? '' },
+      method: 'POST',
+      payload: { network: 'MainAlbatross', productName: 'Second thing' },
+      url: `/api/v1/merchants/${MERCHANT_PUBLIC_ID}/products`,
+    })
+    expect(refused.statusCode).toBe(409)
+    expect(refused.json()).toMatchObject({ code: 'NETWORK_UNSUPPORTED' })
+    expect(inputs).toEqual([])
   })
 
   it('tells a signer their wallet already belongs to another merchant', async () => {

@@ -7,6 +7,7 @@ import { assertWalletOnExpectedNetwork, identifyWalletNetwork } from '../../lib/
 import { MerchantClaimQueue } from '../claims/MerchantClaimQueue.js'
 import {
   createMerchant,
+  createProduct,
   getPublicProduct,
   MerchantApiError,
   publishPolicy,
@@ -545,6 +546,49 @@ export function MerchantPolicyStudio() {
     }
   }
 
+  /**
+   * Sells something else under the same merchant identity. One wallet is one merchant,
+   * so without this a merchant could only ever have the single product it was created
+   * with, on the single chain it was created on.
+   */
+  async function startAnotherProduct(productName: string) {
+    if (!workspace) return
+    setBusy('draft')
+    setNotice(null)
+    try {
+      const activeProvider = provider ?? await initializeNimiqProvider()
+      setProvider(activeProvider)
+      const { label, network } = await identifyWalletNetwork(activeProvider)
+      const created = await createProduct({
+        merchantPublicId: workspace.merchantPublicId,
+        network,
+        productName,
+      })
+      const nextWorkspace: MerchantWorkspace = {
+        displayName: workspace.displayName,
+        merchantPublicId: workspace.merchantPublicId,
+        productName: created.productName,
+        productPublicId: created.productPublicId,
+      }
+      saveMerchantWorkspace(nextWorkspace)
+      setWorkspace(nextWorkspace)
+      setPublicProduct(null)
+      setChallenge(null)
+      setLocalProof(null)
+      setPublicationSucceeded(false)
+      setTermsForm({ ...EMPTY_TERMS, settlementAddress: draftForm.settlementAddress })
+      setEditingTerms(true)
+      setNotice({
+        kind: 'info',
+        message: `${created.productName} will sell on ${label}. Set its terms below and sign them; your earlier products are untouched.`,
+      })
+    } catch (error) {
+      setNotice({ kind: 'error', message: friendlyError(error) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   function startNewVersion() {
     if (!workspace || !publicProduct) return
     const nextWorkspace = savePendingChallenge(workspace, undefined)
@@ -801,6 +845,7 @@ export function MerchantPolicyStudio() {
         <VerifiedPolicyPanel
           product={publicProduct}
           canEdit={workspace?.productPublicId === publicProduct.product.publicId && !challenge && !authorizationLost}
+          onAnotherProduct={(productName) => void startAnotherProduct(productName)}
           onNewVersion={startNewVersion}
         />
       )}
@@ -839,10 +884,12 @@ function PolicySummary({ payload }: { payload: PolicyChallenge['payload'] }) {
 
 function VerifiedPolicyPanel({
   canEdit,
+  onAnotherProduct,
   onNewVersion,
   product,
 }: {
   canEdit: boolean
+  onAnotherProduct: (productName: string) => void
   onNewVersion: () => void
   product: PublicVerifiedProduct
 }) {
@@ -943,6 +990,28 @@ function VerifiedPolicyPanel({
         <button className="button-secondary version-action" type="button" onClick={onNewVersion}>
           Change terms · create v{payload.version + 1}
         </button>
+      )}
+
+      {canEdit && (
+        <form
+          className="another-product"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = new FormData(event.currentTarget).get('productName')
+            const name = typeof field === 'string' ? field.trim() : ''
+            if (name) onAnotherProduct(name)
+          }}
+        >
+          <label>
+            Sell something else
+            <input name="productName" required maxLength={100} placeholder="Another product name" />
+            <span className="hint">
+              Same merchant identity and signing wallet. It sells on whichever Nimiq network your
+              wallet is on, so you can offer one product on Testnet and another on Mainnet.
+            </span>
+          </label>
+          <button className="button-secondary" type="submit">Create another product</button>
+        </form>
       )}
     </section>
   )

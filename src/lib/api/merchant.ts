@@ -208,6 +208,30 @@ export function createMerchant(input: CreateMerchantInput): Promise<CreatedMerch
   })
 }
 
+const createdProductSchema = z.object({
+  merchantPublicId: publicTokenSchema,
+  network: z.string().min(1).max(24),
+  productName: z.string().min(1),
+  productPublicId: publicTokenSchema,
+}).strict()
+
+export type CreatedProduct = z.infer<typeof createdProductSchema>
+
+/** Adds another product to a merchant that already exists, on the wallet's own chain. */
+export function createProduct(input: {
+  description?: string
+  merchantPublicId: string
+  network?: string
+  productName: string
+}): Promise<CreatedProduct> {
+  const { merchantPublicId, ...body } = input
+  return requestJson(
+    `/api/v1/merchants/${publicTokenSchema.parse(merchantPublicId)}/products`,
+    createdProductSchema,
+    { body: JSON.stringify(body), method: 'POST' },
+  )
+}
+
 export function requestPolicyChallenge(input: {
   merchantPublicId: string
   productPublicId: string
