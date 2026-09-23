@@ -23,10 +23,12 @@ export function App() {
   const passportPublicId = params.get('passport')
   const productPublicId = params.get('product')
   const publicLedger = !diagnostics && Boolean(merchantPublicId)
-  const buyerJourney = !diagnostics && !publicLedger && Boolean(passportPublicId || productPublicId)
-  // The merchant studio is a destination now, not the front door.
-  const merchantStudio = !diagnostics && !publicLedger && !buyerJourney && params.has('sell')
-  const landing = !diagnostics && !publicLedger && !buyerJourney && !merchantStudio
+  // `sell` wins over a product id, so a merchant can reopen their own product in the
+  // studio rather than being sent to the buyer's page for it.
+  const merchantStudio = !diagnostics && !publicLedger && params.has('sell')
+  const buyerJourney = !diagnostics && !publicLedger && !merchantStudio
+    && Boolean(passportPublicId || productPublicId)
+  const landing = !diagnostics && !publicLedger && !merchantStudio && !buyerJourney
 
   return (
     <main>

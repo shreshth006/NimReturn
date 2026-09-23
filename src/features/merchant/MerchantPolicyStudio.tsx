@@ -280,6 +280,17 @@ export function MerchantPolicyStudio() {
         if (!active) return
         setPublicProduct(product)
         if (!initialWorkspace?.pendingChallenge) setEditingTerms(false)
+        // The workspace lives only in this browser. When it is gone but the product is
+        // known, the merchant is not locked out: their policy signer can reconnect.
+        if (!initialWorkspace) {
+          setWorkspace({
+            displayName: product.merchant.displayName,
+            merchantPublicId: product.merchant.publicId,
+            productName: product.policy.payload.productName,
+            productPublicId: product.product.publicId,
+          })
+          setAuthorizationLost(true)
+        }
         setNotice(null)
       })
       .catch((error: unknown) => {
