@@ -114,6 +114,7 @@ const publicProductSchema = z.object({
   policyVersions: z.array(verifiedPolicySchema.extend({ active: z.boolean() })).min(1),
   product: z.object({
     description: z.string().max(500),
+    network: z.string().min(1).max(24),
     publicId: publicTokenSchema,
   }).strict(),
 }).strict()

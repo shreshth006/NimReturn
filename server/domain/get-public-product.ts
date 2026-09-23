@@ -33,6 +33,7 @@ export interface PublicProductRow {
   policy_signature: string | null
   policy_signer_address: string | null
   product_description: string
+  product_network: string
   product_public_id: string
   product_name: string
   protocol_version: string
@@ -66,6 +67,8 @@ export interface PublicVerifiedProduct {
   }>
   product: {
     description: string
+    /** The chain this product sells on; a purchase must be paid and verified there. */
+    network: string
     publicId: string
   }
 }
@@ -211,6 +214,7 @@ export async function getPublicVerifiedProduct(
     select
       products.public_id as product_public_id,
       products.description as product_description,
+      products.network as product_network,
       products.active_policy_version_id,
       merchants.public_id as merchant_public_id,
       merchants.display_name,
@@ -260,6 +264,7 @@ export async function getPublicVerifiedProduct(
     })),
     product: {
       description: requireCanonicalDescription(firstRow.product_description),
+      network: firstRow.product_network,
       publicId: active.policy.payload.productId,
     },
   }

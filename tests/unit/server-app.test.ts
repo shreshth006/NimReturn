@@ -153,7 +153,7 @@ describe('server app', () => {
         verifiedAt,
       },
       policyVersions: [],
-      product: { description: 'A dependable cup.', publicId: 'AAAAAAAAAAAAAAAAAAAAAA' },
+      product: { description: 'A dependable cup.', network: 'TestAlbatross', publicId: 'AAAAAAAAAAAAAAAAAAAAAA' },
     }
     const app = await buildApp(config, {
       database: {} as postgres.Sql,

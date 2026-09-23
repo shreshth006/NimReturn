@@ -434,6 +434,7 @@ export function BuyerPurchaseJourney({
             {busy === 'verifying' ? 'Verifying on Nimiq…' : order?.transaction?.observedState === 'included' ? 'Recheck finality' : 'Check transaction again'}
           </button>
         )}
+        <NoFundsHelp network={product.product.network} priceLuna={payload.priceLuna} />
         {isAmbiguous && !order.transaction && (
           <div className="ambiguity-lock">
             <strong>Second payment blocked</strong>
@@ -557,4 +558,33 @@ function PassportPanel({
 
 function PassportFact({ detail, label, mono = false, value }: { detail?: string; label: string; mono?: boolean; value: string }) {
   return <div><dt>{label}</dt><dd className={mono ? 'mono' : undefined}>{value}</dd>{detail && <small>{detail}</small>}</div>
+}
+
+/**
+ * A visitor with an empty wallet reaches the pay button and stops, because nothing
+ * tells them where NIM comes from. On testnet it is free and two taps away.
+ */
+function NoFundsHelp({ network, priceLuna }: { network: string; priceLuna: number }) {
+  const testnet = network === 'TestAlbatross'
+  return (
+    <details className="no-funds">
+      <summary>No NIM in your wallet?</summary>
+      {testnet
+        ? (
+            <p>
+              This product sells on <strong>Nimiq Testnet</strong>, where NIM is free. In Nimiq Pay,
+              press and hold <strong>Settings</strong> for about ten seconds to reveal the network
+              menu, switch to <strong>Testnet</strong>, then use <strong>Get free NIM</strong>.
+              You need {formatNim(priceLuna)} NIM to buy this.
+            </p>
+          )
+        : (
+            <p>
+              This product sells on <strong>Nimiq Mainnet</strong>, so buying it needs real NIM —
+              {' '}{formatNim(priceLuna)} NIM, plus a small network fee. You can top up inside Nimiq
+              Pay, or try the same product on Testnet where NIM is free.
+            </p>
+          )}
+    </details>
+  )
 }
